@@ -7,3 +7,5 @@ Foundation online.
 Version 0.0.2
 RAG constants are online.
 
+Version 0.0.3
+Logger is online.

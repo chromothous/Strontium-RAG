@@ -39,6 +39,24 @@ def full_test():
         print(red(e))
         print(red("Version 0.0.2 failed"))
 
+    try:
+        tests += 1
+        from classes.logger import Logger
+        logger = Logger()
+        assert logger is not None
+        assert hasattr(logger, "info")
+        assert hasattr(logger, "warning")
+        assert hasattr(logger, "error")
+        logger.info("Information message test.")
+        logger.warning("Warning message test.")
+        logger.error("Error message test.")
+        print(green("Version 0.0.3 logger is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.0.3 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
