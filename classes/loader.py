@@ -3,6 +3,7 @@ import os
 from classes.document import Document
 from classes.logger import Logger
 
+
 class Loader:
     def __init__(self, logger):
         if not isinstance(logger, Logger):

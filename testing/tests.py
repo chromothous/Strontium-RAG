@@ -197,6 +197,29 @@ def full_test():
         print(red(e))
         print(red("Version 0.0.10 failed"))
 
+    try:
+        tests += 1
+        from classes.loader import Loader
+        from classes.logger import Logger
+        logger = Logger()
+        loader = Loader(logger)
+        try:
+            loader.load("")
+            assert False
+        except ValueError:
+            pass
+        try:
+            loader.load("does_not_exist.txt")
+            assert False
+        except FileNotFoundError:
+            pass
+        print(green("Version 0.0.11 loader validation is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.0.11 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
