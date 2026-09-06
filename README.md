@@ -12,3 +12,6 @@ Logger is online.
 
 Version 0.0.4
 Document class is online.
+
+Version 0.0.5
+Document validation is online.

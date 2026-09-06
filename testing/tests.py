@@ -70,6 +70,39 @@ def full_test():
         print(red(e))
         print(red("Version 0.0.4 failed"))
 
+    try:
+        tests += 1
+        from classes.document import Document
+        document = Document("This is test content.", "test.txt")
+        assert document.content == "This is test content."
+        assert document.source == "test.txt"
+        try:
+            Document("", "test.txt")
+            assert False
+        except ValueError:
+            pass
+        try:
+            Document("Test content.", "")
+            assert False
+        except ValueError:
+            pass
+        try:
+            Document(123, "test.txt")
+            assert False
+        except ValueError:
+            pass
+        try:
+            Document("Test content.", 123)
+            assert False
+        except ValueError:
+            pass
+        print(green("Version 0.0.5 document validation is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.0.5 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
