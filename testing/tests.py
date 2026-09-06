@@ -184,7 +184,7 @@ def full_test():
         with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False) as file:
             file.write("This is test document content.")
             path = file.name
-        loader = Loader()
+        loader = Loader(logger)
         document = loader.load(path)
         assert isinstance(document, Document)
         assert document.content == "This is test document content."

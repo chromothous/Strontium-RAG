@@ -30,3 +30,6 @@ Document deserialization is online.
 
 Version 0.0.10
 Text file loader is online.
+
+Version 0.0.10.2
+Weaved logger into loader class.
