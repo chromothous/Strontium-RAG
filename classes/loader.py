@@ -3,7 +3,6 @@ import os
 from classes.document import Document
 from classes.logger import Logger
 
-
 class Loader:
     def __init__(self, logger):
         if not isinstance(logger, Logger):
@@ -26,6 +25,11 @@ class Loader:
         if not content:
             self.logger.warning(f"Document is empty: {path}")
             raise ValueError("Document content cannot be empty")
-        document = Document(content, path)
+        metadata = {
+            "file_name": os.path.basename(path),
+            "file_type": os.path.splitext(path)[1].lower(),
+            "file_size": os.path.getsize(path)
+        }
+        document = Document(content, path, metadata)
         self.logger.info(f"Document loaded successfully: {path}")
         return document

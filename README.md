@@ -42,3 +42,6 @@ Empty document handling is online.
 
 Version 0.0.13
 Document type validation is online.
+
+Version 0.0.14
+Loader metadata is online.

@@ -273,6 +273,29 @@ def full_test():
         print(red(e))
         print(red("Version 0.0.13 failed"))
 
+    try:
+        tests += 1
+        import os
+        import tempfile
+        from classes.loader import Loader
+        from classes.logger import Logger
+        logger = Logger()
+        loader = Loader(logger)
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", encoding="utf-8", delete=False) as file:
+            file.write("This is test document content.")
+            path = file.name
+        document = loader.load(path)
+        assert document.metadata["file_name"] == os.path.basename(path)
+        assert document.metadata["file_type"] == ".txt"
+        assert document.metadata["file_size"] == len("This is test document content.".encode("utf-8"))
+        os.remove(path)
+        print(green("Version 0.0.14 loader metadata is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.0.14 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
