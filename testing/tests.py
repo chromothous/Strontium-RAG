@@ -157,6 +157,24 @@ def full_test():
         print(red(e))
         print(red("Version 0.0.8 failed"))
 
+    try:
+        tests += 1
+        from classes.document import Document
+        document = Document("This is test content.", "test.txt", {"type": "text"})
+        data = document.to_dict()
+        restored = Document.from_dict(data)
+        assert isinstance(restored, Document)
+        assert restored.id == document.id
+        assert restored.content == document.content
+        assert restored.source == document.source
+        assert restored.metadata == document.metadata
+        print(green("Version 0.0.9 document deserialization is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.0.9 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

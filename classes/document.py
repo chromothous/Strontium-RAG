@@ -20,3 +20,16 @@ class Document:
             "source": self.source,
             "metadata": self.metadata
         }
+
+    @classmethod
+    def from_dict(cls, data):
+        if not isinstance(data, dict):
+            raise ValueError("Document data must be a dictionary")
+        if "content" not in data:
+            raise ValueError("Document data is missing content")
+        if "source" not in data:
+            raise ValueError("Document data is missing source")
+        document = cls(data["content"], data["source"], data.get("metadata"))
+        if "id" in data:
+            document.id = data["id"]
+        return document

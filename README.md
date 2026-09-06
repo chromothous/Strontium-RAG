@@ -24,3 +24,6 @@ Document identity is online.
 
 Version 0.0.8
 Document serialization is online.
+
+Version 0.0.9
+Document deserialization is online.
