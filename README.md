@@ -3,3 +3,7 @@ Strontium RAG is a retrieval-augmented generation system designed to retrieve re
 
 Version 0.0.1
 Foundation online.
+
+Version 0.0.2
+RAG constants are online.
+

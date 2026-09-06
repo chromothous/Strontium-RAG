@@ -22,6 +22,23 @@ def full_test():
         print(red(e))
         print(red("Version 0.0.1 failed"))
 
+    try:
+        tests += 1
+        from constants.rag import CHUNK_SIZE, CHUNK_OVERLAP, TOP_K
+        assert isinstance(CHUNK_SIZE, int)
+        assert isinstance(CHUNK_OVERLAP, int)
+        assert isinstance(TOP_K, int)
+        assert CHUNK_SIZE > 0
+        assert CHUNK_OVERLAP >= 0
+        assert CHUNK_OVERLAP < CHUNK_SIZE
+        assert TOP_K > 0
+        print(green("Version 0.0.2 RAG constants are online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.0.2 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
