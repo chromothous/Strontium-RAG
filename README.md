@@ -21,3 +21,6 @@ Document metadata is online.
 
 Version 0.0.7
 Document identity is online.
+
+Version 0.0.8
+Document serialization is online.

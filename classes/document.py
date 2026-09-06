@@ -12,3 +12,11 @@ class Document:
         self.content = content
         self.source = source
         self.metadata = metadata if metadata is not None else {}
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "content": self.content,
+            "source": self.source,
+            "metadata": self.metadata
+        }
