@@ -9,6 +9,11 @@ class Loader:
             raise ValueError("Loader logger must be a Logger")
         self.logger = logger
 
+    def read_file(self, path):
+        self.logger.info(f"Reading file: {path}")
+        with open(path, "r", encoding="utf-8") as file:
+            return file.read()
+
     def load(self, path):
         if not isinstance(path, str) or not path:
             self.logger.error("Loader path must be a non-empty string")
@@ -19,9 +24,7 @@ class Loader:
         if os.path.splitext(path)[1].lower() != ".txt":
             self.logger.error(f"Unsupported document type: {path}")
             raise ValueError("Loader only supports .txt files")
-        self.logger.info(f"Loading document: {path}")
-        with open(path, "r", encoding="utf-8") as file:
-            content = file.read()
+        content = self.read_file(path)
         if not content:
             self.logger.warning(f"Document is empty: {path}")
             raise ValueError("Document content cannot be empty")

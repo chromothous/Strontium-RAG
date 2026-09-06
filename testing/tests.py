@@ -296,6 +296,29 @@ def full_test():
         print(red(e))
         print(red("Version 0.0.14 failed"))
 
+    try:
+        tests += 1
+        import os
+        import tempfile
+        from classes.loader import Loader
+        from classes.logger import Logger
+        logger = Logger()
+        loader = Loader(logger)
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", encoding="utf-8", delete=False) as file:
+            file.write("This is a file reading test.")
+            path = file.name
+        content = loader.read_file(path)
+        assert content == "This is a file reading test."
+        document = loader.load(path)
+        assert document.content == "This is a file reading test."
+        os.remove(path)
+        print(green("Version 0.0.15 loader file reading is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.0.15 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
