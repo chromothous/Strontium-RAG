@@ -36,3 +36,6 @@ Weaved logger into loader class.
 
 Version 0.0.11
 Loader validation is online.
+
+Version 0.0.12
+Empty document handling is online.

@@ -20,6 +20,9 @@ class Loader:
         self.logger.info(f"Loading document: {path}")
         with open(path, "r", encoding="utf-8") as file:
             content = file.read()
+        if not content:
+            self.logger.warning(f"Document is empty: {path}")
+            raise ValueError("Document content cannot be empty")
         document = Document(content, path)
         self.logger.info(f"Document loaded successfully: {path}")
         return document
