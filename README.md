@@ -18,3 +18,6 @@ Document validation is online.
 
 Version 0.0.6
 Document metadata is online.
+
+Version 0.0.7
+Document identity is online.

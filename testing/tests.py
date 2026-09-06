@@ -124,6 +124,22 @@ def full_test():
         print(red(e))
         print(red("Version 0.0.6 failed"))
 
+    try:
+        tests += 1
+        from classes.document import Document
+        document = Document("This is test content.", "test.txt")
+        assert document.id is not None
+        assert isinstance(document.id, str)
+        assert len(document.id) == 36
+        document_two = Document("This is test content.", "test.txt")
+        assert document.id != document_two.id
+        print(green("Version 0.0.7 document identity is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.0.7 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
