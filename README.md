@@ -15,3 +15,6 @@ Document class is online.
 
 Version 0.0.5
 Document validation is online.
+
+Version 0.0.6
+Document metadata is online.

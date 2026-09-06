@@ -103,6 +103,27 @@ def full_test():
         print(red(e))
         print(red("Version 0.0.5 failed"))
 
+    try:
+        tests += 1
+        from classes.document import Document
+        document = Document("This is test content.", "test.txt", {"type": "text"})
+        assert document.content == "This is test content."
+        assert document.source == "test.txt"
+        assert document.metadata == {"type": "text"}
+        document = Document("This is test content.", "test.txt")
+        assert document.metadata == {}
+        try:
+            Document("Test content.", "test.txt", "invalid")
+            assert False
+        except ValueError:
+            pass
+        print(green("Version 0.0.6 document metadata is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.0.6 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
