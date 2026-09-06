@@ -57,6 +57,19 @@ def full_test():
         print(red(e))
         print(red("Version 0.0.3 failed"))
 
+    try:
+        tests += 1
+        from classes.document import Document
+        document = Document("This is test content.", "test.txt")
+        assert document.content == "This is test content."
+        assert document.source == "test.txt"
+        print(green("Version 0.0.4 document is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.0.4 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

@@ -9,3 +9,6 @@ RAG constants are online.
 
 Version 0.0.3
 Logger is online.
+
+Version 0.0.4
+Document class is online.
