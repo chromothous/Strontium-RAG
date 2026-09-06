@@ -181,7 +181,7 @@ def full_test():
         import tempfile
         from classes.loader import Loader
         from classes.document import Document
-        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False) as file:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", encoding="utf-8", delete=False) as file:
             file.write("This is test document content.")
             path = file.name
         loader = Loader(logger)
@@ -242,6 +242,36 @@ def full_test():
         failure += 1
         print(red(e))
         print(red("Version 0.0.12 failed"))
+
+    try:
+        tests += 1
+        import os
+        import tempfile
+        from classes.loader import Loader
+        from classes.logger import Logger
+        logger = Logger()
+        loader = Loader(logger)
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", encoding="utf-8", delete=False) as file:
+            file.write("This is a supported document.")
+            txt_path = file.name
+        document = loader.load(txt_path)
+        assert document.content == "This is a supported document."
+        os.remove(txt_path)
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".pdf", encoding="utf-8", delete=False) as file:
+            file.write("This is an unsupported document.")
+            pdf_path = file.name
+        try:
+            loader.load(pdf_path)
+            assert False
+        except ValueError:
+            pass
+        os.remove(pdf_path)
+        print(green("Version 0.0.13 document type validation is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.0.13 failed"))
 
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))

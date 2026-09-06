@@ -17,6 +17,9 @@ class Loader:
         if not os.path.isfile(path):
             self.logger.error(f"Document file not found: {path}")
             raise FileNotFoundError(f"Document file not found: {path}")
+        if os.path.splitext(path)[1].lower() != ".txt":
+            self.logger.error(f"Unsupported document type: {path}")
+            raise ValueError("Loader only supports .txt files")
         self.logger.info(f"Loading document: {path}")
         with open(path, "r", encoding="utf-8") as file:
             content = file.read()
