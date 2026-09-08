@@ -365,6 +365,30 @@ def full_test():
         print(red(e))
         print(red("Version 0.0.17 failed"))
 
+    try:
+        tests += 1
+        import os
+        import tempfile
+        from classes.loader import Loader
+        from classes.logger import Logger
+        logger = Logger()
+        loader = Loader(logger)
+        assert loader.encoding == "utf-8"
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", encoding="utf-8", delete=False) as file:
+            file.write("This document contains UTF-8 text: café.")
+            path = file.name
+        content = loader.read_file(path)
+        assert content == "This document contains UTF-8 text: café."
+        document = loader.load(path)
+        assert document.content == "This document contains UTF-8 text: café."
+        os.remove(path)
+        print(green("Version 0.0.18 loader encoding handling is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.0.18 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

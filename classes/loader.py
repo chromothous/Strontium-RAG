@@ -4,15 +4,18 @@ from classes.document import Document
 from classes.logger import Logger
 
 class Loader:
-    def __init__(self, logger):
+    def __init__(self, logger, encoding="utf-8"):
         if not isinstance(logger, Logger):
             raise ValueError("Loader logger must be a Logger")
+        if not isinstance(encoding, str) or not encoding:
+            raise ValueError("Loader encoding must be a non-empty string")
         self.logger = logger
+        self.encoding = encoding
 
     def read_file(self, path):
         self.logger.info(f"Reading file: {path}")
         try:
-            with open(path, "r", encoding="utf-8") as file:
+            with open(path, "r", encoding=self.encoding) as file:
                 return file.read()
         except Exception as e:
             self.logger.error(f"Failed to read file: {path} - {e}")
