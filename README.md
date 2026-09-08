@@ -48,3 +48,8 @@ Loader metadata is online.
 
 Version 0.0.15 
 loader file reading is online.
+
+Version 0.0.16
+Loader error handling is online.
+
+Version 0.0.17

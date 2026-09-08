@@ -11,8 +11,12 @@ class Loader:
 
     def read_file(self, path):
         self.logger.info(f"Reading file: {path}")
-        with open(path, "r", encoding="utf-8") as file:
-            return file.read()
+        try:
+            with open(path, "r", encoding="utf-8") as file:
+                return file.read()
+        except Exception as e:
+            self.logger.error(f"Failed to read file: {path}")
+            raise e
 
     def load(self, path):
         if not isinstance(path, str) or not path:
