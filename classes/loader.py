@@ -15,7 +15,7 @@ class Loader:
             with open(path, "r", encoding="utf-8") as file:
                 return file.read()
         except Exception as e:
-            self.logger.error(f"Failed to read file: {path}")
+            self.logger.error(f"Failed to read file: {path} - {e}")
             raise e
 
     def load(self, path):

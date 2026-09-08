@@ -342,6 +342,29 @@ def full_test():
         print(red(e))
         print(red("Version 0.0.16 failed"))
 
+    try:
+        tests += 1
+        import os
+        import tempfile
+        from classes.loader import Loader
+        from classes.logger import Logger
+        logger = Logger()
+        loader = Loader(logger)
+        path = os.path.join(tempfile.gettempdir(), "strontium_rag_missing_file.txt")
+        if os.path.exists(path):
+            os.remove(path)
+        try:
+            loader.read_file(path)
+            assert False
+        except FileNotFoundError:
+            pass
+        print(green("Version 0.0.17 loader read failure logging is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.0.17 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

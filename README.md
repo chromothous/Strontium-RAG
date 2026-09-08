@@ -53,3 +53,4 @@ Version 0.0.16
 Loader error handling is online.
 
 Version 0.0.17
+Loader read failure logging is online.
