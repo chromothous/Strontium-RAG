@@ -159,3 +159,6 @@ Embedding identity and metadata is online.
 
 Version 0.3.4
 Embedding failure handling is online.
+
+Version 0.3.5
+Complete embedding pipeline is online.

@@ -1867,6 +1867,116 @@ def full_test():
         print(red(e))
         print(red("Version 0.3.4 failed"))
 
+    try:
+        tests += 1
+        from classes.chunker import Chunker
+        from classes.document import Document
+        from classes.embedding_provider import EmbeddingProvider
+        from classes.embedder import Embedder
+        from classes.logger import Logger
+        class CompleteEmbeddingProvider(EmbeddingProvider):
+            def embed(self, text):
+                if text == "This chunk will fail.":
+                    raise RuntimeError("Simulated embedding failure")
+                return [float(len(text)), 1.0, 2.0]
+        logger = Logger()
+        provider = CompleteEmbeddingProvider()
+        embedder = Embedder(provider, logger)
+        chunker = Chunker(logger, chunk_size=30, chunk_overlap=5)
+        document = Document(
+            "The first chunk contains useful information. The second chunk contains additional information. The final chunk contains security information.",
+            "complete_embedding_test.txt",
+            {"category": "security", "source_type": "text"}
+        )
+        original_content = document.content
+        original_metadata = document.metadata.copy()
+        chunks = chunker.chunk(document)
+        embedded = embedder.embed(chunks)
+        stats = embedder.get_embedding_stats()
+        failures = embedder.get_embedding_failures()
+        assert isinstance(chunks, list), "Complete embedding should receive chunks as a list"
+        assert chunks, "Complete embedding should have at least one chunk to process"
+        assert isinstance(embedded, list), "Complete embedding should return embedding results as a list"
+        assert len(embedded) == len(chunks), "Complete embedding should produce one embedding result for every successful chunk"
+        assert all(isinstance(result, dict) for result in embedded), "Complete embedding should return dictionary-based embedding results"
+        assert all(isinstance(result["chunk"], Document) for result in embedded), "Complete embedding should retain each source chunk"
+        assert all(isinstance(result["embedding"], list) for result in embedded), "Complete embedding should return vectors as lists"
+        assert all(result["embedding"] for result in embedded), "Complete embedding should never return empty vectors"
+        assert all(all(isinstance(value, (int, float)) for value in result["embedding"]) for result in embedded), "Complete embedding should return only numeric vector values"
+        assert all(len(result["embedding"]) == 3 for result in embedded), "Complete embedding should preserve a consistent vector dimension"
+        assert all("metadata" in result for result in embedded), "Complete embedding should attach metadata to every embedding result"
+        assert all("chunk_id" in result["metadata"] for result in embedded), "Complete embedding metadata should identify every source chunk"
+        assert all("document_id" in result["metadata"] for result in embedded), "Complete embedding metadata should identify every source document"
+        assert all(result["metadata"]["source"] == document.source for result in embedded), "Complete embedding metadata should preserve the original document source"
+        assert all(result["metadata"]["category"] == "security" for result in embedded), "Complete embedding should preserve inherited document metadata"
+        assert stats == {
+            "attempted": len(chunks),
+            "successful": len(chunks),
+            "failed": 0
+        }, "Complete embedding statistics should accurately describe a fully successful embedding run"
+        assert failures == [], "Complete embedding should have no failures when every chunk embeds successfully"
+        assert document.content == original_content, "Complete embedding should not modify the source document content"
+        assert document.metadata == original_metadata, "Complete embedding should not modify the source document metadata"
+        failed_chunk = Document(
+            "This chunk will fail.",
+            "failed_embedding.txt",
+            {"category": "security"}
+        )
+        successful_chunk = Document(
+            "This chunk will succeed.",
+            "successful_embedding.txt",
+            {"category": "security"}
+        )
+        mixed_results = embedder.embed([failed_chunk, successful_chunk])
+        mixed_stats = embedder.get_embedding_stats()
+        mixed_failures = embedder.get_embedding_failures()
+        assert len(mixed_results) == 1, "Complete embedding should retain successful chunks when another chunk fails"
+        assert mixed_results[0]["chunk"] is successful_chunk, "Complete embedding should preserve successful chunks after a failure"
+        assert mixed_stats == {
+            "attempted": 2,
+            "successful": 1,
+            "failed": 1
+        }, "Complete embedding should accurately track mixed embedding success and failure"
+        assert len(mixed_failures) == 1, "Complete embedding should record exactly one failed chunk"
+        assert mixed_failures[0]["chunk_id"] == failed_chunk.id, "Complete embedding failure records should identify the failed chunk"
+        assert mixed_failures[0]["source"] == failed_chunk.source, "Complete embedding failure records should identify the failed chunk source"
+        assert mixed_failures[0]["error"] == "Simulated embedding failure", "Complete embedding failure records should preserve the embedding error"
+        embedder.embed([successful_chunk])
+        reset_stats = embedder.get_embedding_stats()
+        reset_failures = embedder.get_embedding_failures()
+        assert reset_stats == {
+            "attempted": 1,
+            "successful": 1,
+            "failed": 0
+        }, "A new embedding run should completely replace previous embedding statistics"
+        assert reset_failures == [], "A new successful embedding run should completely clear previous embedding failures"
+        empty_results = embedder.embed([])
+        empty_stats = embedder.get_embedding_stats()
+        empty_failures = embedder.get_embedding_failures()
+        assert empty_results == [], "Complete embedding should return an empty list for an empty input"
+        assert empty_stats == {
+            "attempted": 0,
+            "successful": 0,
+            "failed": 0
+        }, "An empty embedding run should reset statistics to zero"
+        assert empty_failures == [], "An empty embedding run should contain no failure records"
+        try:
+            embedder.embed(None)
+            assert False, "Complete embedding should reject a missing chunk collection"
+        except ValueError:
+            pass
+        try:
+            embedder.embed([None])
+            assert False, "Complete embedding should reject a collection containing a non-Document value"
+        except ValueError:
+            pass
+        print(green("Version 0.3.5 complete embedding pipeline is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.3.5 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
