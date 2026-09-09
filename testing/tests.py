@@ -1064,6 +1064,33 @@ def full_test():
         print(red(e))
         print(red("Version 0.1.1 failed"))
 
+    try:
+        tests += 1
+        from classes.document import Document
+        from classes.logger import Logger
+        from classes.preprocessor import Preprocessor
+        logger = Logger()
+        preprocessor = Preprocessor(logger)
+        document = Document(
+            "  First paragraph.  \r\n\r\n\r\n  Second paragraph.  \r\n\r\n\r\n\r\n  Third paragraph.  ",
+            "test.txt"
+        )
+        processed = preprocessor.process(document)
+        assert processed.content == "First paragraph.\n\nSecond paragraph.\n\nThird paragraph.", "Preprocessing should normalize line endings and excessive blank lines while preserving paragraph boundaries"
+        assert processed.id == document.id, "Line-break normalization should preserve the original document ID"
+        assert processed.source == document.source, "Line-break normalization should preserve the document source"
+        assert processed.metadata == document.metadata, "Line-break normalization should preserve document metadata"
+        assert processed.metadata is not document.metadata, "Line-break normalization should keep metadata independent from the original document"
+        single_line = Document("First line.\rSecond line.", "single.txt")
+        single_processed = preprocessor.process(single_line)
+        assert single_processed.content == "First line.\nSecond line.", "Preprocessing should normalize carriage returns into standard line feeds"
+        print(green("Version 0.1.2 line-break normalization is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.1.2 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

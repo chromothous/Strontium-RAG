@@ -114,3 +114,6 @@ Preprocessor foundation is online.
 
 Version 0.1.1
 Whitespace normalization is online.
+
+Version 0.1.2
+Line-break normalization is online.

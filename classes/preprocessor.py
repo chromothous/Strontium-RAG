@@ -15,7 +15,12 @@ class Preprocessor:
             self.logger.error("Preprocessor document must be a Document")
             raise ValueError("Preprocessor document must be a Document")
         self.logger.info(f"Preprocessing document: {document.source}")
-        content = re.sub(r"[ \t]+", " ", document.content).strip()
+        content = document.content.replace("\r\n", "\n").replace("\r", "\n")
+        content = re.sub(r"[ \t]+", " ", content)
+        content = re.sub(r"\n[ \t]+", "\n", content)
+        content = re.sub(r"[ \t]+\n", "\n", content)
+        content = re.sub(r"\n{3,}", "\n\n", content)
+        content = content.strip()
         processed = Document(
             content,
             document.source,
