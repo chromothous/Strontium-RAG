@@ -94,5 +94,6 @@ class Loader:
             for filename in files:
                 if os.path.splitext(filename)[1].lower() == ".txt":
                     paths.append(os.path.join(root, filename))
+        paths.sort()
         self.logger.info(f"Found {len(paths)} documents in: {directory}")
         return paths

@@ -81,3 +81,6 @@ Loader directory discovery is online.
 
 Version 0.0.25
 Recursive directory discovery is online.
+
+Version 0.0.26
+Deterministic file discovery is online.

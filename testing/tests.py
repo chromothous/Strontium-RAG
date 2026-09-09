@@ -25,13 +25,13 @@ def full_test():
     try:
         tests += 1
         from constants.rag import CHUNK_SIZE, CHUNK_OVERLAP, TOP_K
-        assert isinstance(CHUNK_SIZE, int)
-        assert isinstance(CHUNK_OVERLAP, int)
-        assert isinstance(TOP_K, int)
-        assert CHUNK_SIZE > 0
-        assert CHUNK_OVERLAP >= 0
-        assert CHUNK_OVERLAP < CHUNK_SIZE
-        assert TOP_K > 0
+        assert isinstance(CHUNK_SIZE, int), "CHUNK_SIZE should be an integer"
+        assert isinstance(CHUNK_OVERLAP, int), "CHUNK_OVERLAP should be an integer"
+        assert isinstance(TOP_K, int), "TOP_K should be an integer"
+        assert CHUNK_SIZE > 0, "CHUNK_SIZE should be greater than zero"
+        assert CHUNK_OVERLAP >= 0, "CHUNK_OVERLAP should not be negative"
+        assert CHUNK_OVERLAP < CHUNK_SIZE, "CHUNK_OVERLAP should be smaller than CHUNK_SIZE"
+        assert TOP_K > 0, "TOP_K should be greater than zero"
         print(green("Version 0.0.2 RAG constants are online."))
         success += 1
     except Exception as e:
@@ -43,10 +43,10 @@ def full_test():
         tests += 1
         from classes.logger import Logger
         logger = Logger()
-        assert logger is not None
-        assert hasattr(logger, "info")
-        assert hasattr(logger, "warning")
-        assert hasattr(logger, "error")
+        assert logger is not None, "Logger should be instantiated successfully"
+        assert hasattr(logger, "info"), "Logger should provide an info method"
+        assert hasattr(logger, "warning"), "Logger should provide a warning method"
+        assert hasattr(logger, "error"), "Logger should provide an error method"
         logger.info("Information message test.")
         logger.warning("Warning message test.")
         logger.error("Error message test.")
@@ -61,8 +61,8 @@ def full_test():
         tests += 1
         from classes.document import Document
         document = Document("This is test content.", "test.txt")
-        assert document.content == "This is test content."
-        assert document.source == "test.txt"
+        assert document.content == "This is test content.", "Document content should match the supplied content"
+        assert document.source == "test.txt", "Document source should match the supplied source"
         print(green("Version 0.0.4 document is online."))
         success += 1
     except Exception as e:
@@ -74,26 +74,26 @@ def full_test():
         tests += 1
         from classes.document import Document
         document = Document("This is test content.", "test.txt")
-        assert document.content == "This is test content."
-        assert document.source == "test.txt"
+        assert document.content == "This is test content.", "Document content should match the supplied content"
+        assert document.source == "test.txt", "Document source should match the supplied source"
         try:
             Document("", "test.txt")
-            assert False
+            assert False, "Expected ValueError was not raised"
         except ValueError:
             pass
         try:
             Document("Test content.", "")
-            assert False
+            assert False, "Expected ValueError was not raised"
         except ValueError:
             pass
         try:
             Document(123, "test.txt")
-            assert False
+            assert False, "Expected ValueError was not raised"
         except ValueError:
             pass
         try:
             Document("Test content.", 123)
-            assert False
+            assert False, "Expected ValueError was not raised"
         except ValueError:
             pass
         print(green("Version 0.0.5 document validation is online."))
@@ -107,14 +107,14 @@ def full_test():
         tests += 1
         from classes.document import Document
         document = Document("This is test content.", "test.txt", {"type": "text"})
-        assert document.content == "This is test content."
-        assert document.source == "test.txt"
-        assert document.metadata == {"type": "text"}
+        assert document.content == "This is test content.", "Document content should match the supplied content"
+        assert document.source == "test.txt", "Document source should match the supplied source"
+        assert document.metadata == {"type": "text"}, "Document should preserve supplied metadata"
         document = Document("This is test content.", "test.txt")
-        assert document.metadata == {}
+        assert document.metadata == {}, "Document without metadata should default to an empty dictionary"
         try:
             Document("Test content.", "test.txt", "invalid")
-            assert False
+            assert False, "Expected ValueError was not raised"
         except ValueError:
             pass
         print(green("Version 0.0.6 document metadata is online."))
@@ -128,11 +128,11 @@ def full_test():
         tests += 1
         from classes.document import Document
         document = Document("This is test content.", "test.txt")
-        assert document.id is not None
-        assert isinstance(document.id, str)
-        assert len(document.id) == 36
+        assert document.id is not None, "Document should receive an ID"
+        assert isinstance(document.id, str), "Document ID should be a string"
+        assert len(document.id) == 36, "Document ID should have the expected UUID string length"
         document_two = Document("This is test content.", "test.txt")
-        assert document.id != document_two.id
+        assert document.id != document_two.id, "Separate documents should receive unique IDs"
         print(green("Version 0.0.7 document identity is online."))
         success += 1
     except Exception as e:
@@ -145,11 +145,11 @@ def full_test():
         from classes.document import Document
         document = Document("This is test content.", "test.txt", {"type": "text"})
         data = document.to_dict()
-        assert isinstance(data, dict)
-        assert data["id"] == document.id
-        assert data["content"] == document.content
-        assert data["source"] == document.source
-        assert data["metadata"] == document.metadata
+        assert isinstance(data, dict), "Serialized document data should be a dictionary"
+        assert data["id"] == document.id, "Serialized data should preserve the document ID"
+        assert data["content"] == document.content, "Serialized data should preserve document content"
+        assert data["source"] == document.source, "Serialized data should preserve document source"
+        assert data["metadata"] == document.metadata, "Serialized data should preserve document metadata"
         print(green("Version 0.0.8 document serialization is online."))
         success += 1
     except Exception as e:
@@ -163,11 +163,11 @@ def full_test():
         document = Document("This is test content.", "test.txt", {"type": "text"})
         data = document.to_dict()
         restored = Document.from_dict(data)
-        assert isinstance(restored, Document)
-        assert restored.id == document.id
-        assert restored.content == document.content
-        assert restored.source == document.source
-        assert restored.metadata == document.metadata
+        assert isinstance(restored, Document), "Deserialized data should produce a Document"
+        assert restored.id == document.id, "Deserialization should preserve the document ID"
+        assert restored.content == document.content, "Deserialization should preserve document content"
+        assert restored.source == document.source, "Deserialization should preserve document source"
+        assert restored.metadata == document.metadata, "Deserialization should preserve document metadata"
         print(green("Version 0.0.9 document deserialization is online."))
         success += 1
     except Exception as e:
@@ -188,9 +188,9 @@ def full_test():
             path = file.name
         loader = Loader(logger)
         document = loader.load(path)
-        assert isinstance(document, Document)
-        assert document.content == "This is test document content."
-        assert document.source == path
+        assert isinstance(document, Document), "Loaded data should produce a Document"
+        assert document.content == "This is test document content.", "Loaded document content should match the file content"
+        assert document.source == path, "Loaded document source should match the file path"
         os.remove(path)
         print(green("Version 0.0.10 text file loader is online."))
         success += 1
@@ -207,12 +207,12 @@ def full_test():
         loader = Loader(logger)
         try:
             loader.load("")
-            assert False
+            assert False, "Expected ValueError was not raised"
         except ValueError:
             pass
         try:
             loader.load("does_not_exist.txt")
-            assert False
+            assert False, "Expected expected exception was not raised"
         except FileNotFoundError:
             pass
         print(green("Version 0.0.11 loader validation is online."))
@@ -234,7 +234,7 @@ def full_test():
             path = file.name
         try:
             loader.load(path)
-            assert False
+            assert False, "Expected expected ValueError was not raised"
         except ValueError:
             pass
         os.remove(path)
@@ -257,14 +257,14 @@ def full_test():
             file.write("This is a supported document.")
             txt_path = file.name
         document = loader.load(txt_path)
-        assert document.content == "This is a supported document."
+        assert document.content == "This is a supported document.", "Loaded supported document should preserve its content"
         os.remove(txt_path)
         with tempfile.NamedTemporaryFile(mode="w", suffix=".pdf", encoding="utf-8", delete=False) as file:
             file.write("This is an unsupported document.")
             pdf_path = file.name
         try:
             loader.load(pdf_path)
-            assert False
+            assert False, "Expected expected ValueError was not raised"
         except ValueError:
             pass
         os.remove(pdf_path)
@@ -287,9 +287,9 @@ def full_test():
             file.write("This is test document content.")
             path = file.name
         document = loader.load(path)
-        assert document.metadata["file_name"] == os.path.basename(path)
-        assert document.metadata["file_type"] == ".txt"
-        assert document.metadata["file_size"] == len("This is test document content.".encode("utf-8"))
+        assert document.metadata["file_name"] == os.path.basename(path), "Loader metadata should contain the source file name"
+        assert document.metadata["file_type"] == ".txt", "Loader metadata should contain the .txt file type"
+        assert document.metadata["file_size"] == len("This is test document content.".encode("utf-8")), "Loader metadata should contain the file size in bytes"
         os.remove(path)
         print(green("Version 0.0.14 loader metadata is online."))
         success += 1
@@ -310,9 +310,9 @@ def full_test():
             file.write("This is a file reading test.")
             path = file.name
         content = loader.read_file(path)
-        assert content == "This is a file reading test."
+        assert content == "This is a file reading test.", "read_file should return the exact file content"
         document = loader.load(path)
-        assert document.content == "This is a file reading test."
+        assert document.content == "This is a file reading test.", "Loaded document should preserve the file content"
         os.remove(path)
         print(green("Version 0.0.15 loader file reading is online."))
         success += 1
@@ -334,7 +334,7 @@ def full_test():
             os.remove(path)
         try:
             loader.read_file(path)
-            assert False
+            assert False, "Expected expected exception was not raised"
         except FileNotFoundError:
             pass
         print(green("Version 0.0.16 loader error handling is online."))
@@ -357,7 +357,7 @@ def full_test():
             os.remove(path)
         try:
             loader.read_file(path)
-            assert False
+            assert False, "Expected expected exception was not raised"
         except FileNotFoundError:
             pass
         print(green("Version 0.0.17 loader read failure logging is online."))
@@ -375,14 +375,14 @@ def full_test():
         from classes.logger import Logger
         logger = Logger()
         loader = Loader(logger)
-        assert loader.encoding == "utf-8"
+        assert loader.encoding == "utf-8", "Loader should default to UTF-8 encoding"
         with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", encoding="utf-8", delete=False) as file:
             file.write("This document contains UTF-8 text: café.")
             path = file.name
         content = loader.read_file(path)
-        assert content == "This document contains UTF-8 text: café."
+        assert content == "This document contains UTF-8 text: café.", "read_file should preserve UTF-8 content"
         document = loader.load(path)
-        assert document.content == "This document contains UTF-8 text: café."
+        assert document.content == "This document contains UTF-8 text: café.", "Loaded document should preserve UTF-8 content"
         os.remove(path)
         print(green("Version 0.0.18 loader encoding handling is online."))
         success += 1
@@ -397,22 +397,22 @@ def full_test():
         from classes.logger import Logger
         logger = Logger()
         loader = Loader(logger)
-        assert loader.encoding == "utf-8"
+        assert loader.encoding == "utf-8", "Loader should default to UTF-8 encoding"
         custom_loader = Loader(logger, "utf-16")
-        assert custom_loader.encoding == "utf-16"
+        assert custom_loader.encoding == "utf-16", "Loader should preserve a valid custom encoding"
         try:
             Loader(logger, "not-a-real-encoding")
-            assert False
+            assert False, "Expected expected ValueError was not raised"
         except ValueError:
             pass
         try:
             Loader(logger, "")
-            assert False
+            assert False, "Expected expected ValueError was not raised"
         except ValueError:
             pass
         try:
             Loader(logger, 123)
-            assert False
+            assert False, "Expected expected ValueError was not raised"
         except ValueError:
             pass
         print(green("Version 0.0.19 loader encoding validation is online."))
@@ -437,18 +437,18 @@ def full_test():
                 file.write(content)
                 paths.append(file.name)
         documents = loader.load_many(paths)
-        assert isinstance(documents, list)
-        assert len(documents) == 3
-        assert all(isinstance(document, Document) for document in documents)
-        assert documents[0].content == "First document."
-        assert documents[1].content == "Second document."
-        assert documents[2].content == "Third document."
+        assert isinstance(documents, list), "Batch loading should return a list"
+        assert len(documents) == 3, "Batch loading should return all three valid documents"
+        assert all(isinstance(document, Document) for document in documents), "Every batch-loaded item should be a Document"
+        assert documents[0].content == "First document.", "First batch document should preserve its content"
+        assert documents[1].content == "Second document.", "Second batch document should preserve its content"
+        assert documents[2].content == "Third document.", "Third batch document should preserve its content"
         for path in paths:
             os.remove(path)
-        assert loader.load_many([]) == []
+        assert loader.load_many([]) == [], "Batch loading an empty list should return an empty list"
         try:
             loader.load_many("not-a-list")
-            assert False
+            assert False, "Expected ValueError was not raised"
         except ValueError:
             pass
         print(green("Version 0.0.20 loader batch loading is online."))
@@ -474,12 +474,12 @@ def full_test():
         if os.path.exists(invalid_path):
             os.remove(invalid_path)
         documents = loader.load_many([valid_path, invalid_path])
-        assert isinstance(documents, list)
-        assert len(documents) == 1
+        assert isinstance(documents, list), "Batch loading should return a list"
+        assert len(documents) == 1, "Batch loading should return only the valid document when one path fails"
         assert isinstance(documents[0], Document)
-        assert documents[0].content == "Valid document."
+        assert documents[0].content == "Valid document.", "Successful batch loading should preserve the valid document content"
         os.remove(valid_path)
-        assert loader.load_many([invalid_path]) == []
+        assert loader.load_many([invalid_path]) == [], "Batch loading should return no documents when all paths fail"
         print(green("Version 0.0.21 loader batch failure handling is online."))
         success += 1
     except Exception as e:
@@ -502,14 +502,14 @@ def full_test():
         if os.path.exists(invalid_path):
             os.remove(invalid_path)
         documents = loader.load_many([valid_path, invalid_path])
-        assert len(documents) == 1
-        assert loader.last_batch_stats["attempted"] == 2
-        assert loader.last_batch_stats["successful"] == 1
-        assert loader.last_batch_stats["failed"] == 1
+        assert len(documents) == 1, "Batch loading should return only the valid document when one path fails"
+        assert loader.last_batch_stats["attempted"] == 2, "Batch statistics should record both attempted paths"
+        assert loader.last_batch_stats["successful"] == 1, "Batch statistics should record one successful load"
+        assert loader.last_batch_stats["failed"] == 1, "Batch statistics should record one failed load"
         loader.load_many([])
-        assert loader.last_batch_stats["attempted"] == 0
-        assert loader.last_batch_stats["successful"] == 0
-        assert loader.last_batch_stats["failed"] == 0
+        assert loader.last_batch_stats["attempted"] == 0, "Empty batch statistics should record zero attempted paths"
+        assert loader.last_batch_stats["successful"] == 0, "Empty batch statistics should record zero successful loads"
+        assert loader.last_batch_stats["failed"] == 0, "Empty batch statistics should record zero failed loads"
         os.remove(valid_path)
         print(green("Version 0.0.22 loader batch statistics are online."))
         success += 1
@@ -534,14 +534,14 @@ def full_test():
             os.remove(invalid_path)
         loader.load_many([valid_path, invalid_path])
         stats = loader.get_batch_stats()
-        assert isinstance(stats, dict)
+        assert isinstance(stats, dict), "Batch statistics access should return a dictionary"
         assert stats == {
             "attempted": 2,
             "successful": 1,
             "failed": 1
-        }
+        }, "Batch statistics should accurately report attempted, successful, and failed loads"
         stats["attempted"] = 999
-        assert loader.get_batch_stats()["attempted"] == 2
+        assert loader.get_batch_stats()["attempted"] == 2, "Changing returned statistics should not modify Loader statistics"
         os.remove(valid_path)
         print(green("Version 0.0.23 loader batch statistics access is online."))
         success += 1
@@ -570,11 +570,11 @@ def full_test():
                 file.write("Markdown placeholder.")
             paths = loader.find_files(directory)
             assert isinstance(paths, list)
-            assert len(paths) == 1
-            assert paths[0] == txt_path
+            assert len(paths) == 1, "File discovery should return only the supported text file"
+            assert paths[0] == txt_path, "File discovery should return the supported text file path"
         try:
             loader.find_files("")
-            assert False
+            assert False, "Expected ValueError was not raised"
         except ValueError:
             pass
         missing_directory = os.path.join(tempfile.gettempdir(), "strontium_rag_missing_directory_0_0_24")
@@ -582,7 +582,7 @@ def full_test():
             os.rmdir(missing_directory)
         try:
             loader.find_files(missing_directory)
-            assert False
+            assert False, "Expected expected exception was not raised"
         except FileNotFoundError:
             pass
         print(green("Version 0.0.24 loader directory discovery is online."))
@@ -618,17 +618,50 @@ def full_test():
                 file.write("Unsupported document.")
             paths = loader.find_files(directory)
             assert isinstance(paths, list)
-            assert len(paths) == 3
-            assert root_path in paths
-            assert nested_path in paths
-            assert deep_path in paths
-            assert unsupported_path not in paths
+            assert len(paths) == 3, "Recursive discovery should find all three text files"
+            assert root_path in paths, "Recursive discovery should include the root-level text file"
+            assert nested_path in paths, "Recursive discovery should include the nested text file"
+            assert deep_path in paths, "Recursive discovery should include the deeply nested text file"
+            assert unsupported_path not in paths, "Recursive discovery should exclude unsupported file types"
         print(green("Version 0.0.25 recursive directory discovery is online."))
         success += 1
     except Exception as e:
         failure += 1
         print(red(e))
         print(red("Version 0.0.25 failed"))
+
+    try:
+        tests += 1
+        import os
+        import tempfile
+        from classes.loader import Loader
+        from classes.logger import Logger
+        logger = Logger()
+        loader = Loader(logger)
+        with tempfile.TemporaryDirectory() as directory:
+            nested_directory = os.path.join(directory, "nested")
+            os.makedirs(nested_directory)
+            paths_to_create = [
+                os.path.join(directory, "z.txt"),
+                os.path.join(directory, "a.txt"),
+                os.path.join(nested_directory, "m.txt")
+            ]
+            for path in paths_to_create:
+                with open(path, "w", encoding="utf-8") as file:
+                    file.write("Test document.")
+            paths = loader.find_files(directory)
+            assert paths == sorted(paths), "File discovery should return paths in sorted order"
+            assert paths == [
+                os.path.join(directory, "a.txt"),
+                os.path.join(nested_directory, "m.txt"),
+                os.path.join(directory, "z.txt")
+            ], "File discovery should return paths in the expected deterministic order"
+        print(green("Version 0.0.26 deterministic file discovery is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.0.26 failed"))
 
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
