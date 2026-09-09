@@ -68,6 +68,17 @@ class VectorStore:
             raise ValueError("VectorStore vector ID must be a non-empty string")
         return self.vectors.get(vector_id)
 
+    def remove(self, vector_id):
+        if not isinstance(vector_id, str) or not vector_id:
+            raise ValueError("VectorStore vector ID must be a non-empty string")
+        if vector_id not in self.vectors:
+            return False
+        del self.vectors[vector_id]
+        self.logger.info(f"Vector removed: {vector_id}")
+        if not self.vectors:
+            self.dimension = None
+        return True
+
     def get_all(self):
         return {
             vector_id: {

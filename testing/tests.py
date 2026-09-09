@@ -2256,6 +2256,64 @@ def full_test():
         print(red(e))
         print(red("Version 0.4.3 failed"))
 
+    try:
+        tests += 1
+        from classes.document import Document
+        from classes.logger import Logger
+        from classes.vector_store import VectorStore
+        logger = Logger()
+        store = VectorStore(logger)
+        document_one = Document(
+            "First removal document.",
+            "removal_one.txt"
+        )
+        document_two = Document(
+            "Second removal document.",
+            "removal_two.txt"
+        )
+        store.add_many([
+            {
+                "chunk": document_one,
+                "embedding": [0.1, 0.2, 0.3],
+                "metadata": {"source": "removal_one.txt"}
+            },
+            {
+                "chunk": document_two,
+                "embedding": [0.4, 0.5, 0.6],
+                "metadata": {"source": "removal_two.txt"}
+            }
+        ])
+        assert len(store.vectors) == 2, "Vector storage should contain both vectors before removal"
+        removed = store.remove(document_one.id)
+        assert removed is True, "Vector storage should report successful removal"
+        assert len(store.vectors) == 1, "Vector storage should contain one fewer vector after removal"
+        assert store.get(document_one.id) is None, "Removed vectors should no longer be retrievable"
+        assert store.get(document_two.id) is not None, "Removing one vector should preserve other stored vectors"
+        removed_again = store.remove(document_one.id)
+        assert removed_again is False, "Removing an unknown vector should return False"
+        assert len(store.vectors) == 1, "Removing an unknown vector should not modify stored vectors"
+        remaining = store.get_all()
+        assert document_two.id in remaining, "The remaining vector should still exist after removal"
+        store.remove(document_two.id)
+        assert len(store.vectors) == 0, "Removing the final vector should empty the vector store"
+        assert store.dimension is None, "An empty vector store should reset its vector dimension"
+        try:
+            store.remove("")
+            assert False, "Vector storage should reject an empty vector identifier during removal"
+        except ValueError:
+            pass
+        try:
+            store.remove(None)
+            assert False, "Vector storage should reject a non-string vector identifier during removal"
+        except ValueError:
+            pass
+        print(green("Version 0.4.4 vector removal is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.4.4 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
