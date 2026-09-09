@@ -177,3 +177,6 @@ Vector storage retrieval is online.
 
 Version 0.4.4
 Vector removal is online.
+
+Version 0.4.5
+Vector store clearing is online.

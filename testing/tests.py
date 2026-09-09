@@ -2314,6 +2314,74 @@ def full_test():
         print(red(e))
         print(red("Version 0.4.4 failed"))
 
+    try:
+        tests += 1
+        from classes.document import Document
+        from classes.logger import Logger
+        from classes.vector_store import VectorStore
+        logger = Logger()
+        store = VectorStore(logger)
+        document_one = Document(
+            "First clear test document.",
+            "clear_one.txt"
+        )
+        document_two = Document(
+            "Second clear test document.",
+            "clear_two.txt"
+        )
+        document_three = Document(
+            "Third clear test document.",
+            "clear_three.txt"
+        )
+        store.add_many([
+            {
+                "chunk": document_one,
+                "embedding": [0.1, 0.2, 0.3],
+                "metadata": {"source": "clear_one.txt"}
+            },
+            {
+                "chunk": document_two,
+                "embedding": [0.4, 0.5, 0.6],
+                "metadata": {"source": "clear_two.txt"}
+            },
+            {
+                "chunk": document_three,
+                "embedding": [0.7, 0.8, 0.9],
+                "metadata": {"source": "clear_three.txt"}
+            }
+        ])
+        assert len(store.vectors) == 3, "Vector storage should contain all vectors before clearing"
+        assert store.dimension == 3, "Vector storage should have an established dimension before clearing"
+        removed_count = store.clear()
+        assert removed_count == 3, "Vector storage should report the number of vectors removed during clearing"
+        assert len(store.vectors) == 0, "Vector storage should be empty after clearing"
+        assert store.get(document_one.id) is None, "Cleared vectors should no longer be retrievable"
+        assert store.get(document_two.id) is None, "All stored vectors should be removed during clearing"
+        assert store.get(document_three.id) is None, "The final stored vector should be removed during clearing"
+        assert store.dimension is None, "Vector storage should reset its dimension after clearing"
+        second_clear_count = store.clear()
+        assert second_clear_count == 0, "Clearing an already empty vector store should report zero removals"
+        assert len(store.vectors) == 0, "Clearing an already empty vector store should keep it empty"
+        assert store.dimension is None, "Clearing an already empty vector store should keep its dimension unset"
+        document_four = Document(
+            "Document added after clearing.",
+            "clear_four.txt"
+        )
+        vector_id = store.add({
+            "chunk": document_four,
+            "embedding": [1.0, 2.0, 3.0],
+            "metadata": {"source": "clear_four.txt"}
+        })
+        assert vector_id == document_four.id, "Vector storage should accept new vectors after being cleared"
+        assert len(store.vectors) == 1, "Vector storage should contain newly added vectors after clearing"
+        assert store.dimension == 3, "Vector storage should establish its dimension again after receiving a new vector"
+        print(green("Version 0.4.5 vector store clearing is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.4.5 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

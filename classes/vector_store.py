@@ -79,6 +79,13 @@ class VectorStore:
             self.dimension = None
         return True
 
+    def clear(self):
+        count = len(self.vectors)
+        self.vectors.clear()
+        self.dimension = None
+        self.logger.info(f"Vector store cleared: {count} vectors removed")
+        return count
+
     def get_all(self):
         return {
             vector_id: {
