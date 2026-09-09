@@ -663,6 +663,46 @@ def full_test():
         print(red(e))
         print(red("Version 0.0.26 failed"))
 
+    try:
+        tests += 1
+        import os
+        import tempfile
+        from classes.ingestion import Ingestion
+        from classes.loader import Loader
+        from classes.logger import Logger
+        from classes.document import Document
+        logger = Logger()
+        loader = Loader(logger)
+        ingestion = Ingestion(loader, logger)
+        assert ingestion.loader is loader, "Ingestion should retain the supplied Loader"
+        assert ingestion.logger is logger, "Ingestion should retain the supplied Logger"
+        with tempfile.TemporaryDirectory() as directory:
+            nested_directory = os.path.join(directory, "nested")
+            os.makedirs(nested_directory)
+            first_path = os.path.join(directory, "first.txt")
+            second_path = os.path.join(nested_directory, "second.txt")
+            unsupported_path = os.path.join(directory, "notes.md")
+            with open(first_path, "w", encoding="utf-8") as file:
+                file.write("First document.")
+            with open(second_path, "w", encoding="utf-8") as file:
+                file.write("Second document.")
+            with open(unsupported_path, "w", encoding="utf-8") as file:
+                file.write("Unsupported document.")
+            documents = ingestion.ingest_directory(directory)
+            assert isinstance(documents, list), "Directory ingestion should return a list"
+            assert len(documents) == 2, "Directory ingestion should load both supported documents"
+            assert all(isinstance(document, Document) for document in documents), "Every ingested item should be a Document"
+            assert documents[0].source == first_path, "First ingested document should come from the first discovered file"
+            assert documents[1].source == second_path, "Second ingested document should come from the second discovered file"
+            assert documents[0].content == "First document.", "First ingested document should preserve its content"
+            assert documents[1].content == "Second document.", "Second ingested document should preserve its content"
+        print(green("Version 0.0.27 ingestion orchestration is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.0.27 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
