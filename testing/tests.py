@@ -1804,6 +1804,69 @@ def full_test():
         print(red(e))
         print(red("Version 0.3.3 failed"))
 
+    try:
+        tests += 1
+        from classes.document import Document
+        from classes.embedding_provider import EmbeddingProvider
+        from classes.embedder import Embedder
+        from classes.logger import Logger
+        class FailureEmbeddingProvider(EmbeddingProvider):
+            def embed(self, text):
+                if text == "This chunk should fail.":
+                    raise RuntimeError("Simulated embedding failure")
+                return [float(len(text)), 1.0, 2.0]
+        logger = Logger()
+        provider = FailureEmbeddingProvider()
+        embedder = Embedder(provider, logger)
+        first_chunk = Document("This chunk should succeed.", "first.txt")
+        failed_chunk = Document("This chunk should fail.", "failed.txt")
+        third_chunk = Document("This chunk should also succeed.", "third.txt")
+        chunks = [first_chunk, failed_chunk, third_chunk]
+        embedded = embedder.embed(chunks)
+        stats = embedder.get_embedding_stats()
+        failures = embedder.get_embedding_failures()
+        assert isinstance(embedded, list), "Embedding failure handling should return successful embeddings as a list"
+        assert len(embedded) == 2, "Embedding failure handling should retain successful chunks when another chunk fails"
+        assert embedded[0]["chunk"] is first_chunk, "The first successful chunk should remain in the embedding results"
+        assert embedded[1]["chunk"] is third_chunk, "Chunks after a failure should still be embedded"
+        assert stats == {
+            "attempted": 3,
+            "successful": 2,
+            "failed": 1
+        }, "Embedding statistics should accurately record successful and failed chunks"
+        assert isinstance(failures, list), "Embedding failures should be returned as a list"
+        assert len(failures) == 1, "Embedding failure handling should record exactly one failed chunk"
+        assert failures[0]["chunk_id"] == failed_chunk.id, "Embedding failure records should identify the failed chunk"
+        assert failures[0]["source"] == failed_chunk.source, "Embedding failure records should identify the failed chunk source"
+        assert failures[0]["error"] == "Simulated embedding failure", "Embedding failure records should preserve the provider error message"
+        assert all("embedding" in result for result in embedded), "Successful embedding results should still contain vectors"
+        with_failure_embedder = Embedder(provider, logger)
+        with_failure_embedder.embed([failed_chunk])
+        failure_stats = with_failure_embedder.get_embedding_stats()
+        failure_records = with_failure_embedder.get_embedding_failures()
+        assert failure_stats == {
+            "attempted": 1,
+            "successful": 0,
+            "failed": 1
+        }, "A completely failed embedding batch should report one attempted and failed chunk"
+        assert len(failure_records) == 1, "A completely failed embedding batch should retain its failure record"
+        successful_embedder = Embedder(provider, logger)
+        successful_embedder.embed([first_chunk])
+        successful_stats = successful_embedder.get_embedding_stats()
+        successful_failures = successful_embedder.get_embedding_failures()
+        assert successful_stats == {
+            "attempted": 1,
+            "successful": 1,
+            "failed": 0
+        }, "A new successful embedding run should replace previous embedding statistics"
+        assert successful_failures == [], "A new successful embedding run should clear previous embedding failures"
+        print(green("Version 0.3.4 embedding failure handling is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.3.4 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
