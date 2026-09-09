@@ -741,6 +741,55 @@ def full_test():
         print(red(e))
         print(red("Version 0.0.28 failed"))
 
+    try:
+        tests += 1
+        import os
+        import tempfile
+        from classes.ingestion import Ingestion
+        from classes.loader import Loader
+        from classes.logger import Logger
+        logger = Logger()
+        loader = Loader(logger)
+        ingestion = Ingestion(loader, logger)
+        with tempfile.TemporaryDirectory() as directory:
+            first_file = os.path.join(directory, "first.txt")
+            second_file = os.path.join(directory, "second.txt")
+            failed_file = os.path.join(directory, "failed.txt")
+            with open(first_file, "w", encoding="utf-8") as file:
+                file.write("First test document.")
+            with open(second_file, "w", encoding="utf-8") as file:
+                file.write("Second test document.")
+            with open(failed_file, "w", encoding="utf-8") as file:
+                file.write("")
+            documents = ingestion.ingest_directory(directory)
+            stats = ingestion.get_ingestion_stats()
+            failures = ingestion.get_ingestion_failures()
+            assert isinstance(documents, list), "Ingestion should return documents as a list"
+            assert len(documents) == 2, "Ingestion should return all successfully loaded documents"
+            assert stats == {
+                "attempted": 3,
+                "successful": 2,
+                "failed": 1
+            }, "Ingestion statistics should accurately reflect successful and failed documents"
+            assert isinstance(failures, list), "Ingestion failures should be returned as a list"
+            assert len(failures) == 1, "Ingestion should record exactly one failed document"
+            assert failures[0]["path"] == failed_file, "Ingestion failure should identify the failed file path"
+            assert "error" in failures[0], "Ingestion failure should contain an error message"
+            assert failures[0]["error"], "Ingestion failure should contain a non-empty error message"
+        with tempfile.TemporaryDirectory() as directory:
+            successful_file = os.path.join(directory, "successful.txt")
+            with open(successful_file, "w", encoding="utf-8") as file:
+                file.write("Successful test document.")
+            ingestion.ingest_directory(directory)
+            failures = ingestion.get_ingestion_failures()
+            assert failures == [], "Ingestion failures should be empty when all documents load successfully"
+        print(green("Version 0.0.29 ingestion failure tracking is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.0.29 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

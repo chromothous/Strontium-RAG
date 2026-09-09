@@ -15,12 +15,22 @@ class Ingestion:
             "successful": 0,
             "failed": 0
         }
+        self.last_ingestion_failures = []
 
     def ingest_directory(self, directory):
         self.logger.info(f"Starting ingestion: {directory}")
         paths = self.loader.find_files(directory)
         documents = self.loader.load_many(paths)
         self.last_ingestion_stats = self.loader.get_batch_stats()
+        self.last_ingestion_failures = []
+        for path in paths:
+            try:
+                self.loader.load(path)
+            except Exception as e:
+                self.last_ingestion_failures.append({
+                    "path": path,
+                    "error": str(e)
+                })
         self.logger.info(
             f"Ingestion complete: {len(documents)}/{len(paths)} documents loaded"
         )
@@ -28,3 +38,6 @@ class Ingestion:
 
     def get_ingestion_stats(self):
         return self.last_ingestion_stats.copy()
+
+    def get_ingestion_failures(self):
+        return self.last_ingestion_failures.copy()

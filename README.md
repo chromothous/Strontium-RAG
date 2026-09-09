@@ -90,3 +90,6 @@ Ingestion orchestration is online.
 
 Version 0.0.28
 Ingestion statistics are online.
+
+Version 0.0.29
+Ingestion failure tracking is online.
