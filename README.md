@@ -120,3 +120,6 @@ Line-break normalization is online.
 
 Version 0.1.3
 Text artifact cleanup is online.
+
+Version 0.1.4
+Preprocessing validation is online.

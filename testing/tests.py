@@ -1116,6 +1116,45 @@ def full_test():
         print(red(e))
         print(red("Version 0.1.3 failed"))
 
+    try:
+        tests += 1
+        from classes.document import Document
+        from classes.logger import Logger
+        from classes.preprocessor import Preprocessor
+        logger = Logger()
+        preprocessor = Preprocessor(logger)
+        document = Document(
+            "  A valid document with   inconsistent spacing.  ",
+            "validation.txt",
+            {"category": "test"}
+        )
+        processed = preprocessor.process(document)
+        assert isinstance(processed, Document), "Preprocessing validation should return a valid Document"
+        assert isinstance(processed.content, str), "Processed document content should remain a string"
+        assert processed.content, "Preprocessing validation should reject empty processed content"
+        assert processed.source == document.source, "Preprocessing validation should preserve the document source"
+        assert processed.id == document.id, "Preprocessing validation should preserve the original document ID"
+        assert isinstance(processed.metadata, dict), "Processed document metadata should remain a dictionary"
+        assert processed.metadata == document.metadata, "Preprocessing validation should preserve document metadata"
+        assert processed.metadata is not document.metadata, "Preprocessing validation should keep metadata independent from the original document"
+        artifact_only = Document("\ufeff\u00a0\u200b", "artifact_only.txt")
+        try:
+            preprocessor.process(artifact_only)
+            assert False, "Preprocessing should reject a document that becomes empty after artifact cleanup"
+        except ValueError:
+            pass
+        try:
+            preprocessor.process(None)
+            assert False, "Preprocessing validation should reject a non-Document input"
+        except ValueError:
+            pass
+        print(green("Version 0.1.4 preprocessing validation is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.1.4 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

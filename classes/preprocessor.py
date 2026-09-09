@@ -25,6 +25,15 @@ class Preprocessor:
         content = re.sub(r"[ \t]+\n", "\n", content)
         content = re.sub(r"\n{3,}", "\n\n", content)
         content = content.strip()
+        if not isinstance(content, str) or not content:
+            self.logger.error(f"Preprocessing produced empty content: {document.source}")
+            raise ValueError("Preprocessing produced empty document content")
+        if not isinstance(document.source, str) or not document.source:
+            self.logger.error("Preprocessor document source is invalid")
+            raise ValueError("Preprocessor document source is invalid")
+        if not isinstance(document.metadata, dict):
+            self.logger.error("Preprocessor document metadata is invalid")
+            raise ValueError("Preprocessor document metadata is invalid")
         processed = Document(
             content,
             document.source,
