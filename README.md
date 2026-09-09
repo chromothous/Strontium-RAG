@@ -93,3 +93,6 @@ Ingestion statistics are online.
 
 Version 0.0.29
 Ingestion failure tracking is online.
+
+Version 0.0.30
+Ingestion failure isolation is online.

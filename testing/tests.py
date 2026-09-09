@@ -790,6 +790,44 @@ def full_test():
         print(red(e))
         print(red("Version 0.0.29 failed"))
 
+    try:
+        tests += 1
+        import os
+        import tempfile
+        from classes.ingestion import Ingestion
+        from classes.loader import Loader
+        from classes.logger import Logger
+        logger = Logger()
+        loader = Loader(logger)
+        ingestion = Ingestion(loader, logger)
+        with tempfile.TemporaryDirectory() as directory:
+            first_file = os.path.join(directory, "a.txt")
+            failed_file = os.path.join(directory, "b.txt")
+            third_file = os.path.join(directory, "c.txt")
+            with open(first_file, "w", encoding="utf-8") as file:
+                file.write("First document.")
+            with open(failed_file, "w", encoding="utf-8") as file:
+                file.write("")
+            with open(third_file, "w", encoding="utf-8") as file:
+                file.write("Third document.")
+            documents = ingestion.ingest_directory(directory)
+            stats = ingestion.get_ingestion_stats()
+            failures = ingestion.get_ingestion_failures()
+            assert len(documents) == 2, "Ingestion should continue loading documents after a failure"
+            assert documents[0].source == first_file, "First successful document should be returned in discovery order"
+            assert documents[1].source == third_file, "Documents after a failure should still be loaded"
+            assert stats["attempted"] == 3, "Ingestion should attempt every discovered document"
+            assert stats["successful"] == 2, "Ingestion should count both successful documents"
+            assert stats["failed"] == 1, "Ingestion should count the failed document"
+            assert len(failures) == 1, "Ingestion should record the failed document without stopping the batch"
+            assert failures[0]["path"] == failed_file, "Recorded failure should identify the document that failed"
+        print(green("Version 0.0.30 ingestion failure isolation is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.0.30 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
