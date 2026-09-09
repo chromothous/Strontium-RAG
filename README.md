@@ -47,7 +47,7 @@ Version 0.0.14
 Loader metadata is online.
 
 Version 0.0.15 
-loader file reading is online.
+Loader file reading is online.
 
 Version 0.0.16
 Loader error handling is online.
@@ -57,3 +57,9 @@ Loader read failure logging is online.
 
 Version 0.0.18
 Loader encoding handling is online.
+
+Version 0.0.18.2
+Instantiated Logger object in 0.0.10 test code.
+
+Version 0.0.19
+Loader encoding validation is online.

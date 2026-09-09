@@ -391,6 +391,37 @@ def full_test():
         print(red(e))
         print(red("Version 0.0.18 failed"))
 
+    try:
+        tests += 1
+        from classes.loader import Loader
+        from classes.logger import Logger
+        logger = Logger()
+        loader = Loader(logger)
+        assert loader.encoding == "utf-8"
+        custom_loader = Loader(logger, "utf-16")
+        assert custom_loader.encoding == "utf-16"
+        try:
+            Loader(logger, "not-a-real-encoding")
+            assert False
+        except ValueError:
+            pass
+        try:
+            Loader(logger, "")
+            assert False
+        except ValueError:
+            pass
+        try:
+            Loader(logger, 123)
+            assert False
+        except ValueError:
+            pass
+        print(green("Version 0.0.19 loader encoding validation is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.0.19 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

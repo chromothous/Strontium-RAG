@@ -1,4 +1,5 @@
 import os
+import codecs
 
 from classes.document import Document
 from classes.logger import Logger
@@ -9,6 +10,10 @@ class Loader:
             raise ValueError("Loader logger must be a Logger")
         if not isinstance(encoding, str) or not encoding:
             raise ValueError("Loader encoding must be a non-empty string")
+        try:
+            codecs.lookup(encoding)
+        except LookupError:
+            raise ValueError(f"Unsupported loader encoding: {encoding}")
         self.logger = logger
         self.encoding = encoding
 
