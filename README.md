@@ -141,3 +141,6 @@ Chunk overlap is online.
 
 Version 0.2.4
 Chunk validation is online.
+
+Version 0.2.5
+Complete chunking pipeline is online.

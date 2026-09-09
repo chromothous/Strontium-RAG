@@ -1463,6 +1463,96 @@ def full_test():
         print(red(e))
         print(red("Version 0.2.4 failed"))
 
+    try:
+        tests += 1
+        from classes.chunker import Chunker
+        from classes.document import Document
+        from classes.logger import Logger
+        logger = Logger()
+        chunker = Chunker(logger, chunk_size=30, chunk_overlap=5)
+        document = Document(
+            "The first section contains useful information about authentication. The second section contains information about authorization. The final section contains information about security.",
+            "complete_chunking_test.txt",
+            {"category": "security", "source_type": "text"}
+        )
+        original_content = document.content
+        original_metadata = document.metadata.copy()
+        chunks = chunker.chunk(document)
+        assert isinstance(chunks, list), "Complete chunking should return a list of chunks"
+        assert len(chunks) >= 2, "Complete chunking should divide content that exceeds the configured chunk size"
+        assert all(isinstance(chunk, Document) for chunk in chunks), "Complete chunking should return only Document objects"
+        assert all(chunk.content for chunk in chunks), "Complete chunking should never produce empty chunks"
+        assert all(len(chunk.content) <= 30 for chunk in chunks), "Complete chunking should enforce the configured chunk size"
+        assert all(chunk.source == document.source for chunk in chunks), "Complete chunking should preserve the original document source"
+        assert all(chunk.metadata["document_id"] == document.id for chunk in chunks), "Complete chunking should preserve source document lineage"
+        assert [chunk.metadata["chunk_index"] for chunk in chunks] == list(range(len(chunks))), "Complete chunking should assign sequential zero-based chunk indexes"
+        assert all(chunk.metadata["chunk_start"] >= 0 for chunk in chunks), "Complete chunking should never produce negative chunk start positions"
+        assert all(chunk.metadata["chunk_end"] >= chunk.metadata["chunk_start"] for chunk in chunks), "Complete chunking should produce valid chunk position ranges"
+        assert all(chunk.metadata["chunk_end"] <= len(document.content) for chunk in chunks), "Complete chunking should keep chunk positions within the source document"
+        assert all(chunk.metadata["chunk_start"] < chunk.metadata["chunk_end"] for chunk in chunks), "Complete chunking should assign a non-empty source range to every chunk"
+        assert all(chunk.metadata["category"] == "security" for chunk in chunks), "Complete chunking should preserve inherited document metadata"
+        assert all(chunk.metadata["source_type"] == "text" for chunk in chunks), "Complete chunking should preserve all inherited document metadata"
+        assert all(chunk.metadata is not document.metadata for chunk in chunks), "Complete chunking should keep chunk metadata independent from the source document"
+        assert all(chunks[index].metadata is not chunks[index + 1].metadata for index in range(len(chunks) - 1)), "Complete chunking should give every chunk its own metadata dictionary"
+        assert all(chunk.id != document.id for chunk in chunks), "Complete chunking should give chunks identities distinct from the source document"
+        assert len({chunk.id for chunk in chunks}) == len(chunks), "Complete chunking should give every chunk a unique identity"
+        assert any(chunks[index].metadata["chunk_start"] < chunks[index - 1].metadata["chunk_end"] for index in range(1, len(chunks))), "Complete chunking should create overlapping source ranges when overlap is configured"
+        assert document.content == original_content, "Complete chunking should not modify the source document content"
+        assert document.metadata == original_metadata, "Complete chunking should not modify the source document metadata"
+        short_document = Document("Short document.", "short.txt")
+        short_chunks = chunker.chunk(short_document)
+        assert len(short_chunks) == 1, "Complete chunking should keep documents shorter than the chunk size as one chunk"
+        assert short_chunks[0].content == short_document.content, "Complete chunking should preserve all content in a short document"
+        exact_content = "123456789012345678901234567890"
+        exact_document = Document(exact_content, "exact.txt")
+        exact_chunks = chunker.chunk(exact_document)
+        assert len(exact_chunks) == 1, "Complete chunking should keep documents exactly matching the chunk size as one chunk"
+        assert exact_chunks[0].content == exact_content, "Complete chunking should preserve content that exactly matches the chunk size"
+        no_overlap_chunker = Chunker(logger, chunk_size=30)
+        no_overlap_chunks = no_overlap_chunker.chunk(document)
+        assert all(no_overlap_chunks[index].metadata["chunk_start"] >= no_overlap_chunks[index - 1].metadata["chunk_end"] for index in range(1, len(no_overlap_chunks))), "Complete chunking should prevent overlapping ranges when overlap is disabled"
+        try:
+            Chunker(None)
+            assert False, "Complete chunking should reject a missing Logger dependency"
+        except ValueError:
+            pass
+        try:
+            Chunker(logger, chunk_size=0)
+            assert False, "Complete chunking should reject a zero chunk size"
+        except ValueError:
+            pass
+        try:
+            Chunker(logger, chunk_size=-1)
+            assert False, "Complete chunking should reject a negative chunk size"
+        except ValueError:
+            pass
+        try:
+            Chunker(logger, chunk_size=10, chunk_overlap=10)
+            assert False, "Complete chunking should reject overlap equal to the chunk size"
+        except ValueError:
+            pass
+        try:
+            Chunker(logger, chunk_size=10, chunk_overlap=11)
+            assert False, "Complete chunking should reject overlap greater than the chunk size"
+        except ValueError:
+            pass
+        try:
+            Chunker(logger, chunk_size=10, chunk_overlap=-1)
+            assert False, "Complete chunking should reject negative overlap"
+        except ValueError:
+            pass
+        try:
+            chunker.chunk(None)
+            assert False, "Complete chunking should reject a non-Document input"
+        except ValueError:
+            pass
+        print(green("Version 0.2.5 complete chunking pipeline is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.2.5 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
