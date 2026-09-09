@@ -90,9 +90,9 @@ class Loader:
             raise FileNotFoundError(f"Loader directory not found: {directory}")
         self.logger.info(f"Searching for documents in: {directory}")
         paths = []
-        for filename in os.listdir(directory):
-            path = os.path.join(directory, filename)
-            if os.path.isfile(path) and os.path.splitext(filename)[1].lower() == ".txt":
-                paths.append(path)
+        for root, directories, files in os.walk(directory):
+            for filename in files:
+                if os.path.splitext(filename)[1].lower() == ".txt":
+                    paths.append(os.path.join(root, filename))
         self.logger.info(f"Found {len(paths)} documents in: {directory}")
         return paths

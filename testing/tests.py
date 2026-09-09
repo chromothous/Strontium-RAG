@@ -592,6 +592,44 @@ def full_test():
         print(red(e))
         print(red("Version 0.0.24 failed"))
 
+    try:
+        tests += 1
+        import os
+        import tempfile
+        from classes.loader import Loader
+        from classes.logger import Logger
+        logger = Logger()
+        loader = Loader(logger)
+        with tempfile.TemporaryDirectory() as directory:
+            root_path = os.path.join(directory, "root.txt")
+            nested_directory = os.path.join(directory, "nested")
+            deep_directory = os.path.join(nested_directory, "deep")
+            os.makedirs(deep_directory)
+            nested_path = os.path.join(nested_directory, "nested.txt")
+            deep_path = os.path.join(deep_directory, "deep.txt")
+            unsupported_path = os.path.join(deep_directory, "notes.md")
+            with open(root_path, "w", encoding="utf-8") as file:
+                file.write("Root document.")
+            with open(nested_path, "w", encoding="utf-8") as file:
+                file.write("Nested document.")
+            with open(deep_path, "w", encoding="utf-8") as file:
+                file.write("Deep document.")
+            with open(unsupported_path, "w", encoding="utf-8") as file:
+                file.write("Unsupported document.")
+            paths = loader.find_files(directory)
+            assert isinstance(paths, list)
+            assert len(paths) == 3
+            assert root_path in paths
+            assert nested_path in paths
+            assert deep_path in paths
+            assert unsupported_path not in paths
+        print(green("Version 0.0.25 recursive directory discovery is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.0.25 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

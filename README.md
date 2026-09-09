@@ -78,3 +78,6 @@ Loader batch statistics access is online.
 
 Version 0.0.24
 Loader directory discovery is online.
+
+Version 0.0.25
+Recursive directory discovery is online.
