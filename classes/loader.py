@@ -16,6 +16,11 @@ class Loader:
             raise ValueError(f"Unsupported loader encoding: {encoding}")
         self.logger = logger
         self.encoding = encoding
+        self.last_batch_stats = {
+            "attempted": 0,
+            "successful": 0,
+            "failed": 0
+        }
 
     def read_file(self, path):
         self.logger.info(f"Reading file: {path}")
@@ -55,10 +60,20 @@ class Loader:
             raise ValueError("Loader paths must be a list or tuple")
         self.logger.info(f"Loading {len(paths)} documents")
         documents = []
+        attempted = len(paths)
+        successful = 0
+        failed = 0
         for path in paths:
             try:
                 documents.append(self.load(path))
+                successful += 1
             except Exception as e:
+                failed += 1
                 self.logger.error(f"Failed to load document: {path} - {e}")
-        self.logger.info(f"Loaded {len(documents)} documents successfully")
+        self.last_batch_stats = {
+            "attempted": attempted,
+            "successful": successful,
+            "failed": failed
+        }
+        self.logger.info(f"Loaded {successful}/{attempted} documents successfully")
         return documents
