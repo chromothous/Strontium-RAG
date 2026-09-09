@@ -96,3 +96,6 @@ Ingestion failure tracking is online.
 
 Version 0.0.30
 Ingestion failure isolation is online.
+
+Version 0.0.31
+Ingestion state consistency is online.

@@ -828,6 +828,44 @@ def full_test():
         print(red(e))
         print(red("Version 0.0.30 failed"))
 
+    try:
+        tests += 1
+        import os
+        import tempfile
+        from classes.ingestion import Ingestion
+        from classes.loader import Loader
+        from classes.logger import Logger
+        logger = Logger()
+        loader = Loader(logger)
+        ingestion = Ingestion(loader, logger)
+        with tempfile.TemporaryDirectory() as first_directory:
+            first_file = os.path.join(first_directory, "failed.txt")
+            with open(first_file, "w", encoding="utf-8") as file:
+                file.write("")
+            ingestion.ingest_directory(first_directory)
+            first_failures = ingestion.get_ingestion_failures()
+            assert len(first_failures) == 1, "First ingestion should record its failed document"
+        with tempfile.TemporaryDirectory() as second_directory:
+            second_file = os.path.join(second_directory, "successful.txt")
+            with open(second_file, "w", encoding="utf-8") as file:
+                file.write("Successful document.")
+            documents = ingestion.ingest_directory(second_directory)
+            second_failures = ingestion.get_ingestion_failures()
+            stats = ingestion.get_ingestion_stats()
+            assert len(documents) == 1, "Second ingestion should load its successful document"
+            assert second_failures == [], "Second ingestion should not retain failures from the previous ingestion"
+            assert stats == {
+                "attempted": 1,
+                "successful": 1,
+                "failed": 0
+            }, "Second ingestion statistics should completely replace the previous ingestion statistics"
+        print(green("Version 0.0.31 ingestion state consistency is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.0.31 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
