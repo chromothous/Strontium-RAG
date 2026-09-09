@@ -51,6 +51,18 @@ class VectorStore:
         self.logger.info(f"Vector stored: {vector_id}")
         return vector_id
 
+    def add_many(self, embeddings):
+        if not isinstance(embeddings, (list, tuple)):
+            self.logger.error("VectorStore embeddings must be a list or tuple")
+            raise ValueError("VectorStore embeddings must be a list or tuple")
+        vector_ids = []
+        for embedding in embeddings:
+            vector_ids.append(self.add(embedding))
+        self.logger.info(
+            f"Vectors stored successfully: {len(vector_ids)}"
+        )
+        return vector_ids
+
     def get(self, vector_id):
         if not isinstance(vector_id, str) or not vector_id:
             raise ValueError("VectorStore vector ID must be a non-empty string")

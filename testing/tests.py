@@ -2134,6 +2134,79 @@ def full_test():
         print(red(e))
         print(red("Version 0.4.1 failed"))
 
+    try:
+        tests += 1
+        from classes.document import Document
+        from classes.logger import Logger
+        from classes.vector_store import VectorStore
+        logger = Logger()
+        store = VectorStore(logger)
+        document_one = Document(
+            "First batch vector storage document.",
+            "batch_one.txt"
+        )
+        document_two = Document(
+            "Second batch vector storage document.",
+            "batch_two.txt"
+        )
+        document_three = Document(
+            "Third batch vector storage document.",
+            "batch_three.txt"
+        )
+        embeddings = [
+            {
+                "chunk": document_one,
+                "embedding": [0.1, 0.2, 0.3],
+                "metadata": {"source": "batch_one.txt"}
+            },
+            {
+                "chunk": document_two,
+                "embedding": [0.4, 0.5, 0.6],
+                "metadata": {"source": "batch_two.txt"}
+            },
+            {
+                "chunk": document_three,
+                "embedding": [0.7, 0.8, 0.9],
+                "metadata": {"source": "batch_three.txt"}
+            }
+        ]
+        vector_ids = store.add_many(embeddings)
+        assert isinstance(vector_ids, list), "Batch vector storage should return a list of vector identifiers"
+        assert len(vector_ids) == 3, "Batch vector storage should return one identifier for each embedding"
+        assert vector_ids == [document_one.id, document_two.id, document_three.id], "Batch vector storage should preserve embedding order"
+        assert len(store.vectors) == 3, "Batch vector storage should store every supplied embedding"
+        assert store.get(vector_ids[0])["embedding"] == [0.1, 0.2, 0.3], "Batch vector storage should preserve the first embedding vector"
+        assert store.get(vector_ids[1])["embedding"] == [0.4, 0.5, 0.6], "Batch vector storage should preserve the second embedding vector"
+        assert store.get(vector_ids[2])["embedding"] == [0.7, 0.8, 0.9], "Batch vector storage should preserve the third embedding vector"
+        assert store.dimension == 3, "Batch vector storage should maintain the vector dimension"
+        try:
+            store.add_many(None)
+            assert False, "Batch vector storage should reject a missing embedding collection"
+        except ValueError:
+            pass
+        try:
+            store.add_many("invalid embeddings")
+            assert False, "Batch vector storage should reject a non-list embedding collection"
+        except ValueError:
+            pass
+        try:
+            store.add_many([
+                {
+                    "chunk": Document("Invalid batch document.", "invalid_batch.txt"),
+                    "embedding": [1.0, 2.0]
+                }
+            ])
+            assert False, "Batch vector storage should reject vectors with mismatched dimensions"
+        except ValueError:
+            pass
+        assert len(store.vectors) == 3, "Failed batch validation should not add invalid vectors"
+        print(green("Version 0.4.2 batch vector storage is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.4.2 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
