@@ -129,3 +129,6 @@ Complete preprocessing pipeline is online.
 
 Version 0.2.0
 Chunking foundation is online.
+
+Version 0.2.1
+Chunk identity and metadata refinement is online.

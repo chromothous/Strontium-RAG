@@ -1260,6 +1260,44 @@ def full_test():
         print(red(e))
         print(red("Version 0.2.0 failed"))
 
+    try:
+        tests += 1
+        from classes.chunker import Chunker
+        from classes.document import Document
+        from classes.logger import Logger
+        logger = Logger()
+        chunker = Chunker(logger, chunk_size=10)
+        document = Document(
+            "01234567890123456789",
+            "identity_test.txt",
+            {"category": "test", "author": "Noah"}
+        )
+        chunks = chunker.chunk(document)
+        assert len(chunks) == 2, "Chunking should produce the expected number of chunks"
+        assert chunks[0].metadata["document_id"] == document.id, "Every chunk should identify its source document"
+        assert chunks[1].metadata["document_id"] == document.id, "Every chunk should identify the same source document"
+        assert chunks[0].metadata["chunk_index"] == 0, "The first chunk should have a zero-based index"
+        assert chunks[1].metadata["chunk_index"] == 1, "The second chunk should have the next sequential index"
+        assert chunks[0].metadata["chunk_start"] == 0, "The first chunk should begin at character position zero"
+        assert chunks[0].metadata["chunk_end"] == 10, "The first chunk should end at its configured chunk size"
+        assert chunks[1].metadata["chunk_start"] == 10, "The second chunk should begin where the first chunk ends"
+        assert chunks[1].metadata["chunk_end"] == 20, "The final chunk should record the actual end of the document"
+        assert chunks[0].metadata["category"] == "test", "Chunk metadata should preserve inherited document metadata"
+        assert chunks[0].metadata["author"] == "Noah", "Chunk metadata should preserve all inherited document metadata"
+        assert chunks[0].metadata is not document.metadata, "Chunk metadata should not share the source document metadata dictionary"
+        assert chunks[1].metadata is not chunks[0].metadata, "Each chunk should have its own metadata dictionary"
+        assert chunks[0].id != document.id, "Each chunk should have its own unique identity separate from the source document"
+        assert chunks[1].id != document.id, "Every chunk should have its own unique identity separate from the source document"
+        assert chunks[0].id != chunks[1].id, "Different chunks should never share the same chunk identity"
+        assert chunks[0].source == document.source, "Chunk identity should retain the original document source"
+        assert chunks[1].source == document.source, "Every chunk should retain the original document source"
+        print(green("Version 0.2.1 chunk identity and metadata refinement is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.2.1 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
