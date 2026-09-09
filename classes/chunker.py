@@ -25,6 +25,26 @@ class Chunker:
             return boundary
         return target
 
+    def _validate_chunk(self, chunk, document, index):
+        if not isinstance(chunk, Document):
+            raise ValueError("Chunk must be a Document")
+        if not chunk.content:
+            raise ValueError("Chunk content cannot be empty")
+        if chunk.source != document.source:
+            raise ValueError("Chunk source must match the source document")
+        if chunk.metadata.get("document_id") != document.id:
+            raise ValueError("Chunk document ID must match the source document")
+        if chunk.metadata.get("chunk_index") != index:
+            raise ValueError("Chunk index must match its position in the result")
+        start = chunk.metadata.get("chunk_start")
+        end = chunk.metadata.get("chunk_end")
+        if not isinstance(start, int) or not isinstance(end, int):
+            raise ValueError("Chunk positions must be integers")
+        if start < 0 or end < start:
+            raise ValueError("Chunk positions must define a valid range")
+        if end > len(document.content):
+            raise ValueError("Chunk end position cannot exceed document length")
+
     def chunk(self, document):
         if not isinstance(document, Document):
             self.logger.error("Chunker document must be a Document")
@@ -49,6 +69,7 @@ class Chunker:
                 document.source,
                 chunk_metadata
             )
+            self._validate_chunk(chunk, document, len(chunks))
             chunks.append(chunk)
             if end >= len(content):
                 break

@@ -1391,6 +1391,78 @@ def full_test():
         print(red(e))
         print(red("Version 0.2.3 failed"))
 
+    try:
+        tests += 1
+        from classes.chunker import Chunker
+        from classes.document import Document
+        from classes.logger import Logger
+        logger = Logger()
+        chunker = Chunker(logger, chunk_size=20, chunk_overlap=5)
+        document = Document(
+            "The first sentence contains useful information. The second sentence contains more information.",
+            "validation_test.txt",
+            {"category": "test"}
+        )
+        original_content = document.content
+        original_metadata = document.metadata.copy()
+        chunks = chunker.chunk(document)
+        assert isinstance(chunks, list), "Chunk validation should return chunks as a list"
+        assert chunks, "Chunk validation should produce at least one chunk for non-empty content"
+        assert all(isinstance(chunk, Document) for chunk in chunks), "Every validated chunk should be a Document"
+        assert all(chunk.content for chunk in chunks), "Every validated chunk should contain non-empty content"
+        assert all(chunk.source == document.source for chunk in chunks), "Every validated chunk should preserve the source document source"
+        assert all(chunk.metadata["document_id"] == document.id for chunk in chunks), "Every validated chunk should reference the source document ID"
+        assert [chunk.metadata["chunk_index"] for chunk in chunks] == list(range(len(chunks))), "Validated chunk indexes should be sequential and zero-based"
+        assert all(chunk.metadata["chunk_start"] >= 0 for chunk in chunks), "Validated chunk start positions should never be negative"
+        assert all(chunk.metadata["chunk_end"] >= chunk.metadata["chunk_start"] for chunk in chunks), "Validated chunk positions should define valid ranges"
+        assert all(chunk.metadata["chunk_end"] <= len(document.content) for chunk in chunks), "Validated chunk positions should remain within the source document"
+        assert all(len(chunk.content) <= chunker.chunk_size for chunk in chunks), "Validated chunks should respect the configured chunk size"
+        assert all(chunk.metadata["chunk_start"] < chunk.metadata["chunk_end"] for chunk in chunks), "Validated chunks should represent a non-empty source range"
+        assert all(chunk.metadata is not document.metadata for chunk in chunks), "Validated chunks should use independent metadata dictionaries"
+        assert document.content == original_content, "Chunking validation should not modify the original document content"
+        assert document.metadata == original_metadata, "Chunking validation should not modify the original document metadata"
+        short_document = Document("Short document.", "short.txt")
+        short_chunks = chunker.chunk(short_document)
+        assert len(short_chunks) == 1, "Chunk validation should keep content shorter than the chunk size as one chunk"
+        assert short_chunks[0].metadata["chunk_start"] == 0, "A single validated chunk should begin at the start of the document"
+        assert short_chunks[0].metadata["chunk_end"] == len(short_document.content), "A single validated chunk should end at the document boundary"
+        try:
+            Chunker(logger, chunk_size=0)
+            assert False, "Chunk validation should reject a zero chunk size"
+        except ValueError:
+            pass
+        try:
+            Chunker(logger, chunk_size=-5)
+            assert False, "Chunk validation should reject a negative chunk size"
+        except ValueError:
+            pass
+        try:
+            Chunker(logger, chunk_size=10, chunk_overlap=10)
+            assert False, "Chunk validation should reject overlap equal to the chunk size"
+        except ValueError:
+            pass
+        try:
+            Chunker(logger, chunk_size=10, chunk_overlap=11)
+            assert False, "Chunk validation should reject overlap greater than the chunk size"
+        except ValueError:
+            pass
+        try:
+            Chunker(logger, chunk_size=10, chunk_overlap=-1)
+            assert False, "Chunk validation should reject negative overlap"
+        except ValueError:
+            pass
+        try:
+            chunker.chunk(None)
+            assert False, "Chunk validation should reject a non-Document input"
+        except ValueError:
+            pass
+        print(green("Version 0.2.4 chunk validation is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.2.4 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

@@ -139,3 +139,5 @@ Boundary-aware chunking is online.
 Version 0.2.3
 Chunk overlap is online.
 
+Version 0.2.4
+Chunk validation is online.
