@@ -2207,6 +2207,55 @@ def full_test():
         print(red(e))
         print(red("Version 0.4.2 failed"))
 
+    try:
+        tests += 1
+        from classes.document import Document
+        from classes.logger import Logger
+        from classes.vector_store import VectorStore
+        logger = Logger()
+        store = VectorStore(logger)
+        document_one = Document(
+            "First retrieval document.",
+            "retrieval_one.txt"
+        )
+        document_two = Document(
+            "Second retrieval document.",
+            "retrieval_two.txt"
+        )
+        embeddings = [
+            {
+                "chunk": document_one,
+                "embedding": [0.1, 0.2, 0.3],
+                "metadata": {"source": "retrieval_one.txt"}
+            },
+            {
+                "chunk": document_two,
+                "embedding": [0.4, 0.5, 0.6],
+                "metadata": {"source": "retrieval_two.txt"}
+            }
+        ]
+        store.add_many(embeddings)
+        all_vectors = store.get_all()
+        assert isinstance(all_vectors, dict), "Vector storage should return all stored vectors as a dictionary"
+        assert len(all_vectors) == 2, "Vector storage should return every stored vector"
+        assert document_one.id in all_vectors, "Vector storage should include the first stored vector"
+        assert document_two.id in all_vectors, "Vector storage should include the second stored vector"
+        assert all_vectors[document_one.id]["chunk"] is document_one, "Retrieved records should preserve their source chunks"
+        assert all_vectors[document_one.id]["embedding"] == [0.1, 0.2, 0.3], "Retrieved records should preserve their embedding vectors"
+        assert all_vectors[document_one.id]["metadata"] == {"source": "retrieval_one.txt"}, "Retrieved records should preserve their metadata"
+        all_vectors[document_one.id]["embedding"].append(99.0)
+        all_vectors[document_one.id]["metadata"]["modified"] = True
+        stored = store.get(document_one.id)
+        assert stored["embedding"] == [0.1, 0.2, 0.3], "Retrieved embeddings should not allow external mutation of stored vectors"
+        assert "modified" not in stored["metadata"], "Retrieved metadata should not allow external mutation of stored metadata"
+        assert store.get_all() != {}, "Vector storage should retain stored records after retrieval"
+        print(green("Version 0.4.3 vector storage retrieval is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.4.3 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

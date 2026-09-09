@@ -171,3 +171,6 @@ Vector storage validation is online.
 
 Version 0.4.2
 Batch vector storage is online.
+
+Version 0.4.3
+Vector storage retrieval is online.
