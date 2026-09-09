@@ -108,3 +108,7 @@ Ingestion dependency consistency is online.
 
 Version 0.0.34
 Complete ingestion pipeline is online.
+
+Version 0.1.0
+Preprocessor foundation is online.
+

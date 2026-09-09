@@ -1008,6 +1008,36 @@ def full_test():
         print(red(e))
         print(red("Version 0.0.34 failed"))
 
+    try:
+        tests += 1
+        from classes.document import Document
+        from classes.logger import Logger
+        from classes.preprocessor import Preprocessor
+        logger = Logger()
+        preprocessor = Preprocessor(logger)
+        document = Document("This is a test document.", "test.txt")
+        processed = preprocessor.process(document)
+        assert preprocessor.logger is logger, "Preprocessor should retain the exact Logger instance provided during construction"
+        assert processed is document, "Initial preprocessing should return the existing Document instance unchanged"
+        assert processed.content == document.content, "Initial preprocessing should preserve document content"
+        assert processed.source == document.source, "Initial preprocessing should preserve document source"
+        try:
+            Preprocessor(None)
+            assert False, "Preprocessor should reject a missing Logger dependency"
+        except ValueError:
+            pass
+        try:
+            preprocessor.process(None)
+            assert False, "Preprocessor should reject a non-Document input"
+        except ValueError:
+            pass
+        print(green("Version 0.1.0 preprocessor foundation is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.1.0 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
