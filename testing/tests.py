@@ -422,6 +422,42 @@ def full_test():
         print(red(e))
         print(red("Version 0.0.19 failed"))
 
+    try:
+        tests += 1
+        import os
+        import tempfile
+        from classes.loader import Loader
+        from classes.logger import Logger
+        from classes.document import Document
+        logger = Logger()
+        loader = Loader(logger)
+        paths = []
+        for content in ["First document.", "Second document.", "Third document."]:
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", encoding="utf-8", delete=False) as file:
+                file.write(content)
+                paths.append(file.name)
+        documents = loader.load_many(paths)
+        assert isinstance(documents, list)
+        assert len(documents) == 3
+        assert all(isinstance(document, Document) for document in documents)
+        assert documents[0].content == "First document."
+        assert documents[1].content == "Second document."
+        assert documents[2].content == "Third document."
+        for path in paths:
+            os.remove(path)
+        assert loader.load_many([]) == []
+        try:
+            loader.load_many("not-a-list")
+            assert False
+        except ValueError:
+            pass
+        print(green("Version 0.0.20 loader batch loading is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.0.20 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

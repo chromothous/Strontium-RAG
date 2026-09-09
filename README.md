@@ -63,3 +63,6 @@ Instantiated Logger object in 0.0.10 test code.
 
 Version 0.0.19
 Loader encoding validation is online.
+
+Version 0.0.20
+Loader batch loading is online.

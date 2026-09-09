@@ -48,3 +48,14 @@ class Loader:
         document = Document(content, path, metadata)
         self.logger.info(f"Document loaded successfully: {path}")
         return document
+
+    def load_many(self, paths):
+        if not isinstance(paths, (list, tuple)):
+            self.logger.error("Loader paths must be a list or tuple")
+            raise ValueError("Loader paths must be a list or tuple")
+        self.logger.info(f"Loading {len(paths)} documents")
+        documents = []
+        for path in paths:
+            documents.append(self.load(path))
+        self.logger.info(f"Loaded {len(documents)} documents successfully")
+        return documents
