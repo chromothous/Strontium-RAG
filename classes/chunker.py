@@ -11,6 +11,15 @@ class Chunker:
         self.logger = logger
         self.chunk_size = chunk_size
 
+    def _find_boundary(self, content, start):
+        target = start + self.chunk_size
+        if target >= len(content):
+            return len(content)
+        boundary = content.rfind(" ", start, target + 1)
+        if boundary > start:
+            return boundary
+        return target
+
     def chunk(self, document):
         if not isinstance(document, Document):
             self.logger.error("Chunker document must be a Document")
@@ -18,19 +27,27 @@ class Chunker:
         self.logger.info(f"Chunking document: {document.source}")
         chunks = []
         content = document.content
-        for index in range(0, len(content), self.chunk_size):
-            chunk_content = content[index:index + self.chunk_size]
+        start = 0
+        while start < len(content):
+            end = self._find_boundary(content, start)
+            chunk_content = content[start:end].strip()
+            if not chunk_content:
+                start = end + 1
+                continue
             chunk_metadata = document.metadata.copy()
             chunk_metadata["document_id"] = document.id
             chunk_metadata["chunk_index"] = len(chunks)
-            chunk_metadata["chunk_start"] = index
-            chunk_metadata["chunk_end"] = index + len(chunk_content)
+            chunk_metadata["chunk_start"] = start
+            chunk_metadata["chunk_end"] = end
             chunk = Document(
                 chunk_content,
                 document.source,
                 chunk_metadata
             )
             chunks.append(chunk)
+            start = end
+            while start < len(content) and content[start].isspace():
+                start += 1
         self.logger.info(
             f"Document chunked successfully: {document.source} "
             f"({len(chunks)} chunks)"

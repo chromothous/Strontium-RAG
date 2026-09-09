@@ -1298,6 +1298,47 @@ def full_test():
         print(red(e))
         print(red("Version 0.2.1 failed"))
 
+    try:
+        tests += 1
+        from classes.chunker import Chunker
+        from classes.document import Document
+        from classes.logger import Logger
+        logger = Logger()
+        chunker = Chunker(logger, chunk_size=20)
+        document = Document(
+            "The first sentence contains useful information. The second sentence contains more information.",
+            "boundary_test.txt",
+            {"category": "test"}
+        )
+        chunks = chunker.chunk(document)
+        assert isinstance(chunks, list), "Boundary-aware chunking should return chunks as a list"
+        assert len(chunks) >= 2, "Boundary-aware chunking should divide content that exceeds the configured chunk size"
+        assert all(isinstance(chunk, Document) for chunk in chunks), "Every boundary-aware chunk should be represented as a Document"
+        assert all(len(chunk.content) <= 20 for chunk in chunks), "Boundary-aware chunks should not exceed the configured chunk size"
+        assert all(not chunk.content.startswith(" ") for chunk in chunks), "Boundary-aware chunks should not begin with whitespace"
+        assert all(not chunk.content.endswith(" ") for chunk in chunks), "Boundary-aware chunks should not end with whitespace"
+        assert chunks[0].content == "The first sentence", "Chunking should prefer a natural whitespace boundary near the configured limit"
+        assert chunks[0].metadata["chunk_index"] == 0, "The first boundary-aware chunk should have a zero-based index"
+        assert chunks[1].metadata["chunk_index"] == 1, "Boundary-aware chunk indexes should remain sequential"
+        assert chunks[0].metadata["document_id"] == document.id, "Boundary-aware chunks should retain their source document identity"
+        assert chunks[1].metadata["document_id"] == document.id, "Every boundary-aware chunk should retain the source document identity"
+        reconstructed = " ".join(chunk.content for chunk in chunks)
+        assert reconstructed == document.content, "Boundary-aware chunking should preserve all document content without loss or duplication"
+        short_document = Document("Short document.", "short.txt")
+        short_chunks = chunker.chunk(short_document)
+        assert len(short_chunks) == 1, "Documents shorter than the chunk size should remain a single chunk"
+        assert short_chunks[0].content == "Short document.", "A short document should retain its complete content"
+        exact_document = Document("12345678901234567890", "exact.txt")
+        exact_chunks = chunker.chunk(exact_document)
+        assert len(exact_chunks) == 1, "A document exactly matching the chunk size should remain a single chunk"
+        assert exact_chunks[0].content == exact_document.content, "A document exactly matching the chunk size should retain its complete content"
+        print(green("Version 0.2.2 boundary-aware chunking is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.2.2 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

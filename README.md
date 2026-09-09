@@ -132,3 +132,6 @@ Chunking foundation is online.
 
 Version 0.2.1
 Chunk identity and metadata refinement is online.
+
+Version 0.2.2
+Boundary-aware chunking is online.
