@@ -1553,6 +1553,90 @@ def full_test():
         print(red(e))
         print(red("Version 0.2.5 failed"))
 
+    try:
+        tests += 1
+        from classes.chunker import Chunker
+        from classes.document import Document
+        from classes.embedding_provider import EmbeddingProvider
+        from classes.embedder import Embedder
+        from classes.logger import Logger
+        class TestEmbeddingProvider(EmbeddingProvider):
+            def embed(self, text):
+                return [float(len(text)), 1.0, 2.0]
+        logger = Logger()
+        provider = TestEmbeddingProvider()
+        embedder = Embedder(provider, logger)
+        chunker = Chunker(logger, chunk_size=20)
+        document = Document(
+            "This document contains enough text to produce multiple chunks.",
+            "embedding_test.txt",
+            {"category": "test"}
+        )
+        chunks = chunker.chunk(document)
+        embedded = embedder.embed(chunks)
+        assert isinstance(embedded, list), "Embedding should return results as a list"
+        assert len(embedded) == len(chunks), "Embedding should produce one result for every chunk"
+        assert all(isinstance(item, dict) for item in embedded), "Every embedding result should be represented as a dictionary"
+        assert all("chunk" in item for item in embedded), "Every embedding result should retain its source chunk"
+        assert all("embedding" in item for item in embedded), "Every embedding result should contain an embedding vector"
+        assert all(isinstance(item["chunk"], Document) for item in embedded), "Every embedding result should retain a Document chunk"
+        assert all(isinstance(item["embedding"], list) for item in embedded), "Every embedding vector should be represented as a list"
+        assert all(item["embedding"] for item in embedded), "Every embedding vector should contain values"
+        assert embedded[0]["chunk"] is chunks[0], "Embedding results should retain the exact chunk object provided to the embedder"
+        assert embedded[0]["embedding"] == [float(len(chunks[0].content)), 1.0, 2.0], "Embedding should pass chunk content to the provider and retain the returned vector"
+        assert embedded[0]["chunk"].metadata["document_id"] == document.id, "Embedded chunks should retain their source document identity"
+        assert embedded[0]["chunk"].metadata["chunk_index"] == 0, "Embedded chunks should retain their original chunk index"
+        assert embedded[0]["chunk"].source == document.source, "Embedded chunks should retain their original document source"
+        try:
+            Embedder(None, logger)
+            assert False, "Embedder should reject a missing embedding provider"
+        except ValueError:
+            pass
+        try:
+            Embedder(provider, None)
+            assert False, "Embedder should reject a missing Logger dependency"
+        except ValueError:
+            pass
+        try:
+            embedder.embed(None)
+            assert False, "Embedder should reject a missing chunk collection"
+        except ValueError:
+            pass
+        try:
+            embedder.embed("invalid")
+            assert False, "Embedder should reject a non-list chunk collection"
+        except ValueError:
+            pass
+        try:
+            embedder.embed([None])
+            assert False, "Embedder should reject collections containing non-Document values"
+        except ValueError:
+            pass
+        class EmptyEmbeddingProvider(EmbeddingProvider):
+            def embed(self, text):
+                return []
+        empty_embedder = Embedder(EmptyEmbeddingProvider(), logger)
+        try:
+            empty_embedder.embed([chunks[0]])
+            assert False, "Embedder should reject empty embedding vectors"
+        except ValueError:
+            pass
+        class InvalidEmbeddingProvider(EmbeddingProvider):
+            def embed(self, text):
+                return "invalid"
+        invalid_embedder = Embedder(InvalidEmbeddingProvider(), logger)
+        try:
+            invalid_embedder.embed([chunks[0]])
+            assert False, "Embedder should reject embedding providers that return non-vector values"
+        except ValueError:
+            pass
+        print(green("Version 0.3.0 embedding foundation is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.3.0 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

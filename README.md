@@ -144,3 +144,6 @@ Chunk validation is online.
 
 Version 0.2.5
 Complete chunking pipeline is online.
+
+Version 0.3.0
+Embedding foundation is online.
