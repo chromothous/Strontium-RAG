@@ -86,6 +86,9 @@ class VectorStore:
         self.logger.info(f"Vector store cleared: {count} vectors removed")
         return count
 
+    def count(self):
+        return len(self.vectors)
+
     def get_all(self):
         return {
             vector_id: {

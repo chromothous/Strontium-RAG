@@ -180,3 +180,6 @@ Vector removal is online.
 
 Version 0.4.5
 Vector store clearing is online.
+
+Version 0.4.6
+Vector store counting is online.

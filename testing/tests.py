@@ -2382,6 +2382,53 @@ def full_test():
         print(red(e))
         print(red("Version 0.4.5 failed"))
 
+    try:
+        tests += 1
+        from classes.document import Document
+        from classes.logger import Logger
+        from classes.vector_store import VectorStore
+        logger = Logger()
+        store = VectorStore(logger)
+        assert store.count() == 0, "A new vector store should report zero stored vectors"
+        document_one = Document(
+            "First count test document.",
+            "count_one.txt"
+        )
+        document_two = Document(
+            "Second count test document.",
+            "count_two.txt"
+        )
+        store.add({
+            "chunk": document_one,
+            "embedding": [0.1, 0.2, 0.3]
+        })
+        assert store.count() == 1, "Vector storage should report one stored vector after one vector is added"
+        store.add({
+            "chunk": document_two,
+            "embedding": [0.4, 0.5, 0.6]
+        })
+        assert store.count() == 2, "Vector storage should report the total number of stored vectors"
+        store.remove(document_one.id)
+        assert store.count() == 1, "Vector storage count should decrease when a vector is removed"
+        store.clear()
+        assert store.count() == 0, "Vector storage count should return zero after the store is cleared"
+        document_three = Document(
+            "Third count test document.",
+            "count_three.txt"
+        )
+        store.add({
+            "chunk": document_three,
+            "embedding": [0.7, 0.8, 0.9]
+        })
+        assert store.count() == 1, "Vector storage count should work after the store has been cleared and reused"
+        assert store.count() == len(store.vectors), "Vector storage count should match the number of internally stored vectors"
+        print(green("Version 0.4.6 vector store counting is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.4.6 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
