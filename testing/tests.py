@@ -181,6 +181,8 @@ def full_test():
         import tempfile
         from classes.loader import Loader
         from classes.document import Document
+        from classes.logger import Logger
+        logger = Logger()
         with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", encoding="utf-8", delete=False) as file:
             file.write("This is test document content.")
             path = file.name
