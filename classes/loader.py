@@ -56,6 +56,9 @@ class Loader:
         self.logger.info(f"Loading {len(paths)} documents")
         documents = []
         for path in paths:
-            documents.append(self.load(path))
+            try:
+                documents.append(self.load(path))
+            except Exception as e:
+                self.logger.error(f"Failed to load document: {path} - {e}")
         self.logger.info(f"Loaded {len(documents)} documents successfully")
         return documents

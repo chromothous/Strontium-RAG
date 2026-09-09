@@ -458,6 +458,35 @@ def full_test():
         print(red(e))
         print(red("Version 0.0.20 failed"))
 
+    try:
+        tests += 1
+        import os
+        import tempfile
+        from classes.loader import Loader
+        from classes.logger import Logger
+        from classes.document import Document
+        logger = Logger()
+        loader = Loader(logger)
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", encoding="utf-8", delete=False) as file:
+            file.write("Valid document.")
+            valid_path = file.name
+        invalid_path = os.path.join(tempfile.gettempdir(), "strontium_rag_missing_0_0_21.txt")
+        if os.path.exists(invalid_path):
+            os.remove(invalid_path)
+        documents = loader.load_many([valid_path, invalid_path])
+        assert isinstance(documents, list)
+        assert len(documents) == 1
+        assert isinstance(documents[0], Document)
+        assert documents[0].content == "Valid document."
+        os.remove(valid_path)
+        assert loader.load_many([invalid_path]) == []
+        print(green("Version 0.0.21 loader batch failure handling is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.0.21 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

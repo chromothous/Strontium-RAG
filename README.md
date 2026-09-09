@@ -66,3 +66,6 @@ Loader encoding validation is online.
 
 Version 0.0.20
 Loader batch loading is online.
+
+Version 0.0.21
+Loader batch failure handling is online.
