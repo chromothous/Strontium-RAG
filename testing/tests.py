@@ -1197,6 +1197,69 @@ def full_test():
         print(red(e))
         print(red("Version 0.1.5 failed"))
 
+    try:
+        tests += 1
+        from classes.chunker import Chunker
+        from classes.document import Document
+        from classes.logger import Logger
+        logger = Logger()
+        chunker = Chunker(logger, chunk_size=10)
+        document = Document(
+            "01234567890123456789",
+            "chunk_test.txt",
+            {"category": "test"}
+        )
+        chunks = chunker.chunk(document)
+        assert isinstance(chunks, list), "Chunking should return chunks as a list"
+        assert len(chunks) == 2, "Chunking should divide a twenty-character document into two ten-character chunks"
+        assert all(isinstance(chunk, Document) for chunk in chunks), "Every generated chunk should be represented as a Document"
+        assert chunks[0].content == "0123456789", "First chunk should contain the first chunk_size characters"
+        assert chunks[1].content == "0123456789", "Second chunk should contain the remaining characters"
+        assert chunks[0].source == document.source, "Chunks should preserve the original document source"
+        assert chunks[1].source == document.source, "Every chunk should preserve the original document source"
+        assert chunks[0].metadata["document_id"] == document.id, "Chunks should retain the identity of their source document"
+        assert chunks[1].metadata["document_id"] == document.id, "Every chunk should retain the identity of its source document"
+        assert chunks[0].metadata["chunk_index"] == 0, "The first chunk should have chunk index zero"
+        assert chunks[1].metadata["chunk_index"] == 1, "The second chunk should have chunk index one"
+        assert chunks[0].metadata["chunk_start"] == 0, "The first chunk should record its starting character position"
+        assert chunks[0].metadata["chunk_end"] == 10, "The first chunk should record its ending character position"
+        assert chunks[1].metadata["chunk_start"] == 10, "The second chunk should record its starting character position"
+        assert chunks[1].metadata["chunk_end"] == 20, "The second chunk should record its ending character position"
+        assert chunks[0].metadata["category"] == "test", "Chunks should preserve the original document metadata"
+        assert chunks[0].id != chunks[1].id, "Each generated chunk should have a unique document ID"
+        assert chunks[0].metadata is not document.metadata, "Chunk metadata should be independent from the original document metadata"
+        try:
+            Chunker(None)
+            assert False, "Chunker should reject a missing Logger dependency"
+        except ValueError:
+            pass
+        try:
+            Chunker(logger, chunk_size=0)
+            assert False, "Chunker should reject a zero chunk size"
+        except ValueError:
+            pass
+        try:
+            Chunker(logger, chunk_size=-1)
+            assert False, "Chunker should reject a negative chunk size"
+        except ValueError:
+            pass
+        try:
+            Chunker(logger, chunk_size="10")
+            assert False, "Chunker should reject a non-integer chunk size"
+        except ValueError:
+            pass
+        try:
+            chunker.chunk(None)
+            assert False, "Chunker should reject a non-Document input"
+        except ValueError:
+            pass
+        print(green("Version 0.2.0 chunking foundation is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.2.0 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
