@@ -1339,6 +1339,58 @@ def full_test():
         print(red(e))
         print(red("Version 0.2.2 failed"))
 
+    try:
+        tests += 1
+        from classes.chunker import Chunker
+        from classes.document import Document
+        from classes.logger import Logger
+        logger = Logger()
+        chunker = Chunker(logger, chunk_size=20, chunk_overlap=5)
+        document = Document(
+            "The first sentence contains useful information. The second sentence contains more information.",
+            "overlap_test.txt",
+            {"category": "test"}
+        )
+        chunks = chunker.chunk(document)
+        assert isinstance(chunks, list), "Chunk overlap processing should return chunks as a list"
+        assert len(chunks) >= 2, "Chunk overlap processing should produce multiple chunks for content exceeding the chunk size"
+        assert all(isinstance(chunk, Document) for chunk in chunks), "Every overlapping chunk should be represented as a Document"
+        assert all(len(chunk.content) <= 20 for chunk in chunks), "Overlapping chunks should not exceed the configured chunk size"
+        assert chunks[0].metadata["chunk_index"] == 0, "The first overlapping chunk should have a zero-based index"
+        assert chunks[1].metadata["chunk_index"] == 1, "Overlapping chunk indexes should remain sequential"
+        assert chunks[0].metadata["document_id"] == document.id, "Overlapping chunks should retain their source document identity"
+        assert chunks[1].metadata["document_id"] == document.id, "Every overlapping chunk should retain the source document identity"
+        assert chunks[1].metadata["chunk_start"] < chunks[0].metadata["chunk_end"], "The second chunk should begin before the first chunk ends when overlap is configured"
+        assert chunks[1].metadata["chunk_start"] == chunks[0].metadata["chunk_end"] - 5, "Chunk overlap should shift the next chunk backward by the configured overlap amount"
+        assert chunks[0].content[-5:] == chunks[1].content[:5], "Adjacent chunks should share the configured overlapping content"
+        assert chunks[0].source == document.source, "Overlapping chunks should preserve the original document source"
+        assert chunks[1].source == document.source, "Every overlapping chunk should preserve the original document source"
+        no_overlap_chunker = Chunker(logger, chunk_size=20)
+        no_overlap_chunks = no_overlap_chunker.chunk(document)
+        assert no_overlap_chunks[1].metadata["chunk_start"] >= no_overlap_chunks[0].metadata["chunk_end"], "A zero overlap configuration should not create overlapping chunk positions"
+        assert no_overlap_chunks[0].content[-1] not in no_overlap_chunks[1].content[:1], "A zero overlap configuration should not duplicate the boundary character between adjacent chunks"
+        try:
+            Chunker(logger, chunk_size=10, chunk_overlap=10)
+            assert False, "Chunk overlap should be smaller than the configured chunk size"
+        except ValueError:
+            pass
+        try:
+            Chunker(logger, chunk_size=10, chunk_overlap=11)
+            assert False, "Chunker should reject overlap values larger than the chunk size"
+        except ValueError:
+            pass
+        try:
+            Chunker(logger, chunk_size=10, chunk_overlap=-1)
+            assert False, "Chunker should reject negative overlap values"
+        except ValueError:
+            pass
+        print(green("Version 0.2.3 chunk overlap is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.2.3 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

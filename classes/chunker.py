@@ -3,13 +3,18 @@ from classes.logger import Logger
 
 
 class Chunker:
-    def __init__(self, logger, chunk_size=500):
+    def __init__(self, logger, chunk_size=500, chunk_overlap=0):
         if not isinstance(logger, Logger):
             raise ValueError("Chunker logger must be a Logger")
         if not isinstance(chunk_size, int) or chunk_size <= 0:
             raise ValueError("Chunker chunk size must be a positive integer")
+        if not isinstance(chunk_overlap, int) or chunk_overlap < 0:
+            raise ValueError("Chunker chunk overlap must be a non-negative integer")
+        if chunk_overlap >= chunk_size:
+            raise ValueError("Chunker chunk overlap must be smaller than chunk size")
         self.logger = logger
         self.chunk_size = chunk_size
+        self.chunk_overlap = chunk_overlap
 
     def _find_boundary(self, content, start):
         target = start + self.chunk_size
@@ -45,9 +50,14 @@ class Chunker:
                 chunk_metadata
             )
             chunks.append(chunk)
-            start = end
-            while start < len(content) and content[start].isspace():
-                start += 1
+            if end >= len(content):
+                break
+            next_start = end - self.chunk_overlap
+            if next_start <= start:
+                next_start = end
+            while next_start < len(content) and content[next_start].isspace():
+                next_start += 1
+            start = next_start
         self.logger.info(
             f"Document chunked successfully: {document.source} "
             f"({len(chunks)} chunks)"

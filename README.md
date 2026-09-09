@@ -135,3 +135,7 @@ Chunk identity and metadata refinement is online.
 
 Version 0.2.2
 Boundary-aware chunking is online.
+
+Version 0.2.3
+Chunk overlap is online.
+
