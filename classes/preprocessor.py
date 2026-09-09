@@ -1,3 +1,5 @@
+import re
+
 from classes.document import Document
 from classes.logger import Logger
 
@@ -13,4 +15,11 @@ class Preprocessor:
             self.logger.error("Preprocessor document must be a Document")
             raise ValueError("Preprocessor document must be a Document")
         self.logger.info(f"Preprocessing document: {document.source}")
-        return document
+        content = re.sub(r"[ \t]+", " ", document.content).strip()
+        processed = Document(
+            content,
+            document.source,
+            document.metadata.copy()
+        )
+        processed.id = document.id
+        return processed

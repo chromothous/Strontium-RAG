@@ -1017,10 +1017,10 @@ def full_test():
         preprocessor = Preprocessor(logger)
         document = Document("This is a test document.", "test.txt")
         processed = preprocessor.process(document)
-        assert preprocessor.logger is logger, "Preprocessor should retain the exact Logger instance provided during construction"
-        assert processed is document, "Initial preprocessing should return the existing Document instance unchanged"
+        assert isinstance(processed, Document), "Initial preprocessing should return a Document"
         assert processed.content == document.content, "Initial preprocessing should preserve document content"
         assert processed.source == document.source, "Initial preprocessing should preserve document source"
+        assert processed.metadata == document.metadata, "Initial preprocessing should preserve document metadata"
         try:
             Preprocessor(None)
             assert False, "Preprocessor should reject a missing Logger dependency"
@@ -1037,6 +1037,32 @@ def full_test():
         failure += 1
         print(red(e))
         print(red("Version 0.1.0 failed"))
+
+    try:
+        tests += 1
+        from classes.document import Document
+        from classes.logger import Logger
+        from classes.preprocessor import Preprocessor
+        logger = Logger()
+        preprocessor = Preprocessor(logger)
+        document = Document(
+            "   This   is    a test document.   ",
+            "test.txt",
+            {"category": "test"}
+        )
+        processed = preprocessor.process(document)
+        assert processed is not document, "Preprocessing should return a new Document instance"
+        assert processed.content == "This is a test document.", "Preprocessing should normalize repeated spaces and surrounding whitespace"
+        assert processed.id == document.id, "Preprocessing should preserve the original document ID"
+        assert processed.source == document.source, "Preprocessing should preserve the document source"
+        assert processed.metadata == document.metadata, "Preprocessing should preserve document metadata"
+        assert processed.metadata is not document.metadata, "Preprocessing should copy document metadata rather than share the original dictionary"
+        print(green("Version 0.1.1 whitespace normalization is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.1.1 failed"))
 
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))

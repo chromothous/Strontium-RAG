@@ -112,3 +112,5 @@ Complete ingestion pipeline is online.
 Version 0.1.0
 Preprocessor foundation is online.
 
+Version 0.1.1
+Whitespace normalization is online.
