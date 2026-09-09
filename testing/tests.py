@@ -910,6 +910,104 @@ def full_test():
         print(red(e))
         print(red("Version 0.0.32 failed"))
 
+    try:
+        tests += 1
+        from classes.ingestion import Ingestion
+        from classes.loader import Loader
+        from classes.logger import Logger
+        logger = Logger()
+        loader = Loader(logger)
+        ingestion = Ingestion(loader, logger)
+        assert ingestion.loader is loader, "Ingestion should retain the exact Loader instance provided during construction"
+        assert ingestion.logger is logger, "Ingestion should retain the exact Logger instance provided during construction"
+        try:
+            Ingestion(None, logger)
+            assert False, "Ingestion should reject a missing Loader dependency"
+        except ValueError:
+            pass
+        try:
+            Ingestion(loader, None)
+            assert False, "Ingestion should reject a missing Logger dependency"
+        except ValueError:
+            pass
+        try:
+            Ingestion("invalid", logger)
+            assert False, "Ingestion should reject a non-Loader dependency"
+        except ValueError:
+            pass
+        try:
+            Ingestion(loader, "invalid")
+            assert False, "Ingestion should reject a non-Logger dependency"
+        except ValueError:
+            pass
+        print(green("Version 0.0.33 ingestion dependency consistency is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.0.33 failed"))
+
+    try:
+        tests += 1
+        import os
+        import tempfile
+        from classes.ingestion import Ingestion
+        from classes.loader import Loader
+        from classes.logger import Logger
+        logger = Logger()
+        loader = Loader(logger)
+        ingestion = Ingestion(loader, logger)
+        with tempfile.TemporaryDirectory() as directory:
+            nested_directory = os.path.join(directory, "nested")
+            os.mkdir(nested_directory)
+            first_file = os.path.join(directory, "a.txt")
+            failed_file = os.path.join(directory, "b.txt")
+            nested_file = os.path.join(nested_directory, "c.txt")
+            ignored_file = os.path.join(directory, "ignored.pdf")
+            with open(first_file, "w", encoding="utf-8") as file:
+                file.write("First document.")
+            with open(failed_file, "w", encoding="utf-8") as file:
+                file.write("")
+            with open(nested_file, "w", encoding="utf-8") as file:
+                file.write("Nested document.")
+            with open(ignored_file, "w", encoding="utf-8") as file:
+                file.write("This file should not be discovered.")
+            documents = ingestion.ingest_directory(directory)
+            stats = ingestion.get_ingestion_stats()
+            failures = ingestion.get_ingestion_failures()
+            assert isinstance(documents, list), "Complete ingestion should return documents as a list"
+            assert len(documents) == 2, "Complete ingestion should return every successfully loaded document"
+            assert documents[0].source == first_file, "Documents should preserve deterministic discovery order"
+            assert documents[1].source == nested_file, "Nested documents should be included in deterministic discovery order"
+            assert stats == {
+                "attempted": 3,
+                "successful": 2,
+                "failed": 1
+            }, "Complete ingestion statistics should accurately reflect the entire ingestion run"
+            assert len(failures) == 1, "Complete ingestion should expose the failed document"
+            assert failures[0]["path"] == failed_file, "Complete ingestion should identify the failed document"
+            assert ignored_file not in [document.source for document in documents], "Unsupported file types should not enter the ingestion pipeline"
+        with tempfile.TemporaryDirectory() as directory:
+            successful_file = os.path.join(directory, "successful.txt")
+            with open(successful_file, "w", encoding="utf-8") as file:
+                file.write("Clean second ingestion.")
+            documents = ingestion.ingest_directory(directory)
+            stats = ingestion.get_ingestion_stats()
+            failures = ingestion.get_ingestion_failures()
+            assert len(documents) == 1, "A new ingestion run should load its new document"
+            assert stats == {
+                "attempted": 1,
+                "successful": 1,
+                "failed": 0
+            }, "A new ingestion run should completely replace previous statistics"
+            assert failures == [], "A new successful ingestion run should completely clear previous failures"
+        print(green("Version 0.0.34 complete ingestion pipeline is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.0.34 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
