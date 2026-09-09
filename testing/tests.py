@@ -2429,6 +2429,55 @@ def full_test():
         print(red(e))
         print(red("Version 0.4.6 failed"))
 
+    try:
+        tests += 1
+        from classes.document import Document
+        from classes.logger import Logger
+        from classes.vector_store import VectorStore
+        logger = Logger()
+        store = VectorStore(logger)
+        document = Document(
+            "Vector existence test document.",
+            "contains_test.txt"
+        )
+        vector_id = store.add({
+            "chunk": document,
+            "embedding": [0.1, 0.2, 0.3]
+        })
+        assert store.contains(vector_id) is True, "Vector storage should report True for an existing vector"
+        assert store.contains(document.id) is True, "Vector storage should recognize the source chunk identifier"
+        assert store.contains("missing-vector-id") is False, "Vector storage should report False for an unknown vector"
+        store.remove(vector_id)
+        assert store.contains(vector_id) is False, "Vector storage should report False after a vector is removed"
+        assert store.count() == 0, "Vector storage should contain zero vectors after removing the only vector"
+        document_two = Document(
+            "Second vector existence test document.",
+            "contains_test_two.txt"
+        )
+        second_id = store.add({
+            "chunk": document_two,
+            "embedding": [0.4, 0.5, 0.6]
+        })
+        assert store.contains(second_id) is True, "Vector storage should support existence checks after reuse"
+        store.clear()
+        assert store.contains(second_id) is False, "Vector storage should report False for vectors after clearing"
+        try:
+            store.contains("")
+            assert False, "Vector storage should reject an empty vector identifier"
+        except ValueError:
+            pass
+        try:
+            store.contains(None)
+            assert False, "Vector storage should reject a non-string vector identifier"
+        except ValueError:
+            pass
+        print(green("Version 0.4.7 vector existence checking is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.4.7 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

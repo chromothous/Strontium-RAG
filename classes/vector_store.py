@@ -89,6 +89,11 @@ class VectorStore:
     def count(self):
         return len(self.vectors)
 
+    def contains(self, vector_id):
+        if not isinstance(vector_id, str) or not vector_id:
+            raise ValueError("VectorStore vector ID must be a non-empty string")
+        return vector_id in self.vectors
+
     def get_all(self):
         return {
             vector_id: {

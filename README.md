@@ -183,3 +183,7 @@ Vector store clearing is online.
 
 Version 0.4.6
 Vector store counting is online.
+
+Version 0.4.7
+Vector existence checking is online.
+
