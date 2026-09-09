@@ -1977,6 +1977,84 @@ def full_test():
         print(red(e))
         print(red("Version 0.3.5 failed"))
 
+    try:
+        tests += 1
+        from classes.chunker import Chunker
+        from classes.document import Document
+        from classes.embedding_provider import EmbeddingProvider
+        from classes.embedder import Embedder
+        from classes.logger import Logger
+        from classes.vector_store import VectorStore
+        class VectorEmbeddingProvider(EmbeddingProvider):
+            def embed(self, text):
+                return [float(len(text)), 1.0, 2.0]
+        logger = Logger()
+        provider = VectorEmbeddingProvider()
+        embedder = Embedder(provider, logger)
+        chunker = Chunker(logger, chunk_size=20)
+        store = VectorStore(logger)
+        document = Document(
+            "This document contains information for vector storage testing.",
+            "vector_store_test.txt",
+            {"category": "test", "source_type": "text"}
+        )
+        chunks = chunker.chunk(document)
+        embedded = embedder.embed(chunks)
+        assert isinstance(store.vectors, dict), "Vector storage should maintain an internal vector collection"
+        assert len(store.vectors) == 0, "A new vector store should begin empty"
+        assert isinstance(embedded, list), "Vector storage should receive embedding results as a list"
+        vector_id = store.add(embedded[0])
+        assert isinstance(vector_id, str), "Vector storage should return a string identifier when storing a vector"
+        assert vector_id == embedded[0]["chunk"].id, "Stored vector identifiers should correspond to their source chunk identity"
+        assert len(store.vectors) == 1, "Vector storage should contain the vector after it is added"
+        assert vector_id in store.vectors, "Vector storage should index stored vectors by their identifiers"
+        stored = store.get(vector_id)
+        assert isinstance(stored, dict), "Vector storage should return stored records as dictionaries"
+        assert stored["chunk"] is embedded[0]["chunk"], "Vector storage should preserve the source chunk object"
+        assert stored["embedding"] == embedded[0]["embedding"], "Vector storage should preserve the complete embedding vector"
+        assert stored["metadata"] == embedded[0]["metadata"], "Vector storage should preserve embedding metadata"
+        assert stored["metadata"] is not embedded[0]["metadata"], "Vector storage should keep stored metadata independent from the embedding result"
+        assert store.get("missing-vector-id") is None, "Vector storage should return None for an unknown vector identifier"
+        try:
+            VectorStore(None)
+            assert False, "Vector storage should reject a missing Logger dependency"
+        except ValueError:
+            pass
+        try:
+            store.add(None)
+            assert False, "Vector storage should reject a missing embedding record"
+        except ValueError:
+            pass
+        try:
+            store.add({})
+            assert False, "Vector storage should reject an embedding record missing its chunk"
+        except ValueError:
+            pass
+        try:
+            store.add({"chunk": embedded[0]["chunk"]})
+            assert False, "Vector storage should reject an embedding record missing its vector"
+        except ValueError:
+            pass
+        try:
+            store.add({
+                "chunk": embedded[0]["chunk"],
+                "embedding": []
+            })
+            assert False, "Vector storage should reject empty embedding vectors"
+        except ValueError:
+            pass
+        try:
+            store.get("")
+            assert False, "Vector storage should reject an empty vector identifier"
+        except ValueError:
+            pass
+        print(green("Version 0.4.0 vector storage foundation is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.4.0 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

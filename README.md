@@ -162,3 +162,6 @@ Embedding failure handling is online.
 
 Version 0.3.5
 Complete embedding pipeline is online.
+
+Version 0.4.0
+Vector storage foundation is online.
