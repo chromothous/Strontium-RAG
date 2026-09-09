@@ -165,3 +165,6 @@ Complete embedding pipeline is online.
 
 Version 0.4.0
 Vector storage foundation is online.
+
+Version 0.4.1
+Vector storage validation is online.

@@ -2055,6 +2055,85 @@ def full_test():
         print(red(e))
         print(red("Version 0.4.0 failed"))
 
+    try:
+        tests += 1
+        from classes.document import Document
+        from classes.logger import Logger
+        from classes.vector_store import VectorStore
+        logger = Logger()
+        store = VectorStore(logger)
+        document_one = Document(
+            "First vector storage validation document.",
+            "validation_one.txt"
+        )
+        document_two = Document(
+            "Second vector storage validation document.",
+            "validation_two.txt"
+        )
+        embedding_one = {
+            "chunk": document_one,
+            "embedding": [0.1, 0.2, 0.3],
+            "metadata": {"source": "validation_one.txt"}
+        }
+        embedding_two = {
+            "chunk": document_two,
+            "embedding": [0.4, 0.5, 0.6],
+            "metadata": {"source": "validation_two.txt"}
+        }
+        first_id = store.add(embedding_one)
+        second_id = store.add(embedding_two)
+        assert store.dimension == 3, "Vector storage should establish its dimension from the first stored vector"
+        assert len(store.vectors) == 2, "Vector storage should accept multiple vectors with the same dimension"
+        assert first_id != second_id, "Different chunks should receive different vector identifiers"
+        try:
+            store.add({
+                "chunk": "not a document",
+                "embedding": [0.1, 0.2, 0.3]
+            })
+            assert False, "Vector storage should reject a chunk that is not a Document"
+        except ValueError:
+            pass
+        try:
+            store.add({
+                "chunk": document_one,
+                "embedding": "not a vector"
+            })
+            assert False, "Vector storage should reject an embedding that is not a list or tuple"
+        except ValueError:
+            pass
+        try:
+            store.add({
+                "chunk": document_one,
+                "embedding": [0.1, "invalid", 0.3]
+            })
+            assert False, "Vector storage should reject vectors containing non-numeric values"
+        except ValueError:
+            pass
+        try:
+            store.add({
+                "chunk": document_one,
+                "embedding": [0.1, 0.2]
+            })
+            assert False, "Vector storage should reject vectors with a mismatched dimension"
+        except ValueError:
+            pass
+        try:
+            store.add({
+                "chunk": document_one,
+                "embedding": [0.1, 0.2, 0.3],
+                "metadata": "invalid metadata"
+            })
+            assert False, "Vector storage should reject metadata that is not a dictionary"
+        except ValueError:
+            pass
+        assert len(store.vectors) == 2, "Failed vector validation should not modify stored vectors"
+        print(green("Version 0.4.1 vector storage validation is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.4.1 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
