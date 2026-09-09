@@ -1091,6 +1091,31 @@ def full_test():
         print(red(e))
         print(red("Version 0.1.2 failed"))
 
+    try:
+        tests += 1
+        from classes.document import Document
+        from classes.logger import Logger
+        from classes.preprocessor import Preprocessor
+        logger = Logger()
+        preprocessor = Preprocessor(logger)
+        document = Document(
+            "\ufeffThis\u00a0is a\u200b test document.",
+            "artifacts.txt"
+        )
+        processed = preprocessor.process(document)
+        assert processed.content == "This is a test document.", "Preprocessing should remove extraction artifacts and normalize the resulting whitespace"
+        assert "\ufeff" not in processed.content, "Preprocessing should remove Unicode byte-order marks"
+        assert "\u00a0" not in processed.content, "Preprocessing should remove non-breaking spaces"
+        assert "\u200b" not in processed.content, "Preprocessing should remove zero-width spaces"
+        assert processed.id == document.id, "Artifact cleanup should preserve the original document ID"
+        assert processed.source == document.source, "Artifact cleanup should preserve the document source"
+        print(green("Version 0.1.3 text artifact cleanup is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.1.3 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

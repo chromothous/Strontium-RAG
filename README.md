@@ -117,3 +117,6 @@ Whitespace normalization is online.
 
 Version 0.1.2
 Line-break normalization is online.
+
+Version 0.1.3
+Text artifact cleanup is online.
