@@ -147,3 +147,6 @@ Complete chunking pipeline is online.
 
 Version 0.3.0
 Embedding foundation is online.
+
+Version 0.3.1
+Embedding validation is online.

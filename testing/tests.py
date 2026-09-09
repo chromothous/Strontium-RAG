@@ -1637,6 +1637,58 @@ def full_test():
         print(red(e))
         print(red("Version 0.3.0 failed"))
 
+    try:
+        tests += 1
+        from classes.document import Document
+        from classes.embedding_provider import EmbeddingProvider
+        from classes.embedder import Embedder
+        from classes.logger import Logger
+        class ValidEmbeddingProvider(EmbeddingProvider):
+            def embed(self, text):
+                return [float(len(text)), 1.0, 2.0]
+        class StringEmbeddingProvider(EmbeddingProvider):
+            def embed(self, text):
+                return [float(len(text)), "invalid", 2.0]
+        class MismatchedEmbeddingProvider(EmbeddingProvider):
+            def __init__(self):
+                self.calls = 0
+            def embed(self, text):
+                self.calls += 1
+                if self.calls == 1:
+                    return [1.0, 2.0, 3.0]
+                return [1.0, 2.0]
+        logger = Logger()
+        document_one = Document("First chunk.", "validation_one.txt")
+        document_two = Document("Second chunk.", "validation_two.txt")
+        valid_embedder = Embedder(ValidEmbeddingProvider(), logger)
+        valid_results = valid_embedder.embed([document_one, document_two])
+        assert len(valid_results) == 2, "Embedding validation should produce one result for every valid chunk"
+        assert all(isinstance(value, (int, float)) for value in valid_results[0]["embedding"]), "Embedding vectors should contain only numeric values"
+        assert all(isinstance(value, (int, float)) for value in valid_results[1]["embedding"]), "Every embedding vector should contain only numeric values"
+        assert len(valid_results[0]["embedding"]) == 3, "Embedding validation should preserve the provider vector dimension"
+        assert len(valid_results[1]["embedding"]) == 3, "Every embedding should use the expected vector dimension"
+        string_embedder = Embedder(StringEmbeddingProvider(), logger)
+        try:
+            string_embedder.embed([document_one])
+            assert False, "Embedder should reject vectors containing non-numeric values"
+        except ValueError:
+            pass
+        mismatched_embedder = Embedder(MismatchedEmbeddingProvider(), logger)
+        try:
+            mismatched_embedder.embed([document_one, document_two])
+            assert False, "Embedder should reject batches containing vectors with different dimensions"
+        except ValueError:
+            pass
+        empty_embedder = Embedder(ValidEmbeddingProvider(), logger)
+        empty_results = empty_embedder.embed([])
+        assert empty_results == [], "Embedding an empty chunk collection should return an empty result list"
+        print(green("Version 0.3.1 embedding validation is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.3.1 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

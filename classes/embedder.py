@@ -18,6 +18,7 @@ class Embedder:
             raise ValueError("Embedder chunks must be a list or tuple")
         embeddings = []
         self.logger.info(f"Embedding {len(chunks)} chunks")
+        expected_dimension = None
         for chunk in chunks:
             if not isinstance(chunk, Document):
                 self.logger.error("Embedder input must contain only Documents")
@@ -33,6 +34,18 @@ class Embedder:
                     f"Embedding provider returned an empty vector: {chunk.source}"
                 )
                 raise ValueError("Embedding provider must return a non-empty vector")
+            if not all(isinstance(value, (int, float)) for value in vector):
+                self.logger.error(
+                    f"Embedding provider returned non-numeric values: {chunk.source}"
+                )
+                raise ValueError("Embedding vector must contain only numeric values")
+            if expected_dimension is None:
+                expected_dimension = len(vector)
+            elif len(vector) != expected_dimension:
+                self.logger.error(
+                    f"Embedding dimension mismatch: {chunk.source}"
+                )
+                raise ValueError("All embedding vectors must have the same dimension")
             embeddings.append({
                 "chunk": chunk,
                 "embedding": list(vector)
