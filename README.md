@@ -99,3 +99,6 @@ Ingestion failure isolation is online.
 
 Version 0.0.31
 Ingestion state consistency is online.
+
+Version 0.0.32
+Ingestion directory validation is online.

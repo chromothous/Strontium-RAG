@@ -866,6 +866,50 @@ def full_test():
         print(red(e))
         print(red("Version 0.0.31 failed"))
 
+    try:
+        tests += 1
+        import os
+        import tempfile
+        from classes.ingestion import Ingestion
+        from classes.loader import Loader
+        from classes.logger import Logger
+        logger = Logger()
+        loader = Loader(logger)
+        ingestion = Ingestion(loader, logger)
+        try:
+            ingestion.ingest_directory("")
+            assert False, "Ingestion should reject an empty directory path"
+        except ValueError:
+            pass
+        missing_directory = os.path.join(tempfile.gettempdir(), "strontium_rag_missing_directory_0_0_32")
+        if os.path.isdir(missing_directory):
+            os.rmdir(missing_directory)
+        try:
+            ingestion.ingest_directory(missing_directory)
+            assert False, "Ingestion should reject a directory path that does not exist"
+        except FileNotFoundError:
+            pass
+        try:
+            ingestion.ingest_directory(123)
+            assert False, "Ingestion should reject non-string directory paths"
+        except ValueError:
+            pass
+        assert ingestion.get_ingestion_failures() == [], "Invalid ingestion runs should not create document failures"
+        with tempfile.TemporaryDirectory() as directory:
+            documents = ingestion.ingest_directory(directory)
+            assert documents == [], "Ingestion should return an empty document list for an empty directory"
+            assert ingestion.get_ingestion_stats() == {
+                "attempted": 0,
+                "successful": 0,
+                "failed": 0
+            }, "Empty directory ingestion should produce zeroed statistics"
+        print(green("Version 0.0.32 ingestion directory validation is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.0.32 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
