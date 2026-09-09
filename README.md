@@ -123,3 +123,6 @@ Text artifact cleanup is online.
 
 Version 0.1.4
 Preprocessing validation is online.
+
+Version 0.1.5
+Complete preprocessing pipeline is online.

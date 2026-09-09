@@ -1155,6 +1155,48 @@ def full_test():
         print(red(e))
         print(red("Version 0.1.4 failed"))
 
+    try:
+        tests += 1
+        from classes.document import Document
+        from classes.logger import Logger
+        from classes.preprocessor import Preprocessor
+        logger = Logger()
+        preprocessor = Preprocessor(logger)
+        document = Document(
+            "\ufeff  First\u00a0paragraph.   \u200b\r\n\r\n\r\n  Second   paragraph.  \r\n\r\n\r\n\r\n  Third paragraph.  ",
+            "complete.txt",
+            {"category": "test", "source_type": "text"}
+        )
+        processed = preprocessor.process(document)
+        assert isinstance(processed, Document), "Complete preprocessing should return a Document"
+        assert processed.content == "First paragraph.\n\nSecond paragraph.\n\nThird paragraph.", "Complete preprocessing should apply all text normalization stages in the correct order"
+        assert "\ufeff" not in processed.content, "Complete preprocessing should remove Unicode byte-order marks"
+        assert "\u00a0" not in processed.content, "Complete preprocessing should remove non-breaking spaces"
+        assert "\u200b" not in processed.content, "Complete preprocessing should remove zero-width spaces"
+        assert "\r" not in processed.content, "Complete preprocessing should remove carriage returns"
+        assert processed.id == document.id, "Complete preprocessing should preserve the original document ID"
+        assert processed.source == document.source, "Complete preprocessing should preserve the original document source"
+        assert processed.metadata == document.metadata, "Complete preprocessing should preserve document metadata"
+        assert processed.metadata is not document.metadata, "Complete preprocessing should keep metadata independent from the original document"
+        assert processed is not document, "Complete preprocessing should return a new Document instance"
+        try:
+            artifact_only = Document("\ufeff\u00a0\u200b", "empty_after_cleanup.txt")
+            preprocessor.process(artifact_only)
+            assert False, "Complete preprocessing should reject content that becomes empty after cleanup"
+        except ValueError:
+            pass
+        try:
+            preprocessor.process(None)
+            assert False, "Complete preprocessing should reject a non-Document input"
+        except ValueError:
+            pass
+        print(green("Version 0.1.5 complete preprocessing pipeline is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.1.5 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

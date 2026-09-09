@@ -40,4 +40,5 @@ class Preprocessor:
             document.metadata.copy()
         )
         processed.id = document.id
+        self.logger.info(f"Document preprocessed successfully: {document.source}")
         return processed
