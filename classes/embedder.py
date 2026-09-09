@@ -57,9 +57,14 @@ class Embedder:
                     f"Embedding dimension mismatch: {chunk.source}"
                 )
                 raise ValueError("All embedding vectors must have the same dimension")
+            metadata = chunk.metadata.copy()
+            metadata["chunk_id"] = chunk.id
+            metadata["document_id"] = chunk.metadata.get("document_id")
+            metadata["source"] = chunk.source
             embeddings.append({
                 "chunk": chunk,
-                "embedding": list(vector)
+                "embedding": list(vector),
+                "metadata": metadata
             })
         self.logger.info(
             f"Chunks embedded successfully: {len(embeddings)}"

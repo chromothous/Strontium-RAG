@@ -1746,6 +1746,64 @@ def full_test():
         print(red(e))
         print(red("Version 0.3.2 failed"))
 
+    try:
+        tests += 1
+        from classes.document import Document
+        from classes.embedding_provider import EmbeddingProvider
+        from classes.embedder import Embedder
+        from classes.logger import Logger
+        class IdentityEmbeddingProvider(EmbeddingProvider):
+            def embed(self, text):
+                return [float(len(text)), 1.0, 2.0]
+        logger = Logger()
+        provider = IdentityEmbeddingProvider()
+        embedder = Embedder(provider, logger)
+        document = Document(
+            "Original document content.",
+            "identity_embedding.txt",
+            {"category": "test", "source_type": "text"}
+        )
+        document_id = document.id
+        chunk = Document(
+            "Chunk content.",
+            document.source,
+            {
+                "document_id": document_id,
+                "chunk_index": 0,
+                "chunk_start": 0,
+                "chunk_end": 14,
+                "category": "test",
+                "source_type": "text"
+            }
+        )
+        chunk_id = chunk.id
+        embedded = embedder.embed([chunk])
+        assert len(embedded) == 1, "Embedding identity should produce one result for the input chunk"
+        result = embedded[0]
+        assert result["chunk"] is chunk, "Embedding identity should retain the exact source chunk"
+        assert result["embedding"] == [float(len(chunk.content)), 1.0, 2.0], "Embedding identity should retain the generated vector"
+        assert isinstance(result["metadata"], dict), "Embedding identity metadata should be represented as a dictionary"
+        assert result["metadata"]["chunk_id"] == chunk_id, "Embedding metadata should identify the source chunk"
+        assert result["metadata"]["document_id"] == document_id, "Embedding metadata should identify the source document"
+        assert result["metadata"]["source"] == chunk.source, "Embedding metadata should preserve the chunk source"
+        assert result["metadata"]["chunk_index"] == 0, "Embedding metadata should preserve the chunk index"
+        assert result["metadata"]["chunk_start"] == 0, "Embedding metadata should preserve the chunk start position"
+        assert result["metadata"]["chunk_end"] == 14, "Embedding metadata should preserve the chunk end position"
+        assert result["metadata"]["category"] == "test", "Embedding metadata should preserve inherited document metadata"
+        assert result["metadata"]["source_type"] == "text", "Embedding metadata should preserve all inherited metadata"
+        assert result["metadata"] is not chunk.metadata, "Embedding metadata should be independent from chunk metadata"
+        result["metadata"]["category"] = "modified"
+        assert chunk.metadata["category"] == "test", "Modifying embedding metadata should not modify the source chunk metadata"
+        assert chunk.id == chunk_id, "Embedding should not modify the source chunk identity"
+        assert chunk.metadata["document_id"] == document_id, "Embedding should not modify source document lineage"
+        assert chunk.source == document.source, "Embedding should not modify the source chunk"
+        print(green("Version 0.3.3 embedding identity and metadata is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.3.3 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

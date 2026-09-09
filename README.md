@@ -153,3 +153,6 @@ Embedding validation is online.
 
 Version 0.3.2
 Batch embedding is online.
+
+Version 0.3.3
+Embedding identity and metadata is online.
