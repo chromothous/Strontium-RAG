@@ -150,3 +150,6 @@ Embedding foundation is online.
 
 Version 0.3.1
 Embedding validation is online.
+
+Version 0.3.2
+Batch embedding is online.

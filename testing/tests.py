@@ -1689,6 +1689,63 @@ def full_test():
         print(red(e))
         print(red("Version 0.3.1 failed"))
 
+    try:
+        tests += 1
+        from classes.document import Document
+        from classes.embedding_provider import EmbeddingProvider
+        from classes.embedder import Embedder
+        from classes.logger import Logger
+        class BatchEmbeddingProvider(EmbeddingProvider):
+            def __init__(self):
+                self.embed_many_calls = 0
+                self.embed_calls = 0
+            def embed(self, text):
+                self.embed_calls += 1
+                return [float(len(text)), 1.0, 2.0]
+            def embed_many(self, texts):
+                self.embed_many_calls += 1
+                return [[float(len(text)), 1.0, 2.0] for text in texts]
+        class IncorrectBatchProvider(EmbeddingProvider):
+            def embed(self, text):
+                return [1.0, 2.0, 3.0]
+            def embed_many(self, texts):
+                return [[1.0, 2.0, 3.0]]
+        logger = Logger()
+        provider = BatchEmbeddingProvider()
+        embedder = Embedder(provider, logger)
+        first_chunk = Document("First chunk.", "first.txt", {"index": 0})
+        second_chunk = Document("Second chunk.", "second.txt", {"index": 1})
+        third_chunk = Document("Third chunk.", "third.txt", {"index": 2})
+        chunks = [first_chunk, second_chunk, third_chunk]
+        embedded = embedder.embed(chunks)
+        assert isinstance(embedded, list), "Batch embedding should return results as a list"
+        assert len(embedded) == len(chunks), "Batch embedding should produce one result for every input chunk"
+        assert provider.embed_many_calls == 1, "Batch embedding should call the provider batch method once"
+        assert provider.embed_calls == 0, "Batch embedding should not fall back to individual provider calls when batch embedding is available"
+        assert embedded[0]["chunk"] is first_chunk, "Batch embedding should preserve the first chunk object"
+        assert embedded[1]["chunk"] is second_chunk, "Batch embedding should preserve the second chunk object"
+        assert embedded[2]["chunk"] is third_chunk, "Batch embedding should preserve the third chunk object"
+        assert embedded[0]["embedding"] == [float(len(first_chunk.content)), 1.0, 2.0], "The first batch vector should correspond to the first chunk"
+        assert embedded[1]["embedding"] == [float(len(second_chunk.content)), 1.0, 2.0], "The second batch vector should correspond to the second chunk"
+        assert embedded[2]["embedding"] == [float(len(third_chunk.content)), 1.0, 2.0], "The third batch vector should correspond to the third chunk"
+        assert embedded[0]["chunk"].metadata["index"] == 0, "Batch embedding should preserve first chunk metadata"
+        assert embedded[1]["chunk"].metadata["index"] == 1, "Batch embedding should preserve second chunk metadata"
+        assert embedded[2]["chunk"].metadata["index"] == 2, "Batch embedding should preserve third chunk metadata"
+        empty_result = embedder.embed([])
+        assert empty_result == [], "Batch embedding should return an empty list for an empty batch"
+        incorrect_embedder = Embedder(IncorrectBatchProvider(), logger)
+        try:
+            incorrect_embedder.embed(chunks)
+            assert False, "Batch embedding should reject a provider returning the wrong number of vectors"
+        except ValueError:
+            pass
+        print(green("Version 0.3.2 batch embedding is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.3.2 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

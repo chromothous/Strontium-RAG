@@ -16,14 +16,25 @@ class Embedder:
         if not isinstance(chunks, (list, tuple)):
             self.logger.error("Embedder chunks must be a list or tuple")
             raise ValueError("Embedder chunks must be a list or tuple")
-        embeddings = []
         self.logger.info(f"Embedding {len(chunks)} chunks")
-        expected_dimension = None
         for chunk in chunks:
             if not isinstance(chunk, Document):
                 self.logger.error("Embedder input must contain only Documents")
                 raise ValueError("Embedder input must contain only Documents")
-            vector = self.provider.embed(chunk.content)
+        if not chunks:
+            self.logger.info("No chunks provided for embedding")
+            return []
+        texts = [chunk.content for chunk in chunks]
+        vectors = self.provider.embed_many(texts)
+        if not isinstance(vectors, (list, tuple)):
+            self.logger.error("Embedding provider returned an invalid batch")
+            raise ValueError("Embedding provider must return a list or tuple")
+        if len(vectors) != len(chunks):
+            self.logger.error("Embedding provider returned an incorrect batch size")
+            raise ValueError("Embedding provider must return one vector per chunk")
+        embeddings = []
+        expected_dimension = None
+        for chunk, vector in zip(chunks, vectors):
             if not isinstance(vector, (list, tuple)):
                 self.logger.error(
                     f"Embedding provider returned an invalid vector: {chunk.source}"
