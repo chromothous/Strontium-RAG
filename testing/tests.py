@@ -703,6 +703,44 @@ def full_test():
         print(red(e))
         print(red("Version 0.0.27 failed"))
 
+    try:
+        tests += 1
+        import os
+        import tempfile
+        from classes.ingestion import Ingestion
+        from classes.loader import Loader
+        from classes.logger import Logger
+        logger = Logger()
+        loader = Loader(logger)
+        ingestion = Ingestion(loader, logger)
+        with tempfile.TemporaryDirectory() as directory:
+            first_file = os.path.join(directory, "first.txt")
+            second_file = os.path.join(directory, "second.txt")
+            failed_file = os.path.join(directory, "failed.txt")
+            with open(first_file, "w", encoding="utf-8") as file:
+                file.write("First test document.")
+            with open(second_file, "w", encoding="utf-8") as file:
+                file.write("Second test document.")
+            with open(failed_file, "w", encoding="utf-8") as file:
+                file.write("")
+            documents = ingestion.ingest_directory(directory)
+            stats = ingestion.get_ingestion_stats()
+            assert isinstance(documents, list), "Ingestion should return documents as a list"
+            assert len(documents) == 2, "Ingestion should return all successfully loaded documents"
+            assert isinstance(stats, dict), "Ingestion statistics should be returned as a dictionary"
+            assert stats == {
+                "attempted": 3,
+                "successful": 2,
+                "failed": 1
+            }, "Ingestion statistics should accurately reflect successful and failed documents"
+            assert stats is not loader.last_batch_stats, "Ingestion statistics should return a copy rather than the Loader's internal dictionary"
+        print(green("Version 0.0.28 ingestion statistics are online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.0.28 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

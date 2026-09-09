@@ -10,12 +10,21 @@ class Ingestion:
             raise ValueError("Ingestion logger must be a Logger")
         self.loader = loader
         self.logger = logger
+        self.last_ingestion_stats = {
+            "attempted": 0,
+            "successful": 0,
+            "failed": 0
+        }
 
     def ingest_directory(self, directory):
         self.logger.info(f"Starting ingestion: {directory}")
         paths = self.loader.find_files(directory)
         documents = self.loader.load_many(paths)
+        self.last_ingestion_stats = self.loader.get_batch_stats()
         self.logger.info(
             f"Ingestion complete: {len(documents)}/{len(paths)} documents loaded"
         )
         return documents
+
+    def get_ingestion_stats(self):
+        return self.last_ingestion_stats.copy()

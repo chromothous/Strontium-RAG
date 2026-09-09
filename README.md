@@ -87,3 +87,6 @@ Deterministic file discovery is online.
 
 Version 0.0.27
 Ingestion orchestration is online.
+
+Version 0.0.28
+Ingestion statistics are online.
