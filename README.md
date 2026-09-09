@@ -75,3 +75,6 @@ Loader batch statistics are online.
 
 Version 0.0.23
 Loader batch statistics access is online.
+
+Version 0.0.24
+Loader directory discovery is online.

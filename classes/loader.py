@@ -80,3 +80,19 @@ class Loader:
 
     def get_batch_stats(self):
         return self.last_batch_stats.copy()
+
+    def find_files(self, directory):
+        if not isinstance(directory, str) or not directory:
+            self.logger.error("Loader directory must be a non-empty string")
+            raise ValueError("Loader directory must be a non-empty string")
+        if not os.path.isdir(directory):
+            self.logger.error(f"Loader directory not found: {directory}")
+            raise FileNotFoundError(f"Loader directory not found: {directory}")
+        self.logger.info(f"Searching for documents in: {directory}")
+        paths = []
+        for filename in os.listdir(directory):
+            path = os.path.join(directory, filename)
+            if os.path.isfile(path) and os.path.splitext(filename)[1].lower() == ".txt":
+                paths.append(path)
+        self.logger.info(f"Found {len(paths)} documents in: {directory}")
+        return paths

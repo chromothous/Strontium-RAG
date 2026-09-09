@@ -550,6 +550,48 @@ def full_test():
         print(red(e))
         print(red("Version 0.0.23 failed"))
 
+    try:
+        tests += 1
+        import os
+        import tempfile
+        from classes.loader import Loader
+        from classes.logger import Logger
+        logger = Logger()
+        loader = Loader(logger)
+        with tempfile.TemporaryDirectory() as directory:
+            txt_path = os.path.join(directory, "document.txt")
+            pdf_path = os.path.join(directory, "document.pdf")
+            other_path = os.path.join(directory, "notes.md")
+            with open(txt_path, "w", encoding="utf-8") as file:
+                file.write("Text document.")
+            with open(pdf_path, "w", encoding="utf-8") as file:
+                file.write("PDF placeholder.")
+            with open(other_path, "w", encoding="utf-8") as file:
+                file.write("Markdown placeholder.")
+            paths = loader.find_files(directory)
+            assert isinstance(paths, list)
+            assert len(paths) == 1
+            assert paths[0] == txt_path
+        try:
+            loader.find_files("")
+            assert False
+        except ValueError:
+            pass
+        missing_directory = os.path.join(tempfile.gettempdir(), "strontium_rag_missing_directory_0_0_24")
+        if os.path.exists(missing_directory):
+            os.rmdir(missing_directory)
+        try:
+            loader.find_files(missing_directory)
+            assert False
+        except FileNotFoundError:
+            pass
+        print(green("Version 0.0.24 loader directory discovery is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.0.24 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
