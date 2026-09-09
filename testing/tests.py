@@ -518,6 +518,38 @@ def full_test():
         print(red(e))
         print(red("Version 0.0.22 failed"))
 
+    try:
+        tests += 1
+        import os
+        import tempfile
+        from classes.loader import Loader
+        from classes.logger import Logger
+        logger = Logger()
+        loader = Loader(logger)
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", encoding="utf-8", delete=False) as file:
+            file.write("Batch statistics test.")
+            valid_path = file.name
+        invalid_path = os.path.join(tempfile.gettempdir(), "strontium_rag_missing_0_0_23.txt")
+        if os.path.exists(invalid_path):
+            os.remove(invalid_path)
+        loader.load_many([valid_path, invalid_path])
+        stats = loader.get_batch_stats()
+        assert isinstance(stats, dict)
+        assert stats == {
+            "attempted": 2,
+            "successful": 1,
+            "failed": 1
+        }
+        stats["attempted"] = 999
+        assert loader.get_batch_stats()["attempted"] == 2
+        os.remove(valid_path)
+        print(green("Version 0.0.23 loader batch statistics access is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.0.23 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

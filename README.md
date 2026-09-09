@@ -72,3 +72,6 @@ Loader batch failure handling is online.
 
 Version 0.0.22
 Loader batch statistics are online.
+
+Version 0.0.23
+Loader batch statistics access is online.

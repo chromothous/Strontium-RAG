@@ -77,3 +77,6 @@ class Loader:
         }
         self.logger.info(f"Loaded {successful}/{attempted} documents successfully")
         return documents
+
+    def get_batch_stats(self):
+        return self.last_batch_stats.copy()
