@@ -2656,6 +2656,81 @@ def full_test():
         print(red(e))
         print(red("Version 0.4.10 failed"))
 
+    try:
+        tests += 1
+        from classes.document import Document
+        from classes.logger import Logger
+        from classes.vector_store import VectorStore
+        logger = Logger()
+        store = VectorStore(logger)
+        document = Document(
+            "Vector atomic update test document.",
+            "atomic_update.txt"
+        )
+        vector_id = store.add({
+            "chunk": document,
+            "embedding": [0.1, 0.2, 0.3],
+            "metadata": {
+                "version": 1,
+                "status": "original"
+            }
+        })
+        original_record = store.get_record(vector_id)
+        try:
+            store.update({
+                "chunk": document,
+                "embedding": [0.9, "invalid", 0.7],
+                "metadata": {
+                    "version": 2,
+                    "status": "invalid"
+                }
+            })
+            assert False, "Vector storage should reject invalid vector values during an update"
+        except ValueError:
+            pass
+        assert store.get_record(vector_id) == original_record, "A failed vector update should leave the original record unchanged"
+        try:
+            store.update({
+                "chunk": document,
+                "embedding": [0.9, 0.8],
+                "metadata": {
+                    "version": 2,
+                    "status": "invalid"
+                }
+            })
+            assert False, "Vector storage should reject mismatched dimensions during an update"
+        except ValueError:
+            pass
+        assert store.get_record(vector_id) == original_record, "A dimension validation failure should leave the original record unchanged"
+        try:
+            store.update({
+                "chunk": document,
+                "embedding": [0.9, 0.8, 0.7],
+                "metadata": "invalid metadata"
+            })
+            assert False, "Vector storage should reject invalid metadata during an update"
+        except ValueError:
+            pass
+        assert store.get_record(vector_id) == original_record, "A metadata validation failure should leave the original record unchanged"
+        valid_update = store.update({
+            "chunk": document,
+            "embedding": [0.9, 0.8, 0.7],
+            "metadata": {
+                "version": 2,
+                "status": "updated"
+            }
+        })
+        assert valid_update is True, "Vector storage should successfully apply a valid update"
+        assert store.get_record(vector_id)["embedding"] == [0.9, 0.8, 0.7], "A valid update should replace the stored embedding"
+        assert store.get_metadata(vector_id) == {"version": 2, "status": "updated"}, "A valid update should replace the stored metadata"
+        assert store.count() == 1, "Successful updates should not change the number of stored vectors"
+        print(green("Version 0.4.11 vector store update validation is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.4.11 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

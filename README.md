@@ -195,3 +195,6 @@ Vector record access is online.
 
 Version 0.4.10
 Vector store updating is online.
+
+Version 0.4.11
+Vector store update validation is online.
