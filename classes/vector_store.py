@@ -9,6 +9,8 @@ class VectorStore:
         self.logger = logger
         self.vectors = {}
         self.dimension = None
+        self.upsert_successes = 0
+        self.upsert_failures = 0
 
     def _validate_vector(self, vector):
         if not isinstance(vector, (list, tuple)):
@@ -177,10 +179,17 @@ class VectorStore:
             self.logger.error("VectorStore embeddings must be a list or tuple")
             raise ValueError("VectorStore embeddings must be a list or tuple")
         vector_ids = []
+        self.upsert_successes = 0
+        self.upsert_failures = 0
         for embedding in embeddings:
             try:
                 vector_ids.append(self.upsert(embedding))
+                self.upsert_successes += 1
             except ValueError as e:
+                self.upsert_failures += 1
                 self.logger.error(f"VectorStore skipped invalid embedding: {e}")
-        self.logger.info(f"Vectors upserted successfully: {len(vector_ids)}")
+        self.logger.info(
+            f"Vectors upserted successfully: {self.upsert_successes}, "
+            f"invalid vectors skipped: {self.upsert_failures}"
+        )
         return vector_ids

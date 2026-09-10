@@ -210,3 +210,6 @@ Vector upsert is online.
 
 Version 0.4.15
 Vector store batch upsert is online.
+
+Version 0.4.16
+Vector store upsert failure tracking is online.
