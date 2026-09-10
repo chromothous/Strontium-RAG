@@ -2997,6 +2997,20 @@ def full_test():
         print(red(e))
         print(red("Version 0.4.18 failed"))
 
+    try:
+        tests += 1
+        fresh_store = VectorStore(logger)
+        stats = fresh_store.get_upsert_stats()
+        assert stats == {"successes": 0, "failures": 0}, "Get_upsert_stats should report zero successes and failures for a new vector store"
+        assert fresh_store.upsert_successes == 0, "A new vector store should initialize successful upserts to zero"
+        assert fresh_store.upsert_failures == 0, "A new vector store should initialize failed upserts to zero"
+        print(green("Version 0.4.19 vector store upsert statistics validation is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.4.19 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
