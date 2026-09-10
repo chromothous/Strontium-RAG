@@ -213,3 +213,6 @@ Vector store batch upsert is online.
 
 Version 0.4.16
 Vector store upsert failure tracking is online.
+
+Version 0.4.17
+Vector store upsert statistics access is online.

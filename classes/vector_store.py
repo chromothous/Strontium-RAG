@@ -193,3 +193,9 @@ class VectorStore:
             f"invalid vectors skipped: {self.upsert_failures}"
         )
         return vector_ids
+
+    def get_upsert_stats(self):
+        return {
+            "successes": self.upsert_successes,
+            "failures": self.upsert_failures
+        }

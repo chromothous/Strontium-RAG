@@ -2967,6 +2967,21 @@ def full_test():
         print(red(e))
         print(red("Version 0.4.16 failed"))
 
+    try:
+        tests += 1
+        stats = store.get_upsert_stats()
+        assert isinstance(stats, dict), "Get_upsert_stats should return a dictionary"
+        assert stats["successes"] == 2, "Get_upsert_stats should report the number of successful upserts"
+        assert stats["failures"] == 1, "Get_upsert_stats should report the number of failed upserts"
+        stats["successes"] = 999
+        assert store.get_upsert_stats()["successes"] == 2, "Get_upsert_stats should return an isolated statistics dictionary"
+        print(green("Version 0.4.17 vector store upsert statistics access is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.4.17 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
