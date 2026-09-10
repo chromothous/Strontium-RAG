@@ -222,3 +222,6 @@ Vector store upsert statistics reset is online.
 
 Version 0.4.19
 Vector store upsert statistics validation is online.
+
+Version 0.4.20
+Vector store single upsert statistics isolation is online.

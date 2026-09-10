@@ -3011,6 +3011,21 @@ def full_test():
         print(red(e))
         print(red("Version 0.4.19 failed"))
 
+    try:
+        tests += 1
+        stats_before = store.get_upsert_stats()
+        store.upsert(new_embedding)
+        stats_after = store.get_upsert_stats()
+        assert stats_after == stats_before, "A single upsert should not modify batch upsert statistics"
+        assert store.get(new_embedding["chunk"].id)["embedding"] == [0.4, 0.5, 0.6], "A single upsert should still store the embedding correctly"
+        assert store.get(new_embedding["chunk"].id)["metadata"] == {"type": "new"}, "A single upsert should still store embedding metadata correctly"
+        print(green("Version 0.4.20 vector store single upsert statistics isolation is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.4.20 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
