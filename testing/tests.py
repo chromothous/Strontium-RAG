@@ -3241,6 +3241,42 @@ def full_test():
         print(red(e))
         print(red("Version 0.5.3 failed"))
 
+    try:
+        tests += 1
+        ranking_store = VectorStore(logger)
+        ranking_store.add({
+            "chunk": Document("Exact match", "ranking.txt"),
+            "embedding": [1.0, 0.0, 0.0],
+            "metadata": {"rank": 1}
+        })
+        ranking_store.add({
+            "chunk": Document("Partial match", "ranking.txt"),
+            "embedding": [0.8, 0.6, 0.0],
+            "metadata": {"rank": 2}
+        })
+        ranking_store.add({
+            "chunk": Document("Weak match", "ranking.txt"),
+            "embedding": [0.0, 1.0, 0.0],
+            "metadata": {"rank": 3}
+        })
+        ranking_results = ranking_store.retrieve([1.0, 0.0, 0.0])
+        assert len(ranking_results) == 3, "Similarity ranking should return every stored vector"
+        assert ranking_results[0]["chunk"].content == "Exact match", "The most similar vector should appear first"
+        assert ranking_results[1]["chunk"].content == "Partial match", "The second most similar vector should appear second"
+        assert ranking_results[2]["chunk"].content == "Weak match", "The least similar vector should appear last"
+        assert ranking_results[0]["similarity"] > ranking_results[1]["similarity"], "The first result should have a higher similarity score than the second result"
+        assert ranking_results[1]["similarity"] > ranking_results[2]["similarity"], "The second result should have a higher similarity score than the third result"
+        assert all(
+            ranking_results[index]["similarity"] >= ranking_results[index + 1]["similarity"]
+            for index in range(len(ranking_results) - 1)
+        ), "Semantic retrieval results should be ordered from highest similarity to lowest similarity"
+        print(green("Version 0.5.4 semantic similarity ranking is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.5.4 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

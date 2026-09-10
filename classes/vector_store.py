@@ -226,7 +226,15 @@ class VectorStore:
         query_vector = self._validate_query_vector(query_vector)
         results = []
         for vector_id, record in self.vectors.items():
-            similarity = self._cosine_similarity(query_vector, record["embedding"])
+            if len(query_vector) != len(record["embedding"]):
+                self.logger.error(
+                    f"VectorStore dimension mismatch during retrieval: {vector_id}"
+                )
+                raise ValueError("VectorStore query and stored vectors must have the same dimension")
+            similarity = self._cosine_similarity(
+                query_vector,
+                record["embedding"]
+            )
             results.append({
                 "id": vector_id,
                 "chunk": record["chunk"],
@@ -234,6 +242,7 @@ class VectorStore:
                 "metadata": record["metadata"].copy(),
                 "similarity": similarity
             })
+        results.sort(key=lambda result: result["similarity"], reverse=True)
         return results
 
     def _validate_query_vector(self, query_vector):
