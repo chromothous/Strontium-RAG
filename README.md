@@ -192,3 +192,6 @@ Vector metadata access is online.
 
 Version 0.4.9
 Vector record access is online.
+
+Version 0.4.10
+Vector store updating is online.

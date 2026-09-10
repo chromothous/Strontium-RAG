@@ -2581,6 +2581,81 @@ def full_test():
         print(red(e))
         print(red("Version 0.4.9 failed"))
 
+    try:
+        tests += 1
+        from classes.document import Document
+        from classes.logger import Logger
+        from classes.vector_store import VectorStore
+        logger = Logger()
+        store = VectorStore(logger)
+        document = Document(
+            "Vector update test document.",
+            "update_test.txt"
+        )
+        original_embedding = {
+            "chunk": document,
+            "embedding": [0.1, 0.2, 0.3],
+            "metadata": {"version": 1}
+        }
+        vector_id = store.add(original_embedding)
+        assert store.count() == 1, "Vector storage should contain one vector before updating"
+        assert store.get(vector_id)["embedding"] == [0.1, 0.2, 0.3], "Vector storage should contain the original embedding before updating"
+        updated_embedding = {
+            "chunk": document,
+            "embedding": [0.9, 0.8, 0.7],
+            "metadata": {"version": 2}
+        }
+        updated = store.update(updated_embedding)
+        assert updated is True, "Vector storage should report successful updates for existing vectors"
+        assert store.count() == 1, "Updating a vector should not create an additional stored vector"
+        assert store.get(vector_id)["embedding"] == [0.9, 0.8, 0.7], "Vector storage should replace the existing embedding during an update"
+        assert store.get_metadata(vector_id) == {"version": 2}, "Vector storage should replace metadata during an update"
+        assert store.get_record(vector_id)["chunk"] is document, "Vector storage should preserve the updated record's source chunk"
+        assert store.contains(vector_id) is True, "An updated vector should remain present in the vector store"
+        unknown_document = Document(
+            "Unknown update document.",
+            "unknown_update.txt"
+        )
+        unknown_result = store.update({
+            "chunk": unknown_document,
+            "embedding": [0.4, 0.5, 0.6],
+            "metadata": {"version": 1}
+        })
+        assert unknown_result is False, "Updating an unknown vector should return False"
+        assert store.count() == 1, "Updating an unknown vector should not modify the number of stored vectors"
+        try:
+            store.update({
+                "chunk": "not a document",
+                "embedding": [0.1, 0.2, 0.3]
+            })
+            assert False, "Vector storage should reject a non-Document chunk during an update"
+        except ValueError:
+            pass
+        try:
+            store.update({
+                "chunk": document,
+                "embedding": [0.1, "invalid", 0.3]
+            })
+            assert False, "Vector storage should reject non-numeric values during an update"
+        except ValueError:
+            pass
+        try:
+            store.update({
+                "chunk": document,
+                "embedding": [0.1, 0.2],
+                "metadata": {"version": 3}
+            })
+            assert False, "Vector storage should reject mismatched vector dimensions during an update"
+        except ValueError:
+            pass
+        assert store.get(vector_id)["embedding"] == [0.9, 0.8, 0.7], "Failed updates should not overwrite the existing valid embedding"
+        print(green("Version 0.4.10 vector store updating is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.4.10 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
