@@ -3046,6 +3046,75 @@ def full_test():
         print(red(e))
         print(red("Version 0.4.21 failed"))
 
+    try:
+        tests += 1
+        import os
+        import tempfile
+        from classes.ingestion import Ingestion
+        from classes.loader import Loader
+        from classes.preprocessor import Preprocessor
+        from classes.chunker import Chunker
+        from classes.embedding_provider import EmbeddingProvider
+        from classes.embedder import Embedder
+        from classes.vector_store import VectorStore
+        from classes.document import Document
+        from classes.logger import Logger
+        class PipelineEmbeddingProvider(EmbeddingProvider):
+            def embed(self, text):
+                return [float(len(text)), 1.0, 2.0]
+        logger = Logger()
+        loader = Loader(logger)
+        ingestion = Ingestion(loader, logger)
+        preprocessor = Preprocessor(logger)
+        chunker = Chunker(logger, chunk_size=20)
+        provider = PipelineEmbeddingProvider()
+        embedder = Embedder(provider, logger)
+        store = VectorStore(logger)
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "pipeline.txt")
+            with open(path, "w", encoding="utf-8") as file:
+                file.write("This is a complete RAG vector pipeline integration test.")
+            documents = ingestion.ingest_directory(directory)
+            assert len(documents) == 1, "The complete pipeline should ingest the test document"
+            document = documents[0]
+            processed = preprocessor.process(document)
+            assert isinstance(processed, Document), "The complete pipeline should preprocess the ingested document into a Document"
+            assert processed.content == document.content, "The complete pipeline should preserve valid document content through preprocessing"
+            chunks = chunker.chunk(processed)
+            assert isinstance(chunks, list), "The complete pipeline should produce chunks as a list"
+            assert len(chunks) > 1, "The complete pipeline should produce multiple chunks from the integration test document"
+            assert all(isinstance(chunk, Document) for chunk in chunks), "Every pipeline chunk should remain a Document"
+            embedded = embedder.embed(chunks)
+            assert isinstance(embedded, list), "The complete pipeline should produce embeddings as a list"
+            assert len(embedded) == len(chunks), "The complete pipeline should produce one embedding dictionary for every chunk"
+            assert all(isinstance(item, dict) for item in embedded), "Every pipeline embedding should be represented as a dictionary"
+            assert all("chunk" in item for item in embedded), "Every pipeline embedding should contain its source chunk"
+            assert all("embedding" in item for item in embedded), "Every pipeline embedding should contain its vector"
+            assert all("metadata" in item for item in embedded), "Every pipeline embedding should contain metadata"
+            assert all(isinstance(item["embedding"], list) for item in embedded), "Every pipeline embedding vector should be represented as a list"
+            assert all(len(item["embedding"]) == 3 for item in embedded), "Every pipeline embedding should use the expected vector dimension"
+            vector_ids = store.upsert_many(embedded)
+            assert len(vector_ids) == len(embedded), "The complete pipeline should store every valid embedded chunk"
+            assert store.count() == len(chunks), "The vector store should contain exactly one vector for every pipeline chunk"
+            assert store.upsert_successes == len(embedded), "The vector store should report every pipeline embedding as a successful upsert"
+            assert store.upsert_failures == 0, "The complete pipeline should produce no failed vector upserts"
+            for index, item in enumerate(embedded):
+                vector_id = item["chunk"].id
+                record = store.get_record(vector_id)
+                assert record is not None, "Every pipeline embedding should be retrievable from the vector store"
+                assert record["chunk"] is item["chunk"], "The vector store should retain the exact chunk produced by the embedding pipeline"
+                assert record["embedding"] == item["embedding"], "The vector store should retain the exact embedding produced by the embedding pipeline"
+                assert record["metadata"] == item["metadata"], "The vector store should retain the embedding metadata produced by the pipeline"
+                assert record["chunk"].metadata["document_id"] == processed.id, "Every stored chunk should retain the processed document identity"
+                assert record["chunk"].metadata["chunk_index"] == index, "Every stored chunk should retain its correct chunk index"
+                assert record["chunk"].source == processed.source, "Every stored chunk should retain the original document source"
+        print(green("Version 0.4.22 complete RAG vector pipeline integration is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.4.22 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

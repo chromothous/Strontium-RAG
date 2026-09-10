@@ -228,3 +228,6 @@ Vector store single upsert statistics isolation is online.
 
 Version 0.4.21
 Vector store empty batch upsert is online.
+
+Version 0.4.22
+Complete RAG vector pipeline integration is online.
