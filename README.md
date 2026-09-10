@@ -255,3 +255,6 @@ Retrieval result structure is online.
 
 Version 0.5.7
 Semantic retrieval metadata preservation is online.
+
+Version 0.5.8
+Semantic retrieval empty-result handling is online.

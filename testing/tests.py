@@ -3352,6 +3352,20 @@ def full_test():
         print(red(e))
         print(red("Version 0.5.7 failed"))
 
+    try:
+        tests += 1
+        empty_store = VectorStore(logger)
+        empty_results = empty_store.retrieve([1.0, 0.0, 0.0])
+        assert isinstance(empty_results, list), "Retrieval from an empty vector store should return results as a list"
+        assert empty_results == [], "Retrieval from an empty vector store should return an empty result list"
+        assert empty_store.count() == 0, "Retrieval from an empty vector store should not add any vectors"
+        print(green("Version 0.5.8 semantic retrieval empty-result handling is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.5.8 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
