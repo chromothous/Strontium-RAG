@@ -3311,6 +3311,29 @@ def full_test():
         print(red(e))
         print(red("Version 0.5.5 failed"))
 
+    try:
+        tests += 1
+        structured_results = ranking_store.retrieve([1.0, 0.0, 0.0], top_k=2)
+        assert isinstance(structured_results, list), "Retrieval should return results as a list"
+        assert len(structured_results) == 2, "Retrieval should preserve the requested Top-K result count"
+        assert all(set(result.keys()) == {"id", "chunk", "embedding", "metadata", "similarity"} for result in structured_results), "Every retrieval result should contain exactly the defined result fields"
+        assert all(isinstance(result["id"], str) for result in structured_results), "Every retrieval result ID should be a string"
+        assert all(isinstance(result["chunk"], Document) for result in structured_results), "Every retrieval result should contain a Document chunk"
+        assert all(isinstance(result["embedding"], list) for result in structured_results), "Every retrieval result should contain its embedding as a list"
+        assert all(isinstance(result["metadata"], dict) for result in structured_results), "Every retrieval result should contain metadata as a dictionary"
+        assert all(isinstance(result["similarity"], float) for result in structured_results), "Every retrieval result should contain its similarity score as a float"
+        assert all(result["id"] == result["chunk"].id for result in structured_results), "Every retrieval result ID should match its chunk identity"
+        assert all(result["embedding"] == ranking_store.get(result["id"])["embedding"] for result in structured_results), "Every retrieval result should preserve its stored embedding"
+        assert all(result["metadata"] == ranking_store.get(result["id"])["metadata"] for result in structured_results), "Every retrieval result should preserve its stored metadata"
+        assert all(result["similarity"] >= 0.0 for result in structured_results), "The ranking test results should contain valid non-negative similarity scores"
+        assert structured_results[0]["similarity"] >= structured_results[1]["similarity"], "Retrieval results should remain ordered by descending similarity"
+        print(green("Version 0.5.6 retrieval result structure is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.5.6 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

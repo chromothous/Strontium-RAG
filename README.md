@@ -249,3 +249,6 @@ Semantic similarity ranking is online.
 
 Version 0.5.5
 Top-K semantic retrieval is online.
+
+Version 0.5.6
+Retrieval result structure is online.

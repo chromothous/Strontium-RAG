@@ -242,13 +242,13 @@ class VectorStore:
                 query_vector,
                 record["embedding"]
             )
-            results.append({
-                "id": vector_id,
-                "chunk": record["chunk"],
-                "embedding": record["embedding"].copy(),
-                "metadata": record["metadata"].copy(),
-                "similarity": similarity
-            })
+            results.append(
+                self._build_retrieval_result(
+                    vector_id,
+                    record,
+                    similarity
+                )
+            )
         results.sort(key=lambda result: result["similarity"], reverse=True)
         if top_k is not None:
             results = results[:top_k]
@@ -268,3 +268,12 @@ class VectorStore:
             self.logger.error("VectorStore query vector has an invalid dimension")
             raise ValueError("VectorStore query vector must match the vector store dimension")
         return list(query_vector)
+
+    def _build_retrieval_result(self, vector_id, record, similarity):
+        return {
+            "id": vector_id,
+            "chunk": record["chunk"],
+            "embedding": record["embedding"].copy(),
+            "metadata": record["metadata"].copy(),
+            "similarity": float(similarity)
+        }
