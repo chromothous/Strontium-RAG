@@ -146,6 +146,22 @@ class VectorStore:
         self.logger.info(f"Vector updated: {chunk.id}")
         return True
 
+    def upsert(self, embedding):
+        if not isinstance(embedding, dict):
+            self.logger.error("VectorStore embedding must be a dictionary")
+            raise ValueError("VectorStore embedding must be a dictionary")
+        if "chunk" not in embedding:
+            self.logger.error("VectorStore embedding is missing chunk")
+            raise ValueError("VectorStore embedding is missing chunk")
+        chunk = embedding["chunk"]
+        if not isinstance(chunk, Document):
+            self.logger.error("VectorStore chunk must be a Document")
+            raise ValueError("VectorStore chunk must be a Document")
+        if chunk.id in self.vectors:
+            self.update(embedding)
+            return chunk.id
+        return self.add(embedding)
+
     def get_all(self):
         return {
             vector_id: {

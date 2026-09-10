@@ -204,3 +204,6 @@ Vector store empty-state reporting is online.
 
 Version 0.4.13
 Vector metadata isolation is online.
+
+Version 0.4.14
+Vector upsert is online.

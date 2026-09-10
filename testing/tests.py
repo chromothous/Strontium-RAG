@@ -2823,6 +2823,65 @@ def full_test():
         print(red(e))
         print(red("Version 0.4.13 failed"))
 
+    try:
+        tests += 1
+        from classes.document import Document
+        from classes.logger import Logger
+        from classes.vector_store import VectorStore
+        logger = Logger()
+        store = VectorStore(logger)
+        document_one = Document(
+            "First upsert test document.",
+            "upsert_one.txt"
+        )
+        first_embedding = {
+            "chunk": document_one,
+            "embedding": [0.1, 0.2, 0.3],
+            "metadata": {"version": 1}
+        }
+        first_id = store.upsert(first_embedding)
+        assert first_id == document_one.id, "Vector upsert should return the source chunk identifier"
+        assert store.count() == 1, "Upserting a new vector should add one vector to the store"
+        assert store.get(first_id)["embedding"] == [0.1, 0.2, 0.3], "Upserting a new vector should store its embedding"
+        assert store.get_metadata(first_id) == {"version": 1}, "Upserting a new vector should store its metadata"
+        updated_embedding = {
+            "chunk": document_one,
+            "embedding": [0.9, 0.8, 0.7],
+            "metadata": {"version": 2}
+        }
+        second_id = store.upsert(updated_embedding)
+        assert second_id == first_id, "Upserting an existing vector should preserve its identifier"
+        assert store.count() == 1, "Upserting an existing vector should not create a duplicate"
+        assert store.get(first_id)["embedding"] == [0.9, 0.8, 0.7], "Upserting an existing vector should replace its embedding"
+        assert store.get_metadata(first_id) == {"version": 2}, "Upserting an existing vector should replace its metadata"
+        document_two = Document(
+            "Second upsert test document.",
+            "upsert_two.txt"
+        )
+        third_id = store.upsert({
+            "chunk": document_two,
+            "embedding": [0.4, 0.5, 0.6],
+            "metadata": {"version": 1}
+        })
+        assert third_id == document_two.id, "Upserting another new vector should return its chunk identifier"
+        assert store.count() == 2, "Upserting another new vector should increase the store count"
+        try:
+            store.upsert({
+                "chunk": "not a document",
+                "embedding": [0.1, 0.2, 0.3]
+            })
+            assert False, "Vector upsert should reject a non-Document chunk"
+        except ValueError:
+            pass
+        assert store.count() == 2, "A failed upsert should not modify the number of stored vectors"
+        assert store.get(first_id)["embedding"] == [0.9, 0.8, 0.7], "A failed upsert should preserve existing vector data"
+        print(green("Version 0.4.14 vector upsert is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.4.14 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
