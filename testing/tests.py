@@ -3334,6 +3334,24 @@ def full_test():
         print(red(e))
         print(red("Version 0.5.6 failed"))
 
+    try:
+        tests += 1
+        metadata_results = ranking_store.retrieve([1.0, 0.0, 0.0], top_k=3)
+        assert all("metadata" in result for result in metadata_results), "Every retrieval result should contain metadata"
+        assert metadata_results[0]["metadata"] == {"rank": 1}, "Retrieval should preserve the metadata of the highest-ranked vector"
+        assert metadata_results[1]["metadata"] == {"rank": 2}, "Retrieval should preserve the metadata of the second-ranked vector"
+        assert metadata_results[2]["metadata"] == {"rank": 3}, "Retrieval should preserve the metadata of the lowest-ranked vector"
+        metadata_results[0]["metadata"]["rank"] = 999
+        assert ranking_store.get_metadata(metadata_results[0]["id"]) == {"rank": 1}, "Modifying retrieved metadata should not modify the metadata stored in the vector store"
+        stored_metadata = ranking_store.get_metadata(metadata_results[0]["id"])
+        assert stored_metadata == {"rank": 1}, "Stored metadata should remain unchanged after retrieval"
+        print(green("Version 0.5.7 semantic retrieval metadata preservation is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.5.7 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
