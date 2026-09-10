@@ -3143,6 +3143,39 @@ def full_test():
         print(red(e))
         print(red("Version 0.5.0 failed"))
 
+    try:
+        tests += 1
+        valid_query = [0.7, 0.8, 0.9]
+        results = store.retrieve(valid_query)
+        assert isinstance(results, list), "A valid query vector should still produce a retrieval result list"
+        try:
+            store.retrieve("invalid")
+            assert False, "A non-list and non-tuple query should be rejected"
+        except ValueError:
+            pass
+        try:
+            store.retrieve([])
+            assert False, "An empty query vector should be rejected"
+        except ValueError:
+            pass
+        try:
+            store.retrieve(["invalid", 0.8, 0.9])
+            assert False, "A query vector containing non-numeric values should be rejected"
+        except ValueError:
+            pass
+        try:
+            store.retrieve([0.7, 0.8])
+            assert False, "A query vector with the wrong dimension should be rejected"
+        except ValueError:
+            pass
+        assert store.count() > 0, "Query validation should not alter the existing vector store"
+        print(green("Version 0.5.1 semantic retrieval query validation is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.5.1 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

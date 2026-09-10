@@ -213,7 +213,7 @@ class VectorStore:
         return dot_product / (magnitude_a * magnitude_b)
 
     def retrieve(self, query_vector):
-        query_vector = self._validate_vector(query_vector)
+        query_vector = self._validate_query_vector(query_vector)
         results = []
         for vector_id, record in self.vectors.items():
             similarity = self._cosine_similarity(query_vector, record["embedding"])
@@ -225,3 +225,18 @@ class VectorStore:
                 "similarity": similarity
             })
         return results
+
+    def _validate_query_vector(self, query_vector):
+        if not isinstance(query_vector, (list, tuple)):
+            self.logger.error("VectorStore query vector must be a list or tuple")
+            raise ValueError("VectorStore query vector must be a list or tuple")
+        if not query_vector:
+            self.logger.error("VectorStore query vector cannot be empty")
+            raise ValueError("VectorStore query vector cannot be empty")
+        if not all(isinstance(value, (int, float)) for value in query_vector):
+            self.logger.error("VectorStore query vector must contain only numeric values")
+            raise ValueError("VectorStore query vector must contain only numeric values")
+        if self.dimension is not None and len(query_vector) != self.dimension:
+            self.logger.error("VectorStore query vector has an invalid dimension")
+            raise ValueError("VectorStore query vector must match the vector store dimension")
+        return list(query_vector)

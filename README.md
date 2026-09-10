@@ -234,3 +234,6 @@ Complete RAG vector pipeline integration is online.
 
 Version 0.5.0
 Semantic retrieval foundation is online.
+
+Version 0.5.1
+Semantic retrieval query validation is online.
