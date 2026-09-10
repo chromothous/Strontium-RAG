@@ -3216,6 +3216,31 @@ def full_test():
         print(red(e))
         print(red("Version 0.5.2 failed"))
 
+    try:
+        tests += 1
+        query_vector = [0.7, 0.8, 0.9]
+        results = store.retrieve(query_vector)
+        assert len(results) == store.count(), "A correctly dimensioned query should retrieve every stored vector"
+        assert all(len(result["embedding"]) == len(query_vector) for result in results), "Every retrieved vector should match the query vector dimension"
+        assert store.dimension == len(query_vector), "The vector store dimension should match the retrieval query dimension"
+        try:
+            store.retrieve([0.7, 0.8])
+            assert False, "Retrieval should reject a query vector with a dimension different from the vector store"
+        except ValueError:
+            pass
+        try:
+            store.retrieve([0.7, 0.8, 0.9, 1.0])
+            assert False, "Retrieval should reject a query vector larger than the vector store dimension"
+        except ValueError:
+            pass
+        assert store.count() > 0, "Dimension validation should not remove existing vectors from the store"
+        print(green("Version 0.5.3 semantic retrieval dimension validation is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.5.3 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

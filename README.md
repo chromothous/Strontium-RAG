@@ -241,3 +241,5 @@ Semantic retrieval query validation is online.
 Version 0.5.2
 Semantic similarity calculation is online.
 
+Version 0.5.3
+Semantic retrieval dimension validation is online.
