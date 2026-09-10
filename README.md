@@ -216,3 +216,6 @@ Vector store upsert failure tracking is online.
 
 Version 0.4.17
 Vector store upsert statistics access is online.
+
+Version 0.4.18
+Vector store upsert statistics reset is online.

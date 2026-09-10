@@ -2982,6 +2982,21 @@ def full_test():
         print(red(e))
         print(red("Version 0.4.17 failed"))
 
+    try:
+        tests += 1
+        store.upsert_many([updated_embedding, invalid_embedding, new_embedding])
+        assert store.upsert_successes == 2, "Upsert_many should record two successful upserts after the first batch"
+        assert store.upsert_failures == 1, "Upsert_many should record one failed upsert after the first batch"
+        store.upsert_many([new_embedding])
+        assert store.upsert_successes == 1, "Upsert_many should reset successful upsert statistics for a new batch"
+        assert store.upsert_failures == 0, "Upsert_many should reset failed upsert statistics for a new batch"
+        print(green("Version 0.4.18 vector store upsert statistics reset is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.4.18 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
