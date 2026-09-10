@@ -203,13 +203,23 @@ class VectorStore:
         }
 
     def _cosine_similarity(self, vector_a, vector_b):
+        if not isinstance(vector_a, (list, tuple)):
+            raise ValueError("VectorStore first similarity vector must be a list or tuple")
+        if not isinstance(vector_b, (list, tuple)):
+            raise ValueError("VectorStore second similarity vector must be a list or tuple")
         if len(vector_a) != len(vector_b):
-            raise ValueError("VectorStore vectors must have the same dimension")
+            raise ValueError("VectorStore similarity vectors must have the same dimension")
+        if not vector_a or not vector_b:
+            raise ValueError("VectorStore similarity vectors cannot be empty")
+        if not all(isinstance(value, (int, float)) for value in vector_a):
+            raise ValueError("VectorStore first similarity vector must contain only numeric values")
+        if not all(isinstance(value, (int, float)) for value in vector_b):
+            raise ValueError("VectorStore second similarity vector must contain only numeric values")
         dot_product = sum(a * b for a, b in zip(vector_a, vector_b))
         magnitude_a = math.sqrt(sum(value * value for value in vector_a))
         magnitude_b = math.sqrt(sum(value * value for value in vector_b))
         if magnitude_a == 0 or magnitude_b == 0:
-            raise ValueError("VectorStore vectors cannot have zero magnitude")
+            raise ValueError("VectorStore similarity vectors cannot have zero magnitude")
         return dot_product / (magnitude_a * magnitude_b)
 
     def retrieve(self, query_vector):

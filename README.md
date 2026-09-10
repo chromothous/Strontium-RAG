@@ -237,3 +237,7 @@ Semantic retrieval foundation is online.
 
 Version 0.5.1
 Semantic retrieval query validation is online.
+
+Version 0.5.2
+Semantic similarity calculation is online.
+

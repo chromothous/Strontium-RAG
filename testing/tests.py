@@ -3176,6 +3176,46 @@ def full_test():
         print(red(e))
         print(red("Version 0.5.1 failed"))
 
+    try:
+        tests += 1
+        identical_similarity = store._cosine_similarity([1.0, 0.0, 0.0], [1.0, 0.0, 0.0])
+        opposite_similarity = store._cosine_similarity([1.0, 0.0, 0.0], [-1.0, 0.0, 0.0])
+        unrelated_similarity = store._cosine_similarity([1.0, 0.0, 0.0], [0.0, 1.0, 0.0])
+        assert identical_similarity == 1.0, "Identical vectors should produce a cosine similarity of 1.0"
+        assert opposite_similarity == -1.0, "Opposite vectors should produce a cosine similarity of -1.0"
+        assert unrelated_similarity == 0.0, "Orthogonal vectors should produce a cosine similarity of 0.0"
+        try:
+            store._cosine_similarity([1.0, 0.0], [1.0])
+            assert False, "Similarity calculation should reject vectors with different dimensions"
+        except ValueError:
+            pass
+        try:
+            store._cosine_similarity([0.0, 0.0], [1.0, 0.0])
+            assert False, "Similarity calculation should reject a zero-magnitude first vector"
+        except ValueError:
+            pass
+        try:
+            store._cosine_similarity([1.0, 0.0], [0.0, 0.0])
+            assert False, "Similarity calculation should reject a zero-magnitude second vector"
+        except ValueError:
+            pass
+        try:
+            store._cosine_similarity("invalid", [1.0, 0.0, 0.0])
+            assert False, "Similarity calculation should reject a non-vector first argument"
+        except ValueError:
+            pass
+        try:
+            store._cosine_similarity([1.0, 0.0, 0.0], "invalid")
+            assert False, "Similarity calculation should reject a non-vector second argument"
+        except ValueError:
+            pass
+        print(green("Version 0.5.2 semantic similarity calculation is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.5.2 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
