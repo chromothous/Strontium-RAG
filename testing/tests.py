@@ -2731,6 +2731,46 @@ def full_test():
         print(red(e))
         print(red("Version 0.4.11 failed"))
 
+    try:
+        tests += 1
+        from classes.document import Document
+        from classes.logger import Logger
+        from classes.vector_store import VectorStore
+        logger = Logger()
+        store = VectorStore(logger)
+        assert store.is_empty() is True, "A new vector store should report that it is empty"
+        document_one = Document(
+            "Vector empty state test document.",
+            "empty_state_one.txt"
+        )
+        store.add({
+            "chunk": document_one,
+            "embedding": [0.1, 0.2, 0.3]
+        })
+        assert store.is_empty() is False, "Vector storage should report that it is not empty after a vector is added"
+        assert store.count() == 1, "Vector storage should contain one vector after the first vector is added"
+        store.remove(document_one.id)
+        assert store.is_empty() is True, "Vector storage should report that it is empty after its final vector is removed"
+        document_two = Document(
+            "Second vector empty state test document.",
+            "empty_state_two.txt"
+        )
+        store.add({
+            "chunk": document_two,
+            "embedding": [0.4, 0.5, 0.6]
+        })
+        assert store.is_empty() is False, "Vector storage should report that it is not empty after being reused"
+        store.clear()
+        assert store.is_empty() is True, "Vector storage should report that it is empty after being cleared"
+        assert store.count() == 0, "An empty vector store should report zero stored vectors"
+        assert store.get_all() == {}, "An empty vector store should return an empty collection"
+        print(green("Version 0.4.12 vector store empty-state reporting is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.4.12 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

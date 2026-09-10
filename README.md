@@ -198,3 +198,6 @@ Vector store updating is online.
 
 Version 0.4.11
 Vector store update validation is online.
+
+Version 0.4.12
+Vector store empty-state reporting is online.
