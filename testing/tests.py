@@ -2527,6 +2527,60 @@ def full_test():
         print(red(e))
         print(red("Version 0.4.8 failed"))
 
+    try:
+        tests += 1
+        from classes.document import Document
+        from classes.logger import Logger
+        from classes.vector_store import VectorStore
+        logger = Logger()
+        store = VectorStore(logger)
+        document = Document(
+            "Complete vector record access test document.",
+            "record_test.txt"
+        )
+        metadata = {
+            "source": "record_test.txt",
+            "category": "testing"
+        }
+        embedding = [0.1, 0.2, 0.3]
+        vector_id = store.add({
+            "chunk": document,
+            "embedding": embedding,
+            "metadata": metadata
+        })
+        record = store.get_record(vector_id)
+        assert isinstance(record, dict), "Vector storage should return complete records as dictionaries"
+        assert set(record.keys()) == {"chunk", "embedding", "metadata"}, "Vector storage records should contain chunk, embedding, and metadata"
+        assert record["chunk"] is document, "Vector storage records should preserve the source chunk"
+        assert record["embedding"] == embedding, "Vector storage records should preserve the complete embedding"
+        assert record["metadata"] == metadata, "Vector storage records should preserve the complete metadata"
+        assert record["embedding"] is not store.vectors[vector_id]["embedding"], "Vector storage should return an independent embedding copy"
+        assert record["metadata"] is not store.vectors[vector_id]["metadata"], "Vector storage should return an independent metadata copy"
+        record["embedding"].append(9.9)
+        record["metadata"]["modified"] = True
+        stored = store.get_record(vector_id)
+        assert stored["embedding"] == embedding, "Modifying a returned record should not modify the stored embedding"
+        assert stored["metadata"] == metadata, "Modifying a returned record should not modify the stored metadata"
+        assert store.get_record("missing-vector-id") is None, "Vector storage should return None for an unknown record"
+        store.remove(vector_id)
+        assert store.get_record(vector_id) is None, "Vector storage should return None after a record is removed"
+        try:
+            store.get_record("")
+            assert False, "Vector storage should reject an empty vector identifier for record access"
+        except ValueError:
+            pass
+        try:
+            store.get_record(None)
+            assert False, "Vector storage should reject a non-string vector identifier for record access"
+        except ValueError:
+            pass
+        print(green("Version 0.4.9 vector record access is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.4.9 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

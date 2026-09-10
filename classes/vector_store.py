@@ -102,6 +102,18 @@ class VectorStore:
             return None
         return record["metadata"].copy()
 
+    def get_record(self, vector_id):
+        if not isinstance(vector_id, str) or not vector_id:
+            raise ValueError("VectorStore vector ID must be a non-empty string")
+        record = self.vectors.get(vector_id)
+        if record is None:
+            return None
+        return {
+            "chunk": record["chunk"],
+            "embedding": record["embedding"].copy(),
+            "metadata": record["metadata"].copy()
+        }
+
     def get_all(self):
         return {
             vector_id: {

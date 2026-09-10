@@ -189,3 +189,6 @@ Vector existence checking is online.
 
 Version 0.4.8
 Vector metadata access is online.
+
+Version 0.4.9
+Vector record access is online.
