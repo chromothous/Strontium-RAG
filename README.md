@@ -187,3 +187,5 @@ Vector store counting is online.
 Version 0.4.7
 Vector existence checking is online.
 
+Version 0.4.8
+Vector metadata access is online.

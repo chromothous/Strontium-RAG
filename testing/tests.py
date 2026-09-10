@@ -2478,6 +2478,55 @@ def full_test():
         print(red(e))
         print(red("Version 0.4.7 failed"))
 
+    try:
+        tests += 1
+        from classes.document import Document
+        from classes.logger import Logger
+        from classes.vector_store import VectorStore
+        logger = Logger()
+        store = VectorStore(logger)
+        document = Document(
+            "Vector metadata access test document.",
+            "metadata_test.txt"
+        )
+        metadata = {
+            "source": "metadata_test.txt",
+            "category": "testing",
+            "priority": "high"
+        }
+        vector_id = store.add({
+            "chunk": document,
+            "embedding": [0.1, 0.2, 0.3],
+            "metadata": metadata
+        })
+        result = store.get_metadata(vector_id)
+        assert isinstance(result, dict), "Vector storage should return vector metadata as a dictionary"
+        assert result == metadata, "Vector storage should return the complete metadata for a stored vector"
+        assert result is not metadata, "Vector storage should return an independent metadata copy"
+        result["modified"] = True
+        stored = store.get_metadata(vector_id)
+        assert "modified" not in stored, "Modifying returned metadata should not modify stored metadata"
+        assert store.get(vector_id)["metadata"] == metadata, "Stored metadata should remain unchanged after external modification"
+        assert store.get_metadata("missing-vector-id") is None, "Vector storage should return None for metadata of an unknown vector"
+        store.remove(vector_id)
+        assert store.get_metadata(vector_id) is None, "Vector storage should return None for metadata after a vector is removed"
+        try:
+            store.get_metadata("")
+            assert False, "Vector storage should reject an empty vector identifier for metadata access"
+        except ValueError:
+            pass
+        try:
+            store.get_metadata(None)
+            assert False, "Vector storage should reject a non-string vector identifier for metadata access"
+        except ValueError:
+            pass
+        print(green("Version 0.4.8 vector metadata access is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.4.8 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
