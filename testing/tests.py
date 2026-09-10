@@ -3026,6 +3026,26 @@ def full_test():
         print(red(e))
         print(red("Version 0.4.20 failed"))
 
+    try:
+        tests += 1
+        count_before = store.count()
+        vector_ids = store.upsert_many([])
+        assert vector_ids == [], "Upsert_many should return an empty list for an empty batch"
+        assert store.count() == count_before, "Upsert_many should not change the vector count for an empty batch"
+        assert store.upsert_successes == 0, "Upsert_many should report zero successes for an empty batch"
+        assert store.upsert_failures == 0, "Upsert_many should report zero failures for an empty batch"
+        vector_ids = store.upsert_many(())
+        assert vector_ids == [], "Upsert_many should return an empty list for an empty tuple"
+        assert store.count() == count_before, "Upsert_many should not change the vector count for an empty tuple"
+        assert store.upsert_successes == 0, "Upsert_many should report zero successes for an empty tuple"
+        assert store.upsert_failures == 0, "Upsert_many should report zero failures for an empty tuple"
+        print(green("Version 0.4.21 vector store empty batch upsert is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.4.21 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

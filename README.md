@@ -225,3 +225,6 @@ Vector store upsert statistics validation is online.
 
 Version 0.4.20
 Vector store single upsert statistics isolation is online.
+
+Version 0.4.21
+Vector store empty batch upsert is online.
