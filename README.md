@@ -246,3 +246,6 @@ Semantic retrieval dimension validation is online.
 
 Version 0.5.4
 Semantic similarity ranking is online.
+
+Version 0.5.5
+Top-K semantic retrieval is online.

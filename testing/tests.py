@@ -3277,6 +3277,40 @@ def full_test():
         print(red(e))
         print(red("Version 0.5.4 failed"))
 
+    try:
+        tests += 1
+        top_k_results = ranking_store.retrieve([1.0, 0.0, 0.0], top_k=2)
+        assert isinstance(top_k_results, list), "Top-K retrieval should return results as a list"
+        assert len(top_k_results) == 2, "Top-K retrieval should return exactly the requested number of results when enough vectors exist"
+        assert top_k_results[0]["chunk"].content == "Exact match", "Top-K retrieval should preserve the highest-ranked result"
+        assert top_k_results[1]["chunk"].content == "Partial match", "Top-K retrieval should preserve the second-highest-ranked result"
+        assert top_k_results[0]["similarity"] >= top_k_results[1]["similarity"], "Top-K results should remain ordered by descending similarity"
+        all_results = ranking_store.retrieve([1.0, 0.0, 0.0])
+        assert len(all_results) == ranking_store.count(), "Retrieval without top_k should continue returning every stored vector"
+        oversized_results = ranking_store.retrieve([1.0, 0.0, 0.0], top_k=100)
+        assert len(oversized_results) == ranking_store.count(), "A top_k larger than the store should return all available vectors"
+        try:
+            ranking_store.retrieve([1.0, 0.0, 0.0], top_k=0)
+            assert False, "Top-K retrieval should reject a top_k value of zero"
+        except ValueError:
+            pass
+        try:
+            ranking_store.retrieve([1.0, 0.0, 0.0], top_k=-1)
+            assert False, "Top-K retrieval should reject negative top_k values"
+        except ValueError:
+            pass
+        try:
+            ranking_store.retrieve([1.0, 0.0, 0.0], top_k="2")
+            assert False, "Top-K retrieval should reject non-integer top_k values"
+        except ValueError:
+            pass
+        print(green("Version 0.5.5 top-K semantic retrieval is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.5.5 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

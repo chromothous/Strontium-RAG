@@ -222,8 +222,15 @@ class VectorStore:
             raise ValueError("VectorStore similarity vectors cannot have zero magnitude")
         return dot_product / (magnitude_a * magnitude_b)
 
-    def retrieve(self, query_vector):
+    def retrieve(self, query_vector, top_k=None):
         query_vector = self._validate_query_vector(query_vector)
+        if top_k is not None:
+            if not isinstance(top_k, int) or isinstance(top_k, bool):
+                self.logger.error("VectorStore top_k must be an integer")
+                raise ValueError("VectorStore top_k must be an integer")
+            if top_k <= 0:
+                self.logger.error("VectorStore top_k must be greater than zero")
+                raise ValueError("VectorStore top_k must be greater than zero")
         results = []
         for vector_id, record in self.vectors.items():
             if len(query_vector) != len(record["embedding"]):
@@ -243,6 +250,8 @@ class VectorStore:
                 "similarity": similarity
             })
         results.sort(key=lambda result: result["similarity"], reverse=True)
+        if top_k is not None:
+            results = results[:top_k]
         return results
 
     def _validate_query_vector(self, query_vector):
