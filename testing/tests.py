@@ -3366,6 +3366,38 @@ def full_test():
         print(red(e))
         print(red("Version 0.5.8 failed"))
 
+    try:
+        tests += 1
+        invalid_vector_store = VectorStore(logger)
+        invalid_vector_store.add({
+            "chunk": Document("Valid vector", "invalid.txt"),
+            "embedding": [1.0, 0.0, 0.0],
+            "metadata": {"type": "valid"}
+        })
+        try:
+            invalid_vector_store.retrieve([0.0, 0.0, 0.0])
+            assert False, "Retrieval should reject a zero-magnitude query vector"
+        except ValueError:
+            pass
+        try:
+            invalid_vector_store.retrieve([1.0, "invalid", 0.0])
+            assert False, "Retrieval should reject a query vector containing non-numeric values"
+        except ValueError:
+            pass
+        try:
+            invalid_vector_store.retrieve([])
+            assert False, "Retrieval should reject an empty query vector"
+        except ValueError:
+            pass
+        assert invalid_vector_store.count() == 1, "Invalid retrieval queries should not modify the vector store"
+        assert invalid_vector_store.contains(invalid_vector_store.get_all().popitem()[0]), "Valid stored vectors should remain available after invalid retrieval attempts"
+        print(green("Version 0.5.9 semantic retrieval invalid-vector handling is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.5.9 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

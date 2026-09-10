@@ -258,3 +258,6 @@ Semantic retrieval metadata preservation is online.
 
 Version 0.5.8
 Semantic retrieval empty-result handling is online.
+
+Version 0.5.9
+Semantic retrieval invalid-vector handling is online.
