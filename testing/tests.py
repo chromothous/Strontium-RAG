@@ -2771,6 +2771,58 @@ def full_test():
         print(red(e))
         print(red("Version 0.4.12 failed"))
 
+    try:
+        tests += 1
+        from classes.document import Document
+        from classes.logger import Logger
+        from classes.vector_store import VectorStore
+        logger = Logger()
+        store = VectorStore(logger)
+        document = Document(
+            "Vector metadata isolation test document.",
+            "metadata_isolation.txt"
+        )
+        original_metadata = {
+            "source": "metadata_isolation.txt",
+            "category": "testing",
+            "version": 1
+        }
+        embedding = {
+            "chunk": document,
+            "embedding": [0.1, 0.2, 0.3],
+            "metadata": original_metadata
+        }
+        vector_id = store.add(embedding)
+        original_metadata["modified"] = True
+        original_metadata["version"] = 99
+        stored_metadata = store.get_metadata(vector_id)
+        assert "modified" not in stored_metadata, "Modifying input metadata after storage should not modify stored metadata"
+        assert stored_metadata["version"] == 1, "Modifying input metadata should not change previously stored metadata values"
+        update_metadata = {
+            "source": "metadata_isolation.txt",
+            "category": "updated",
+            "version": 2
+        }
+        updated = store.update({
+            "chunk": document,
+            "embedding": [0.4, 0.5, 0.6],
+            "metadata": update_metadata
+        })
+        assert updated is True, "Vector storage should successfully update an existing vector"
+        update_metadata["modified"] = True
+        update_metadata["version"] = 99
+        stored_metadata = store.get_metadata(vector_id)
+        assert "modified" not in stored_metadata, "Modifying update metadata after storage should not modify stored metadata"
+        assert stored_metadata["category"] == "updated", "Stored metadata should preserve the values supplied by the successful update"
+        assert stored_metadata["version"] == 2, "Modifying update metadata should not change the stored update values"
+        assert store.get_record(vector_id)["metadata"] == stored_metadata, "Complete record access should expose the same isolated metadata values"
+        print(green("Version 0.4.13 vector metadata isolation is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.4.13 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
