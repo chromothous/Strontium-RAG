@@ -171,3 +171,16 @@ class VectorStore:
             }
             for vector_id, record in self.vectors.items()
         }
+
+    def upsert_many(self, embeddings):
+        if not isinstance(embeddings, (list, tuple)):
+            self.logger.error("VectorStore embeddings must be a list or tuple")
+            raise ValueError("VectorStore embeddings must be a list or tuple")
+        vector_ids = []
+        for embedding in embeddings:
+            try:
+                vector_ids.append(self.upsert(embedding))
+            except ValueError as e:
+                self.logger.error(f"VectorStore skipped invalid embedding: {e}")
+        self.logger.info(f"Vectors upserted successfully: {len(vector_ids)}")
+        return vector_ids

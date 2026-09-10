@@ -2882,6 +2882,50 @@ def full_test():
         print(red(e))
         print(red("Version 0.4.14 failed"))
 
+    try:
+        tests += 1
+        existing_embedding = {
+            "chunk": chunk,
+            "embedding": [0.1, 0.2, 0.3],
+            "metadata": {"type": "text"}
+        }
+        new_embedding = {
+            "chunk": Document("New chunk", "test.txt"),
+            "embedding": [0.4, 0.5, 0.6],
+            "metadata": {"type": "new"}
+        }
+        updated_embedding = {
+            "chunk": chunk,
+            "embedding": [0.7, 0.8, 0.9],
+            "metadata": {"type": "updated"}
+        }
+        invalid_embedding = {
+            "chunk": "invalid",
+            "embedding": [1.0, 1.1, 1.2],
+            "metadata": {"type": "invalid"}
+        }
+        store.upsert(existing_embedding)
+        count_before = store.count()
+        vector_ids = store.upsert_many([updated_embedding, invalid_embedding, new_embedding])
+        assert vector_ids == [chunk.id, new_embedding["chunk"].id], "Upsert_many should return IDs only for valid embeddings in input order"
+        assert store.count() == count_before + 1, "Upsert_many should update existing vectors, ignore invalid embeddings, and add valid new vectors"
+        assert store.get(chunk.id)["embedding"] == [0.7, 0.8, 0.9], "Upsert_many should update the existing embedding"
+        assert store.get(chunk.id)["metadata"] == {"type": "updated"}, "Upsert_many should replace metadata for the existing embedding"
+        assert store.get(new_embedding["chunk"].id)["embedding"] == [0.4, 0.5, 0.6], "Upsert_many should add the valid new embedding"
+        assert store.get(new_embedding["chunk"].id)["metadata"] == {"type": "new"}, "Upsert_many should preserve metadata for the valid new embedding"
+        assert not store.contains(invalid_embedding.get("chunk")), "Upsert_many should not store an invalid embedding"
+        try:
+            store.upsert_many("invalid")
+            assert False, "Upsert_many should reject non-list and non-tuple input"
+        except ValueError:
+            pass
+        print(green("Version 0.4.15 vector store batch upsert is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.4.15 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
