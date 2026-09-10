@@ -231,3 +231,6 @@ Vector store empty batch upsert is online.
 
 Version 0.4.22
 Complete RAG vector pipeline integration is online.
+
+Version 0.5.0
+Semantic retrieval foundation is online.

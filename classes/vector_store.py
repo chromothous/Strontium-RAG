@@ -1,3 +1,5 @@
+import math
+
 from classes.document import Document
 from classes.logger import Logger
 
@@ -199,3 +201,27 @@ class VectorStore:
             "successes": self.upsert_successes,
             "failures": self.upsert_failures
         }
+
+    def _cosine_similarity(self, vector_a, vector_b):
+        if len(vector_a) != len(vector_b):
+            raise ValueError("VectorStore vectors must have the same dimension")
+        dot_product = sum(a * b for a, b in zip(vector_a, vector_b))
+        magnitude_a = math.sqrt(sum(value * value for value in vector_a))
+        magnitude_b = math.sqrt(sum(value * value for value in vector_b))
+        if magnitude_a == 0 or magnitude_b == 0:
+            raise ValueError("VectorStore vectors cannot have zero magnitude")
+        return dot_product / (magnitude_a * magnitude_b)
+
+    def retrieve(self, query_vector):
+        query_vector = self._validate_vector(query_vector)
+        results = []
+        for vector_id, record in self.vectors.items():
+            similarity = self._cosine_similarity(query_vector, record["embedding"])
+            results.append({
+                "id": vector_id,
+                "chunk": record["chunk"],
+                "embedding": record["embedding"].copy(),
+                "metadata": record["metadata"].copy(),
+                "similarity": similarity
+            })
+        return results

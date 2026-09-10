@@ -3115,6 +3115,34 @@ def full_test():
         print(red(e))
         print(red("Version 0.4.22 failed"))
 
+    try:
+        tests += 1
+        query_vector = [0.7, 0.8, 0.9]
+        results = store.retrieve(query_vector)
+        assert isinstance(results, list), "Semantic retrieval should return results as a list"
+        assert len(results) == store.count(), "Semantic retrieval should evaluate every stored vector"
+        assert all(isinstance(result, dict) for result in results), "Every semantic retrieval result should be represented as a dictionary"
+        assert all("id" in result for result in results), "Every semantic retrieval result should contain its vector ID"
+        assert all("chunk" in result for result in results), "Every semantic retrieval result should contain its source chunk"
+        assert all("embedding" in result for result in results), "Every semantic retrieval result should contain its embedding"
+        assert all("metadata" in result for result in results), "Every semantic retrieval result should contain its metadata"
+        assert all("similarity" in result for result in results), "Every semantic retrieval result should contain a similarity score"
+        assert all(isinstance(result["similarity"], float) for result in results), "Every semantic retrieval similarity score should be a float"
+        assert all(-1.0 <= result["similarity"] <= 1.0 for result in results), "Every semantic retrieval similarity score should fall within the cosine similarity range"
+        assert all(isinstance(result["chunk"], Document) for result in results), "Every semantic retrieval result should retain its Document chunk"
+        assert all(isinstance(result["metadata"], dict) for result in results), "Every semantic retrieval result should retain metadata as a dictionary"
+        try:
+            store.retrieve("invalid")
+            assert False, "Semantic retrieval should reject a non-vector query"
+        except ValueError:
+            pass
+        print(green("Version 0.5.0 semantic retrieval foundation is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.5.0 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
