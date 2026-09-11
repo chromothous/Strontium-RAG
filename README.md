@@ -270,3 +270,6 @@ Complete semantic retrieval pipeline is online.
 
 Version 0.6.0
 Context construction foundation is online.
+
+Version 0.6.1
+Context construction input validation is online.

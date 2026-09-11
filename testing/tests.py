@@ -3495,6 +3495,49 @@ def full_test():
         print(red(e))
         print(red("Version 0.6.0 failed"))
 
+    try:
+        tests += 1
+        valid_context_results = ranking_store.retrieve([1.0, 0.0, 0.0], top_k=2)
+        valid_context = context_builder.build(valid_context_results)
+        assert isinstance(valid_context, str), "Valid retrieval results should produce a string context"
+        assert valid_context == "Exact match\n\nPartial match", "Valid retrieval results should produce context in the expected order and format"
+        try:
+            context_builder.build(None)
+            assert False, "Context construction should reject a None input"
+        except ValueError:
+            pass
+        try:
+            context_builder.build("invalid")
+            assert False, "Context construction should reject a string instead of retrieval results"
+        except ValueError:
+            pass
+        try:
+            context_builder.build(123)
+            assert False, "Context construction should reject a non-list and non-tuple input"
+        except ValueError:
+            pass
+        try:
+            context_builder.build([Document("Invalid result", "context.txt")])
+            assert False, "Context construction should reject retrieval entries that are not dictionaries"
+        except ValueError:
+            pass
+        try:
+            context_builder.build([{}])
+            assert False, "Context construction should reject retrieval results missing the chunk field"
+        except ValueError:
+            pass
+        try:
+            context_builder.build([{"chunk": "invalid"}])
+            assert False, "Context construction should reject retrieval results whose chunk does not provide content"
+        except ValueError:
+            pass
+        print(green("Version 0.6.1 context construction input validation is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.6.1 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
