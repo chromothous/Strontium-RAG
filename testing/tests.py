@@ -3838,6 +3838,35 @@ def full_test():
         print(red(e))
         print(red("Version 0.6.16 failed"))
 
+    try:
+        identity_chunk = Document(
+            "Identity test content",
+            "identity_source.txt",
+            {
+                "document_id": "document-identity-test",
+                "chunk_index": 0
+            }
+        )
+        identity_chunk.id = "chunk-identity-test"
+        identity_results = [
+            {
+                "chunk": identity_chunk,
+                "similarity": 1.0
+            }
+        ]
+        identity_items = context_builder.build_items(identity_results)
+        assert len(identity_items) == 1, "Context construction should preserve one context item for one source chunk"
+        assert identity_items[0]["content"] == "Identity test content", "Context item should preserve the originating chunk content"
+        assert identity_items[0]["source"] == "identity_source.txt", "Context item should preserve the originating chunk source identity"
+        assert identity_items[0]["document_id"] == "document-identity-test", "Context item should preserve the originating document identity"
+        assert identity_items[0]["chunk_id"] == "chunk-identity-test", "Context item should preserve the originating chunk identity"
+        success += 1
+        print(green("Version 0.6.17 context source identity is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.6.17 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

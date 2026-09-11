@@ -318,3 +318,6 @@ Context content preservation is online.
 
 Version 0.6.16
 Duplicate source preservation is online.
+
+Version 0.6.17
+Context source identity is online.
