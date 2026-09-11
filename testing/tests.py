@@ -3538,6 +3538,22 @@ def full_test():
         print(red(e))
         print(red("Version 0.6.1 failed"))
 
+    try:
+        tests += 1
+        ordered_results = ranking_store.retrieve([1.0, 0.0, 0.0], top_k=3)
+        ordered_context = context_builder.build(ordered_results)
+        assert ordered_context == "Exact match\n\nPartial match\n\nWeak match", "Context construction should preserve the complete retrieval order"
+        assert ordered_context.index("Exact match") < ordered_context.index("Partial match"), "The highest-ranked chunk should appear before the second-ranked chunk"
+        assert ordered_context.index("Partial match") < ordered_context.index("Weak match"), "The second-ranked chunk should appear before the lowest-ranked chunk"
+        assert ordered_context.count("\n\n") == 2, "Context construction should separate three chunks with exactly two context separators"
+        assert ordered_context.split("\n\n") == ["Exact match", "Partial match", "Weak match"], "Context construction should preserve each chunk as a separate ordered context section"
+        print(green("Version 0.6.2 context ordering is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.6.2 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

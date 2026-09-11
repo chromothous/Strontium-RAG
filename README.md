@@ -273,3 +273,6 @@ Context construction foundation is online.
 
 Version 0.6.1
 Context construction input validation is online.
+
+Version 0.6.2
+Context ordering is online.
