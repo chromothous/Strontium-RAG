@@ -3760,6 +3760,22 @@ def full_test():
         print(red(e))
         print(red("Version 0.6.11 failed"))
 
+    try:
+        tests += 1
+        source_results = ranking_store.retrieve([1.0, 0.0, 0.0], top_k=2)
+        source_context = context_builder.build(source_results)
+        assert isinstance(source_context, str), "Context construction should return a string for source retrieval results"
+        assert source_context == "Exact match\n\nPartial match", "Context construction should preserve the exact content of the retrieved chunks"
+        assert "Exact match" in source_context, "Constructed context should contain content from the highest-ranked retrieved chunk"
+        assert "Partial match" in source_context, "Constructed context should contain content from every retrieved chunk"
+        assert "Weak match" not in source_context, "Constructed context should exclude chunks that were not included in the retrieval results"
+        print(green("Version 0.6.12 context source selection is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.6.12 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
