@@ -3572,6 +3572,37 @@ def full_test():
         print(red(e))
         print(red("Version 0.6.3 failed"))
 
+    try:
+        tests += 1
+        valid_result = {
+            "chunk": Document("Valid context chunk", "context.txt"),
+            "embedding": [1.0, 0.0, 0.0],
+            "metadata": {"type": "text"},
+            "similarity": 1.0
+        }
+        valid_context = context_builder.build([valid_result])
+        assert valid_context == "Valid context chunk", "Context construction should preserve valid chunk content"
+        class EmptyContextChunk:
+            content = ""
+        empty_result = {
+            "chunk": EmptyContextChunk(),
+            "embedding": [1.0, 0.0, 0.0],
+            "metadata": {"type": "empty"},
+            "similarity": 0.5
+        }
+        try:
+            context_builder.build([empty_result])
+            assert False, "Context construction should reject retrieval results containing empty chunk content"
+        except ValueError:
+            pass
+        assert context_builder.build([valid_result]) == "Valid context chunk", "Rejecting empty chunk content should not affect subsequent valid context construction"
+        print(green("Version 0.6.4 context empty-content handling is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.6.4 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

@@ -279,3 +279,6 @@ Context ordering is online.
 
 Version 0.6.3
 Context content integrity is online.
+
+Version 0.6.4
+Context empty-content handling is online.
