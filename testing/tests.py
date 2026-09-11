@@ -3554,6 +3554,24 @@ def full_test():
         print(red(e))
         print(red("Version 0.6.2 failed"))
 
+    try:
+        tests += 1
+        integrity_results = ranking_store.retrieve([1.0, 0.0, 0.0], top_k=3)
+        integrity_context = context_builder.build(integrity_results)
+        assert isinstance(integrity_context, str), "Context construction should return a string containing the retrieved content"
+        assert integrity_context.startswith("Exact match"), "Constructed context should begin with the first retrieved chunk"
+        assert integrity_context.endswith("Weak match"), "Constructed context should end with the last retrieved chunk"
+        assert "Exact match" in integrity_context, "Constructed context should contain the complete first chunk content"
+        assert "Partial match" in integrity_context, "Constructed context should contain the complete second chunk content"
+        assert "Weak match" in integrity_context, "Constructed context should contain the complete third chunk content"
+        assert integrity_context.replace("\n\n", "") == "Exact matchPartial matchWeak match", "Context construction should not alter or remove retrieved chunk content"
+        print(green("Version 0.6.3 context content integrity is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.6.3 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
