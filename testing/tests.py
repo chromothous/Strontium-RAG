@@ -3638,6 +3638,26 @@ def full_test():
         print(red(e))
         print(red("Version 0.6.5 failed"))
 
+    try:
+        tests += 1
+        single_result = {
+            "chunk": Document("Single context result", "context.txt"),
+            "embedding": [1.0, 0.0, 0.0],
+            "metadata": {"type": "single"},
+            "similarity": 1.0
+        }
+        single_context = context_builder.build([single_result])
+        assert isinstance(single_context, str), "Single-result context construction should return a string"
+        assert single_context == "Single context result", "Single-result context construction should return the chunk content without an unnecessary separator"
+        assert "\n\n" not in single_context, "Single-result context construction should not contain a chunk separator"
+        assert single_context == single_result["chunk"].content, "Single-result context construction should preserve the complete chunk content"
+        print(green("Version 0.6.6 single-result context construction is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.6.6 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

@@ -285,3 +285,6 @@ Context empty-content handling is online.
 
 Version 0.6.5
 Context separtor onsistency is online.
+
+Version 0.6.6
+Single-result context construction is online.
