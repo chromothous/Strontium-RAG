@@ -3867,6 +3867,48 @@ def full_test():
         print(red(e))
         print(red("Version 0.6.17 failed"))
 
+    try:
+        boundary_first = Document(
+            "FIRST SOURCE CONTENT",
+            "first_source.txt",
+            {
+                "document_id": "document-first",
+                "chunk_index": 0
+            }
+        )
+        boundary_second = Document(
+            "SECOND SOURCE CONTENT",
+            "second_source.txt",
+            {
+                "document_id": "document-second",
+                "chunk_index": 0
+            }
+        )
+        boundary_results = [
+            {
+                "chunk": boundary_first,
+                "similarity": 1.0
+            },
+            {
+                "chunk": boundary_second,
+                "similarity": 0.9
+            }
+        ]
+        boundary_items = context_builder.build_items(boundary_results)
+        boundary_context = context_builder.build(boundary_results)
+        assert len(boundary_items) == 2, "Context construction should preserve each source as a separate context item"
+        assert boundary_items[0]["content"] == "FIRST SOURCE CONTENT", "First context item should contain only the first source content"
+        assert boundary_items[1]["content"] == "SECOND SOURCE CONTENT", "Second context item should contain only the second source content"
+        assert boundary_items[0]["content"] not in boundary_items[1]["content"], "First source content should not bleed into the second context item"
+        assert boundary_items[1]["content"] not in boundary_items[0]["content"], "Second source content should not bleed into the first context item"
+        assert boundary_context == "FIRST SOURCE CONTENT\n\nSECOND SOURCE CONTENT", "Final context should preserve the exact boundary between neighboring sources"
+        success += 1
+        print(green("Version 0.6.18 context boundaries are online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.6.18 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

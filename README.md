@@ -321,3 +321,6 @@ Duplicate source preservation is online.
 
 Version 0.6.17
 Context source identity is online.
+
+Version 0.6.18
+Context boundaries are online.
