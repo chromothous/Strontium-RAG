@@ -291,3 +291,6 @@ Single-result context construction is online.
 
 Version 0.6.7
 Context construction isolation is online
+
+Version 0.6.8
+Context size nd length handling is online.

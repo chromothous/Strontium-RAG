@@ -3677,6 +3677,42 @@ def full_test():
         print(red(e))
         print(red("Version 0.6.7 failed"))
 
+    try:
+        tests += 1
+        large_context_results = [
+            {
+                "chunk": Document("A" * 1000, "large_context.txt"),
+                "embedding": [1.0, 0.0, 0.0],
+                "metadata": {"index": 0},
+                "similarity": 1.0
+            },
+            {
+                "chunk": Document("B" * 1000, "large_context.txt"),
+                "embedding": [0.9, 0.1, 0.0],
+                "metadata": {"index": 1},
+                "similarity": 0.9
+            },
+            {
+                "chunk": Document("C" * 1000, "large_context.txt"),
+                "embedding": [0.8, 0.2, 0.0],
+                "metadata": {"index": 2},
+                "similarity": 0.8
+            }
+        ]
+        large_context = context_builder.build(large_context_results)
+        assert isinstance(large_context, str), "Context construction should return a string for large retrieval results"
+        assert len(large_context) == 3004, "Context construction should preserve the complete combined length of all chunks and separators"
+        assert large_context.count("\n\n") == 2, "Large context construction should preserve one separator between each chunk"
+        assert large_context.startswith("A" * 1000), "Large context construction should preserve the complete first chunk"
+        assert large_context.endswith("C" * 1000), "Large context construction should preserve the complete final chunk"
+        assert large_context.split("\n\n") == ["A" * 1000, "B" * 1000, "C" * 1000], "Large context construction should preserve every chunk without truncation or modification"
+        print(green("Version 0.6.8 context size and length handling is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.6.8 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
