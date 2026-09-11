@@ -294,3 +294,9 @@ Context construction isolation is online
 
 Version 0.6.8
 Context size nd length handling is online.
+
+Version 0.6.9
+Context construction determinism is online.
+
+Version 0.6.10
+Context input compatibility is online.

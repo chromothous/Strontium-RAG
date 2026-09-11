@@ -3713,6 +3713,38 @@ def full_test():
         print(red(e))
         print(red("Version 0.6.8 failed"))
 
+    try:
+        tests += 1
+        deterministic_results = ranking_store.retrieve([1.0, 0.0, 0.0], top_k=3)
+        first_context = context_builder.build(deterministic_results)
+        second_context = context_builder.build(deterministic_results)
+        assert isinstance(first_context, str), "Context construction should return a string on the first build"
+        assert isinstance(second_context, str), "Context construction should return a string on the second build"
+        assert first_context == second_context, "Building context from the same retrieval results should produce identical output"
+        assert first_context == "Exact match\n\nPartial match\n\nWeak match", "Deterministic context construction should preserve the expected chunk order and content"
+        assert ranking_store.count() == 3, "Repeated context construction should not modify the vector store"
+        assert len(deterministic_results) == 3, "Repeated context construction should not modify the retrieval results"
+        print(green("Version 0.6.9 context construction determinism is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.6.9 failed"))
+
+    try:
+        tests += 1
+        tuple_results = tuple(ranking_store.retrieve([1.0, 0.0, 0.0], top_k=2))
+        tuple_context = context_builder.build(tuple_results)
+        assert isinstance(tuple_context, str), "Context construction should accept tuple retrieval results and return a string"
+        assert tuple_context == "Exact match\n\nPartial match", "Tuple-based context construction should preserve retrieval order and chunk content"
+        assert len(tuple_results) == 2, "Tuple-based context construction should process all supplied retrieval results"
+        print(green("Version 0.6.10 context input compatibility is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.6.10 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
