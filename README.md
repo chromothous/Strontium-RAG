@@ -264,3 +264,6 @@ Semantic retrieval invalid-vector handling is online.
 
 Version 0.5.10
 Semantic retrieval statistics is online.
+
+Version 0.5.11
+Complete semantic retrieval pipeline is online.

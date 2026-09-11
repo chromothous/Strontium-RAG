@@ -3414,6 +3414,59 @@ def full_test():
         print(red(e))
         print(red("Version 0.5.10 failed"))
 
+    try:
+        tests += 1
+        pipeline_store = VectorStore(logger)
+        pipeline_store.add({
+            "chunk": Document("Python programming", "semantic.txt"),
+            "embedding": [1.0, 0.0, 0.0],
+            "metadata": {"topic": "python"}
+        })
+        pipeline_store.add({
+            "chunk": Document("Database systems", "semantic.txt"),
+            "embedding": [0.0, 1.0, 0.0],
+            "metadata": {"topic": "database"}
+        })
+        pipeline_store.add({
+            "chunk": Document("Python software development", "semantic.txt"),
+            "embedding": [0.9, 0.1, 0.0],
+            "metadata": {"topic": "python"}
+        })
+        query_vector = [1.0, 0.0, 0.0]
+        results = pipeline_store.retrieve(query_vector, top_k=2)
+        assert isinstance(results, list), "The complete semantic retrieval pipeline should return results as a list"
+        assert len(results) == 2, "The complete semantic retrieval pipeline should respect the requested Top-K value"
+        assert all(isinstance(result, dict) for result in results), "Every semantic retrieval result should be represented as a dictionary"
+        assert all(set(result.keys()) == {"id", "chunk", "embedding", "metadata", "similarity"} for result in results), "Every semantic retrieval result should follow the defined result structure"
+        assert results[0]["chunk"].content == "Python programming", "The most semantically similar chunk should be ranked first"
+        assert results[1]["chunk"].content == "Python software development", "The second most semantically similar chunk should be ranked second"
+        assert results[0]["similarity"] > results[1]["similarity"], "The most relevant chunk should have the highest similarity score"
+        assert all(results[index]["similarity"] >= results[index + 1]["similarity"] for index in range(len(results) - 1)), "Semantic retrieval results should remain ordered by descending similarity"
+        assert results[0]["metadata"] == {"topic": "python"}, "The highest-ranked result should preserve its metadata"
+        assert results[1]["metadata"] == {"topic": "python"}, "The second-ranked result should preserve its metadata"
+        assert all(isinstance(result["chunk"], Document) for result in results), "Every semantic retrieval result should retain its Document chunk"
+        assert all(isinstance(result["embedding"], list) for result in results), "Every semantic retrieval result should retain its embedding"
+        assert all(isinstance(result["similarity"], float) for result in results), "Every semantic retrieval result should contain a float similarity score"
+        assert pipeline_store.count() == 3, "Semantic retrieval should not modify the number of stored vectors"
+        empty_results = VectorStore(logger).retrieve([1.0, 0.0, 0.0])
+        assert empty_results == [], "Semantic retrieval from an empty vector store should return an empty result list"
+        try:
+            pipeline_store.retrieve([1.0, 0.0])
+            assert False, "The complete semantic retrieval pipeline should reject a query with the wrong dimension"
+        except ValueError:
+            pass
+        try:
+            pipeline_store.retrieve([0.0, 0.0, 0.0])
+            assert False, "The complete semantic retrieval pipeline should reject a zero-magnitude query"
+        except ValueError:
+            pass
+        print(green("Version 0.5.11 complete semantic retrieval pipeline is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.5.11 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
