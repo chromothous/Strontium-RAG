@@ -3745,6 +3745,21 @@ def full_test():
         print(red(e))
         print(red("Version 0.6.10 failed"))
 
+    try:
+        tests += 1
+        metadata_results = ranking_store.retrieve([1.0, 0.0, 0.0], top_k=2)
+        metadata_context = context_builder.build(metadata_results)
+        assert isinstance(metadata_context, str), "Context construction should return a string when retrieval results contain metadata"
+        assert metadata_context == "Exact match\n\nPartial match", "Context construction should use chunk content without altering it based on retrieval metadata"
+        assert metadata_results[0]["metadata"] == {"rank": 1}, "Context construction should not modify metadata in retrieval results"
+        assert metadata_results[1]["metadata"] == {"rank": 2}, "Context construction should preserve metadata for every supplied retrieval result"
+        print(green("Version 0.6.11 context metadata isolation is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.6.11 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

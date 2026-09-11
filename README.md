@@ -300,3 +300,7 @@ Context construction determinism is online.
 
 Version 0.6.10
 Context input compatibility is online.
+
+Version 0.6.11
+Context metadata isolation is online.
+
