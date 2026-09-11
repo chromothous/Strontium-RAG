@@ -3603,6 +3603,41 @@ def full_test():
         print(red(e))
         print(red("Version 0.6.4 failed"))
 
+    try:
+        tests += 1
+        separator_results = [
+            {
+                "chunk": Document("First context section", "context.txt"),
+                "embedding": [1.0, 0.0, 0.0],
+                "metadata": {"index": 0},
+                "similarity": 1.0
+            },
+            {
+                "chunk": Document("Second context section", "context.txt"),
+                "embedding": [0.9, 0.1, 0.0],
+                "metadata": {"index": 1},
+                "similarity": 0.9
+            },
+            {
+                "chunk": Document("Third context section", "context.txt"),
+                "embedding": [0.8, 0.2, 0.0],
+                "metadata": {"index": 2},
+                "similarity": 0.8
+            }
+        ]
+        separator_context = context_builder.build(separator_results)
+        assert separator_context == "First context section\n\nSecond context section\n\nThird context section", "Context construction should use a consistent blank-line separator between chunks"
+        assert separator_context.count("\n\n") == 2, "Context construction should contain exactly one separator between each pair of chunks"
+        assert "\n\n\n" not in separator_context, "Context construction should not create excessive blank-line separators"
+        assert not separator_context.startswith("\n"), "Context construction should not begin with a separator"
+        assert not separator_context.endswith("\n"), "Context construction should not end with a separator"
+        print(green("Version 0.6.5 context separator consistency is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.6.5 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
