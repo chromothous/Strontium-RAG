@@ -3807,6 +3807,22 @@ def full_test():
         print(red(e))
         print(red("Version 0.6.14 failed"))
 
+    try:
+        tests += 1
+        context_results = ranking_store.retrieve([1.0, 0.0, 0.0], top_k=3)
+        original_contents = [result["chunk"].content for result in context_results]
+        built_context = context_builder.build(context_results)
+        rebuilt_contents = [result["chunk"].content for result in context_results]
+        assert original_contents == rebuilt_contents, "Context construction should not modify the content of any supplied chunk"
+        assert built_context == "Exact match\n\nPartial match\n\nWeak match", "Context construction should preserve every chunk's original content exactly"
+        assert all(isinstance(result["chunk"].content, str) for result in context_results), "All supplied chunks should retain string content after context construction"
+        print(green("Version 0.6.15 context content preservation is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.6.15 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
