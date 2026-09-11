@@ -3658,6 +3658,25 @@ def full_test():
         print(red(e))
         print(red("Version 0.6.6 failed"))
 
+    try:
+        tests += 1
+        isolation_results = ranking_store.retrieve([1.0, 0.0, 0.0], top_k=2)
+        original_contents = [result["chunk"].content for result in isolation_results]
+        original_metadata = [result["metadata"].copy() for result in isolation_results]
+        isolation_context = context_builder.build(isolation_results)
+        assert isolation_context == "Exact match\n\nPartial match", "Context construction should produce the expected context from the retrieved results"
+        assert [result["chunk"].content for result in isolation_results] == original_contents, "Context construction should not modify retrieved chunk content"
+        assert [result["metadata"] for result in isolation_results] == original_metadata, "Context construction should not modify retrieved metadata"
+        assert len(isolation_results) == 2, "Context construction should not add or remove retrieval results"
+        assert ranking_store.count() == 3, "Context construction should not modify the vector store"
+        assert context_builder.build(isolation_results) == isolation_context, "Repeated context construction with the same results should produce identical context"
+        print(green("Version 0.6.7 context construction isolation is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.6.7 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

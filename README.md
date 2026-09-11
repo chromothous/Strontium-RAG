@@ -288,3 +288,6 @@ Context separtor onsistency is online.
 
 Version 0.6.6
 Single-result context construction is online.
+
+Version 0.6.7
+Context construction isolation is online
