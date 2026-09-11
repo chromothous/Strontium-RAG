@@ -267,3 +267,6 @@ Semantic retrieval statistics is online.
 
 Version 0.5.11
 Complete semantic retrieval pipeline is online.
+
+Version 0.6.0
+Context construction foundation is online.

@@ -3467,6 +3467,34 @@ def full_test():
         print(red(e))
         print(red("Version 0.5.11 failed"))
 
+    try:
+        tests += 1
+        from classes.context_builder import ContextBuilder
+        context_builder = ContextBuilder(logger)
+        context_results = ranking_store.retrieve([1.0, 0.0, 0.0], top_k=2)
+        context = context_builder.build(context_results)
+        assert isinstance(context, str), "Context construction should return the constructed context as a string"
+        assert context == "Exact match\n\nPartial match", "Context construction should preserve retrieved chunk content in retrieval order"
+        assert "Exact match" in context, "Constructed context should contain the highest-ranked chunk content"
+        assert "Partial match" in context, "Constructed context should contain the second-ranked chunk content"
+        assert context.index("Exact match") < context.index("Partial match"), "Constructed context should preserve the ranking order of retrieved chunks"
+        try:
+            context_builder.build("invalid")
+            assert False, "Context construction should reject non-list and non-tuple retrieval results"
+        except ValueError:
+            pass
+        try:
+            context_builder.build([Document("Invalid result", "context.txt")])
+            assert False, "Context construction should reject retrieval results that are not dictionaries"
+        except ValueError:
+            pass
+        print(green("Version 0.6.0 context construction foundation is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.6.0 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
