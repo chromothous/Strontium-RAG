@@ -3823,6 +3823,21 @@ def full_test():
         print(red(e))
         print(red("Version 0.6.15 failed"))
 
+    try:
+        tests += 1
+        duplicate_results = ranking_store.retrieve([1.0, 0.0, 0.0], top_k=1) + ranking_store.retrieve([1.0, 0.0, 0.0], top_k=1)
+        duplicate_context = context_builder.build(duplicate_results)
+        assert isinstance(duplicate_context, str), "Context construction should return a string when duplicate retrieval results are supplied"
+        assert duplicate_context == "Exact match\n\nExact match", "Context construction should preserve each supplied result even when the same chunk appears more than once"
+        assert duplicate_context.count("Exact match") == 2, "Context construction should not silently deduplicate repeated retrieved chunks"
+        assert len(duplicate_results) == 2, "Duplicate retrieval results should remain present in the supplied result collection"
+        print(green("Version 0.6.16 duplicate source preservation is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.6.16 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

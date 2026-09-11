@@ -315,3 +315,6 @@ Multi-source context construction is online.
 
 Version 0.6.15
 Context content preservation is online.
+
+Version 0.6.16
+Duplicate source preservation is online.
