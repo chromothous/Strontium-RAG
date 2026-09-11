@@ -3791,6 +3791,22 @@ def full_test():
         print(red(e))
         print(red("Version 0.6.13 failed"))
 
+    try:
+        tests += 1
+        multi_source_results = ranking_store.retrieve([1.0, 0.0, 0.0], top_k=3)
+        multi_source_context = context_builder.build(multi_source_results)
+        assert isinstance(multi_source_context, str), "Context construction should return a string when combining multiple retrieved sources"
+        assert multi_source_context.count("\n\n") == 2, "Context construction should place exactly one separator between each adjacent retrieved source"
+        assert multi_source_context == "Exact match\n\nPartial match\n\nWeak match", "Context construction should combine multiple retrieved sources in their retrieval order"
+        assert not multi_source_context.startswith("\n\n"), "Context construction should not add a separator before the first source"
+        assert not multi_source_context.endswith("\n\n"), "Context construction should not add a separator after the final source"
+        print(green("Version 0.6.14 multi-source context construction is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.6.14 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

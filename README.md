@@ -309,3 +309,6 @@ Context source selection is online.
 
 Version 0.6.13
 Context source filtering is online.
+
+Version 0.6.14
+Multi-source context construction is online.
