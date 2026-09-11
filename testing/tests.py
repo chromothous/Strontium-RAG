@@ -3398,6 +3398,22 @@ def full_test():
         print(red(e))
         print(red("Version 0.5.9 failed"))
 
+    try:
+        tests += 1
+        stats_results = ranking_store.retrieve([1.0, 0.0, 0.0], top_k=2)
+        assert isinstance(stats_results, list), "Retrieval statistics testing should operate on a valid result list"
+        assert len(stats_results) == 2, "Retrieval statistics testing should use the requested Top-K result count"
+        assert all(isinstance(result["similarity"], float) for result in stats_results), "Every retrieval result should provide a numeric similarity score"
+        assert all(0.0 <= result["similarity"] <= 1.0 for result in stats_results), "Retrieval similarity scores should remain within the expected range for the ranking vectors"
+        assert stats_results[0]["similarity"] >= stats_results[1]["similarity"], "Retrieval results should remain ordered by descending similarity while statistics are evaluated"
+        assert ranking_store.count() == 3, "Retrieval statistics evaluation should not change the number of stored vectors"
+        print(green("Version 0.5.10 semantic retrieval statistics is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.5.10 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

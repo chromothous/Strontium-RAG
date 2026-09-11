@@ -261,3 +261,6 @@ Semantic retrieval empty-result handling is online.
 
 Version 0.5.9
 Semantic retrieval invalid-vector handling is online.
+
+Version 0.5.10
+Semantic retrieval statistics is online.
