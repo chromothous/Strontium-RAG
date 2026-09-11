@@ -306,3 +306,6 @@ Context metadata isolation is online.
 
 Version 0.6.12
 Context source selection is online.
+
+Version 0.6.13
+Context source filtering is online.
