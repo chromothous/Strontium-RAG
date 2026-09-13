@@ -4160,6 +4160,33 @@ def full_test():
         print(red(e))
         print(red("Version 0.7.3 failed"))
 
+    try:
+        tests += 1
+        system_prompt = "Answer the question using only the supplied context."
+        query = "What is retrieval augmented generation?"
+        context = "Retrieval augmented generation combines retrieval with language model generation."
+        messages = generator.build_messages(
+            query,
+            context,
+            system_prompt
+        )
+        assert isinstance(messages, list), "System and user prompt separation should return a message list"
+        assert len(messages) == 2, "System and user prompt separation should produce exactly two messages"
+        assert messages[0]["role"] == "system", "System instructions should occupy the system message"
+        assert messages[0]["content"] == system_prompt, "System prompt content should be preserved exactly"
+        assert messages[1]["role"] == "user", "Query and context should occupy the user message"
+        assert messages[1]["content"] == "Context:\nRetrieval augmented generation combines retrieval with language model generation.\n\nQuestion:\nWhat is retrieval augmented generation?", "User message should preserve the established context and query formatting"
+        assert messages[0]["content"] != messages[1]["content"], "System instructions should remain separate from user content"
+        assert context in messages[1]["content"], "Retrieved context should remain inside the user message"
+        assert query in messages[1]["content"], "User query should remain inside the user message"
+        assert system_prompt not in messages[1]["content"], "System instructions should not be mixed into the user message"
+        success += 1
+        print(green("Version 0.7.4 system and user prompt separation is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.7.4 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

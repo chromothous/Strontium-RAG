@@ -51,6 +51,32 @@ class Generator:
         )
         return prompt
 
+    def build_messages(self, query, context, system_prompt):
+        if not isinstance(system_prompt, str):
+            self.logger.error("Generator system prompt must be a string")
+            raise ValueError("Generator system prompt must be a string")
+        if not system_prompt.strip():
+            self.logger.error("Generator system prompt cannot be empty")
+            raise ValueError("Generator system prompt cannot be empty")
+        self._validate_inputs(query, context)
+        messages = [
+            {
+                "role": "system",
+                "content": system_prompt
+            },
+            {
+                "role": "user",
+                "content": (
+                    "Context:\n"
+                    f"{context}\n\n"
+                    "Question:\n"
+                    f"{query}"
+                )
+            }
+        ]
+        self.logger.info("System and user prompts separated successfully")
+        return messages
+
     def generate(self, query, context):
         self._validate_inputs(query, context)
         self.logger.info("Generation request received")
