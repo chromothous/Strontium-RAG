@@ -4101,6 +4101,65 @@ def full_test():
         print(red(e))
         print(red("Version 0.7.2 failed"))
 
+    try:
+        tests += 1
+        integration_first = Document(
+            "First retrieved context.",
+            "integration_first.txt",
+            {
+                "document_id": "integration-document-first",
+                "chunk_index": 0
+            }
+        )
+        integration_first.id = "integration-chunk-first"
+        integration_second = Document(
+            "Second retrieved context.",
+            "integration_second.txt",
+            {
+                "document_id": "integration-document-second",
+                "chunk_index": 0
+            }
+        )
+        integration_second.id = "integration-chunk-second"
+        integration_results = [
+            {
+                "chunk": integration_first,
+                "similarity": 1.0
+            },
+            {
+                "chunk": integration_second,
+                "similarity": 0.9
+            }
+        ]
+        query = "What information was retrieved?"
+        prompt = generator.build_context_prompt(
+            query,
+            integration_results,
+            context_builder
+        )
+        expected_context = (
+            "First retrieved context.\n\n"
+            "Second retrieved context."
+        )
+        expected_prompt = (
+            "Context:\n"
+            f"{expected_context}\n\n"
+            "Question:\n"
+            f"{query}"
+        )
+        assert prompt == expected_prompt, "Generation should integrate constructed retrieval context into the prompt"
+        assert expected_context in prompt, "Generation should preserve the complete constructed context"
+        assert integration_first.content in prompt, "Generation should pass the first retrieved chunk into the prompt"
+        assert integration_second.content in prompt, "Generation should pass the second retrieved chunk into the prompt"
+        assert prompt.index(integration_first.content) < prompt.index(integration_second.content), "Generation should preserve the established retrieval context ordering"
+        assert prompt.index(expected_context) < prompt.index(query), "Generation should place retrieved context before the query"
+        success += 1
+        print(green("Version 0.7.3 context integration is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.7.3 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

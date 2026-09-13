@@ -1,4 +1,5 @@
 from classes.logger import Logger
+from classes.context_builder import ContextBuilder
 
 
 class Generator:
@@ -33,6 +34,21 @@ class Generator:
         self._validate_inputs(query, context)
         prompt = self._build_prompt(query, context)
         self.logger.info("Generation prompt constructed successfully")
+        return prompt
+
+    def build_context_prompt(self, query, results, context_builder):
+        if not isinstance(context_builder, ContextBuilder):
+            self.logger.error(
+                "Generator context builder must be a ContextBuilder"
+            )
+            raise ValueError(
+                "Generator context builder must be a ContextBuilder"
+            )
+        context = context_builder.build(results)
+        prompt = self.build_prompt(query, context)
+        self.logger.info(
+            "Generation prompt constructed from retrieved context"
+        )
         return prompt
 
     def generate(self, query, context):
