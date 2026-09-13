@@ -1,3 +1,5 @@
+from classes.generator import Generator
+
 
 def green(text):
     return f"\033[32m{text}\033[0m"
@@ -4019,6 +4021,23 @@ def full_test():
         failure += 1
         print(red(e))
         print(red("Version 0.6.20 failed"))
+
+    try:
+        tests += 1
+        generator = Generator(logger)
+        assert isinstance(generator, Generator), "Generation foundation should create a valid Generator instance"
+        assert generator.logger is logger, "Generation foundation should preserve the configured logger"
+        result = generator.generate(
+            "What is retrieval augmented generation?",
+            "Retrieval augmented generation combines retrieval with language model generation."
+        )
+        assert result is None, "Generation foundation should establish the interface without performing generation yet"
+        success += 1
+        print(green("Version 0.7.0 generation foundation is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.7.0 failed"))
 
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
