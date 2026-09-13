@@ -3945,6 +3945,81 @@ def full_test():
         print(red(e))
         print(red("Version 0.6.19 failed"))
 
+    try:
+        tests += 1
+        pipeline_first = Document(
+            "FIRST PIPELINE CONTENT",
+            "pipeline_source_a.txt",
+            {
+                "document_id": "pipeline-document-a",
+                "chunk_index": 0
+            }
+        )
+        pipeline_first.id = "pipeline-chunk-a"
+        pipeline_second = Document(
+            "SECOND PIPELINE CONTENT",
+            "pipeline_source_b.txt",
+            {
+                "document_id": "pipeline-document-b",
+                "chunk_index": 0
+            }
+        )
+        pipeline_second.id = "pipeline-chunk-b"
+        pipeline_duplicate = Document(
+            "FIRST PIPELINE CONTENT",
+            "pipeline_source_a.txt",
+            {
+                "document_id": "pipeline-document-a",
+                "chunk_index": 1
+            }
+        )
+        pipeline_duplicate.id = "pipeline-chunk-a-duplicate"
+        pipeline_invalid = {
+            "invalid": "context result"
+        }
+        pipeline_results = [
+            {
+                "chunk": pipeline_first,
+                "similarity": 1.0
+            },
+            {
+                "chunk": pipeline_second,
+                "similarity": 0.9
+            },
+            {
+                "chunk": pipeline_duplicate,
+                "similarity": 0.8
+            }
+        ]
+        pipeline_items = context_builder.build_items(pipeline_results)
+        pipeline_context = context_builder.build(pipeline_results)
+        pipeline_isolated_items = context_builder.build_items_isolated(
+            pipeline_results + [pipeline_invalid]
+        )
+        assert len(pipeline_items) == 3, "Complete context construction should preserve all valid context items"
+        assert pipeline_items[0]["content"] == "FIRST PIPELINE CONTENT", "Complete context construction should preserve the first source content"
+        assert pipeline_items[1]["content"] == "SECOND PIPELINE CONTENT", "Complete context construction should preserve the second source content"
+        assert pipeline_items[2]["content"] == "FIRST PIPELINE CONTENT", "Complete context construction should preserve duplicate source content"
+        assert pipeline_items[0]["source"] == "pipeline_source_a.txt", "Complete context construction should preserve the first source identity"
+        assert pipeline_items[1]["source"] == "pipeline_source_b.txt", "Complete context construction should preserve the second source identity"
+        assert pipeline_items[2]["source"] == "pipeline_source_a.txt", "Complete context construction should preserve duplicate source identity"
+        assert pipeline_items[0]["document_id"] == "pipeline-document-a", "Complete context construction should preserve the first document identity"
+        assert pipeline_items[1]["document_id"] == "pipeline-document-b", "Complete context construction should preserve the second document identity"
+        assert pipeline_items[2]["document_id"] == "pipeline-document-a", "Complete context construction should preserve duplicate document identity"
+        assert pipeline_items[0]["chunk_id"] == "pipeline-chunk-a", "Complete context construction should preserve the first chunk identity"
+        assert pipeline_items[1]["chunk_id"] == "pipeline-chunk-b", "Complete context construction should preserve the second chunk identity"
+        assert pipeline_items[2]["chunk_id"] == "pipeline-chunk-a-duplicate", "Complete context construction should preserve duplicate chunk identity"
+        assert pipeline_context == "FIRST PIPELINE CONTENT\n\nSECOND PIPELINE CONTENT\n\nFIRST PIPELINE CONTENT", "Complete context construction should preserve ordering, content, duplication, and boundaries"
+        assert context_builder.build(pipeline_results) == pipeline_context, "Complete context construction should remain deterministic across repeated builds"
+        assert len(pipeline_isolated_items) == 3, "Complete context construction should isolate an invalid source without losing valid context items"
+        assert pipeline_isolated_items == pipeline_items, "Complete context construction should preserve identical valid results when an invalid source is isolated"
+        success += 1
+        print(green("Version 0.6.20 complete context construction pipeline is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.6.20 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
