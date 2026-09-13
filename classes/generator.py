@@ -26,6 +26,18 @@ class Generator:
             self.logger.error("Generator context cannot be empty")
             raise ValueError("Generator context cannot be empty")
 
+    def _validate_context_available(self, context):
+        if not isinstance(context, str):
+            self.logger.error("Generator context must be a string")
+            raise ValueError("Generator context must be a string")
+        if not context.strip():
+            self.logger.error(
+                "Generator cannot generate without usable context"
+            )
+            raise ValueError(
+                "Generator cannot generate without usable context"
+            )
+
     def _build_prompt(self, query, context):
         return (
             "Context:\n"
@@ -90,6 +102,7 @@ class Generator:
         if self.provider is None:
             self.logger.error("Generator provider is not configured")
             raise ValueError("Generator provider is not configured")
+        self._validate_context_available(context)
         messages = self.build_messages(
             query,
             context,
@@ -107,18 +120,34 @@ class Generator:
             return response
         if isinstance(response, dict):
             if "response" not in response:
-                self.logger.error("Generator provider response is missing response content")
-                raise ValueError("Generator provider response is missing response content")
+                self.logger.error(
+                    "Generator provider response is missing response content"
+                )
+                raise ValueError(
+                    "Generator provider response is missing response content"
+                )
             content = response["response"]
             if not isinstance(content, str):
-                self.logger.error("Generator provider response content must be a string")
-                raise ValueError("Generator provider response content must be a string")
+                self.logger.error(
+                    "Generator provider response content must be a string"
+                )
+                raise ValueError(
+                    "Generator provider response content must be a string"
+                )
             if not content.strip():
-                self.logger.error("Generator provider returned empty response content")
-                raise ValueError("Generator provider returned empty response content")
+                self.logger.error(
+                    "Generator provider returned empty response content"
+                )
+                raise ValueError(
+                    "Generator provider returned empty response content"
+                )
             return content
-        self.logger.error("Generator provider response has an invalid structure")
-        raise ValueError("Generator provider response has an invalid structure")
+        self.logger.error(
+            "Generator provider response has an invalid structure"
+        )
+        raise ValueError(
+            "Generator provider response has an invalid structure"
+        )
 
     def handle_response(self, response):
         content = self._extract_response(response)

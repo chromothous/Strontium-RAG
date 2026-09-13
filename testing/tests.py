@@ -4273,6 +4273,46 @@ def full_test():
         print(red(e))
         print(red("Version 0.7.6 failed"))
 
+    try:
+        tests += 1
+        class EmptyContextProvider(LLMProvider):
+            def __init__(self):
+                self.called = False
+            def generate(self, messages):
+                self.called = True
+                return {"response": "This response should never be generated."}
+        empty_context_provider = EmptyContextProvider()
+        empty_context_generator = Generator(
+            logger,
+            empty_context_provider
+        )
+        try:
+            empty_context_generator.generate_with_provider(
+                "What information is available?",
+                "",
+                "Answer only from the supplied context."
+            )
+            assert False, "Generation should reject an empty context before calling the LLM provider"
+        except ValueError:
+            pass
+        assert empty_context_provider.called is False, "Generation should not call the LLM provider when context is empty"
+        try:
+            empty_context_generator.generate_with_provider(
+                "What information is available?",
+                "   ",
+                "Answer only from the supplied context."
+            )
+            assert False, "Generation should reject whitespace-only context before calling the LLM provider"
+        except ValueError:
+            pass
+        assert empty_context_provider.called is False, "Generation should not call the LLM provider when context contains no usable evidence"
+        success += 1
+        print(green("Version 0.7.7 empty-context handling is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.7.7 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

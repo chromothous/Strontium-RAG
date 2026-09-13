@@ -351,3 +351,6 @@ LLM client integration is online.
 
 Version 0.7.6
 Generation response handling is online.
+
+Version 0.7.7
+Empty-context handling is online.
