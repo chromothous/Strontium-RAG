@@ -360,3 +360,6 @@ Generation failure handling is online.
 
 Version 0.7.9
 Deterministic generation configuration is online.
+
+Version 0.7.10
+Generation metadata is online.

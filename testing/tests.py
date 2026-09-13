@@ -4405,6 +4405,44 @@ def full_test():
         print(red(e))
         print(red("Version 0.7.9 failed"))
 
+    try:
+        tests += 1
+        class MetadataLLMProvider(LLMProvider):
+            def generate(self, messages):
+                return {
+                    "response": "Generated metadata test response.",
+                    "model": "test-model",
+                    "usage": {
+                        "prompt_tokens": 25,
+                        "completion_tokens": 10
+                    },
+                    "finish_reason": "stop"
+                }
+        metadata_provider = MetadataLLMProvider()
+        metadata_generator = Generator(
+            logger,
+            metadata_provider,
+            temperature=0.0
+        )
+        response = metadata_generator.generate_with_provider(
+            "What is retrieval augmented generation?",
+            "Retrieval augmented generation combines retrieval with language model generation.",
+            "Answer only from the supplied context."
+        )
+        metadata = metadata_generator.get_generation_metadata(response)
+        assert isinstance(metadata, dict), "Generation metadata should return a metadata dictionary"
+        assert metadata["model"] == "test-model", "Generation metadata should preserve the provider model information"
+        assert metadata["temperature"] == 0.0, "Generation metadata should preserve the configured generation temperature"
+        assert metadata["usage"] == {"prompt_tokens": 25, "completion_tokens": 10}, "Generation metadata should preserve provider usage information"
+        assert metadata["finish_reason"] == "stop", "Generation metadata should preserve the provider finish reason"
+        assert response["response"] == "Generated metadata test response.", "Generation metadata extraction should not alter the original provider response"
+        success += 1
+        print(green("Version 0.7.10 generation metadata is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.7.10 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

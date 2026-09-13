@@ -175,3 +175,20 @@ class Generator:
         content = self._extract_response(response)
         self.logger.info("Generation response handled successfully")
         return content
+
+    def get_generation_metadata(self, response):
+        if not isinstance(response, dict):
+            self.logger.error(
+                "Generator response metadata requires a dictionary response"
+            )
+            raise ValueError(
+                "Generator response metadata requires a dictionary response"
+            )
+        metadata = {
+            "model": response.get("model"),
+            "temperature": self.temperature,
+            "usage": response.get("usage"),
+            "finish_reason": response.get("finish_reason")
+        }
+        self.logger.info("Generation metadata captured successfully")
+        return metadata
