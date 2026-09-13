@@ -345,3 +345,9 @@ Context integration is online.
 
 Version 0.7.4
 System and user prompt seperation is online.
+
+Version 0.7.5
+LLM client integration is online.
+
+Version 0.7.6
+Generation response handling is online.

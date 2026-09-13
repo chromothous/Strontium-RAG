@@ -1,12 +1,16 @@
 from classes.logger import Logger
 from classes.context_builder import ContextBuilder
+from classes.llm_provider import LLMProvider
 
 
 class Generator:
-    def __init__(self, logger):
+    def __init__(self, logger, provider=None):
         if not isinstance(logger, Logger):
             raise ValueError("Generator logger must be a Logger")
+        if provider is not None and not isinstance(provider, LLMProvider):
+            raise ValueError("Generator provider must be an LLMProvider")
         self.logger = logger
+        self.provider = provider
 
     def _validate_inputs(self, query, context):
         if not isinstance(query, str):
@@ -81,3 +85,42 @@ class Generator:
         self._validate_inputs(query, context)
         self.logger.info("Generation request received")
         return None
+
+    def generate_with_provider(self, query, context, system_prompt):
+        if self.provider is None:
+            self.logger.error("Generator provider is not configured")
+            raise ValueError("Generator provider is not configured")
+        messages = self.build_messages(
+            query,
+            context,
+            system_prompt
+        )
+        response = self.provider.generate(messages)
+        self.logger.info("Generation request sent to LLM provider")
+        return response
+
+    def _extract_response(self, response):
+        if isinstance(response, str):
+            if not response.strip():
+                self.logger.error("Generator provider returned an empty response")
+                raise ValueError("Generator provider returned an empty response")
+            return response
+        if isinstance(response, dict):
+            if "response" not in response:
+                self.logger.error("Generator provider response is missing response content")
+                raise ValueError("Generator provider response is missing response content")
+            content = response["response"]
+            if not isinstance(content, str):
+                self.logger.error("Generator provider response content must be a string")
+                raise ValueError("Generator provider response content must be a string")
+            if not content.strip():
+                self.logger.error("Generator provider returned empty response content")
+                raise ValueError("Generator provider returned empty response content")
+            return content
+        self.logger.error("Generator provider response has an invalid structure")
+        raise ValueError("Generator provider response has an invalid structure")
+
+    def handle_response(self, response):
+        content = self._extract_response(response)
+        self.logger.info("Generation response handled successfully")
+        return content

@@ -1,4 +1,5 @@
 from classes.generator import Generator
+from classes.llm_provider import LLMProvider
 
 
 def green(text):
@@ -4186,6 +4187,91 @@ def full_test():
         failure += 1
         print(red(e))
         print(red("Version 0.7.4 failed"))
+
+    try:
+        tests += 1
+        class TestLLMProvider(LLMProvider):
+            def generate(self, messages):
+                return {
+                    "response": "Test generated response.",
+                    "messages": messages
+                }
+        provider = TestLLMProvider()
+        provider_generator = Generator(logger, provider)
+        query = "What is retrieval augmented generation?"
+        context = "Retrieval augmented generation combines retrieval with language model generation."
+        system_prompt = "Answer using only the supplied context."
+        response = provider_generator.generate_with_provider(
+            query,
+            context,
+            system_prompt
+        )
+        assert provider_generator.provider is provider, "Generator should preserve the configured LLM provider"
+        assert isinstance(response, dict), "LLM provider integration should return the provider response"
+        assert response["response"] == "Test generated response.", "Generator should preserve the response returned by the LLM provider"
+        assert response["messages"][0]["role"] == "system", "Generator should send the system prompt as a system message"
+        assert response["messages"][0]["content"] == system_prompt, "Generator should preserve the system prompt sent to the provider"
+        assert response["messages"][1]["role"] == "user", "Generator should send context and query as a user message"
+        assert context in response["messages"][1]["content"], "Generator should send the constructed context to the LLM provider"
+        assert query in response["messages"][1]["content"], "Generator should send the query to the LLM provider"
+        success += 1
+        print(green("Version 0.7.5 LLM client integration is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.7.5 failed"))
+
+    try:
+        tests += 1
+        response_text = generator.handle_response(
+            "Generated answer from the language model."
+        )
+        assert response_text == "Generated answer from the language model.", "Response handling should preserve a valid string response"
+        response_payload = generator.handle_response(
+            {
+                "response": "Generated answer from the provider.",
+                "metadata": {
+                    "model": "test-model"
+                }
+            }
+        )
+        assert response_payload == "Generated answer from the provider.", "Response handling should extract generated content from a provider response dictionary"
+        try:
+            generator.handle_response("")
+            assert False, "Response handling should reject an empty string response"
+        except ValueError:
+            pass
+        try:
+            generator.handle_response(
+                {
+                    "metadata": {
+                        "model": "test-model"
+                    }
+                }
+            )
+            assert False, "Response handling should reject a response missing generated content"
+        except ValueError:
+            pass
+        try:
+            generator.handle_response(
+                {
+                    "response": ""
+                }
+            )
+            assert False, "Response handling should reject empty generated content"
+        except ValueError:
+            pass
+        try:
+            generator.handle_response(None)
+            assert False, "Response handling should reject malformed provider responses"
+        except ValueError:
+            pass
+        success += 1
+        print(green("Version 0.7.6 generation response handling is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.7.6 failed"))
 
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
