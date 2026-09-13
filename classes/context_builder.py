@@ -51,6 +51,24 @@ class ContextBuilder:
         )
         return items
 
+    def build_items_isolated(self, results):
+        if not isinstance(results, (list, tuple)):
+            self.logger.error("ContextBuilder results must be a list or tuple")
+            raise ValueError("ContextBuilder results must be a list or tuple")
+        items = []
+        failures = 0
+        for result in results:
+            try:
+                items.append(self._build_item(result))
+            except Exception as e:
+                failures += 1
+                self.logger.error(f"ContextBuilder isolated item failure: {e}")
+        self.logger.info(
+            f"Context items constructed with isolation: "
+            f"{len(items)} succeeded, {failures} failed"
+        )
+        return items
+
     def build(self, results):
         if not isinstance(results, (list, tuple)):
             self.logger.error("ContextBuilder results must be a list or tuple")

@@ -3839,6 +3839,7 @@ def full_test():
         print(red("Version 0.6.16 failed"))
 
     try:
+        tests += 1
         identity_chunk = Document(
             "Identity test content",
             "identity_source.txt",
@@ -3868,6 +3869,7 @@ def full_test():
         print(red("Version 0.6.17 failed"))
 
     try:
+        tests += 1
         boundary_first = Document(
             "FIRST SOURCE CONTENT",
             "first_source.txt",
@@ -3908,6 +3910,40 @@ def full_test():
         failure += 1
         print(red(e))
         print(red("Version 0.6.18 failed"))
+
+    try:
+        tests += 1
+        isolation_valid = Document(
+            "VALID CONTEXT CONTENT",
+            "valid_source.txt",
+            {
+                "document_id": "document-valid",
+                "chunk_index": 0
+            }
+        )
+        isolation_valid.id = "chunk-valid"
+        isolation_invalid = {
+            "not_chunk": "invalid context source"
+        }
+        isolation_results = [
+            {
+                "chunk": isolation_valid,
+                "similarity": 1.0
+            },
+            isolation_invalid
+        ]
+        isolated_items = context_builder.build_items_isolated(isolation_results)
+        assert len(isolated_items) == 1, "Failure isolation should preserve valid context items when another source is invalid"
+        assert isolated_items[0]["content"] == "VALID CONTEXT CONTENT", "Failure isolation should preserve the content of valid context items"
+        assert isolated_items[0]["source"] == "valid_source.txt", "Failure isolation should preserve the source identity of valid context items"
+        assert isolated_items[0]["document_id"] == "document-valid", "Failure isolation should preserve the document identity of valid context items"
+        assert isolated_items[0]["chunk_id"] == "chunk-valid", "Failure isolation should preserve the chunk identity of valid context items"
+        success += 1
+        print(green("Version 0.6.19 context construction failure isolation is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.6.19 failed"))
 
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
