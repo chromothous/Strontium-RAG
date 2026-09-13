@@ -4039,6 +4039,50 @@ def full_test():
         print(red(e))
         print(red("Version 0.7.0 failed"))
 
+    try:
+        tests += 1
+        generator = Generator(logger)
+        generator.generate(
+            "What is retrieval augmented generation?",
+            "Retrieval augmented generation combines retrieval with language model generation."
+        )
+        try:
+            generator.generate("", "Valid context")
+            assert False, "Generation should reject an empty query"
+        except ValueError:
+            pass
+        try:
+            generator.generate("Valid query", "")
+            assert False, "Generation should reject empty context"
+        except ValueError:
+            pass
+        try:
+            generator.generate(None, "Valid context")
+            assert False, "Generation should reject a non-string query"
+        except ValueError:
+            pass
+        try:
+            generator.generate("Valid query", None)
+            assert False, "Generation should reject non-string context"
+        except ValueError:
+            pass
+        try:
+            generator.generate("   ", "Valid context")
+            assert False, "Generation should reject a whitespace-only query"
+        except ValueError:
+            pass
+        try:
+            generator.generate("Valid query", "   ")
+            assert False, "Generation should reject whitespace-only context"
+        except ValueError:
+            pass
+        success += 1
+        print(green("Version 0.7.1 generation input validation is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.7.1 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

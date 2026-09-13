@@ -333,3 +333,6 @@ Complete context construction pipeline is online.
 
 Version 0.7.0
 Generation foundation is online.
+
+Version 0.7.1
+Generation input validation is online.
