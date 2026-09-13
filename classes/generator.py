@@ -4,13 +4,18 @@ from classes.llm_provider import LLMProvider
 
 
 class Generator:
-    def __init__(self, logger, provider=None):
+    def __init__(self, logger, provider=None, temperature=0.0):
         if not isinstance(logger, Logger):
             raise ValueError("Generator logger must be a Logger")
         if provider is not None and not isinstance(provider, LLMProvider):
             raise ValueError("Generator provider must be an LLMProvider")
+        if not isinstance(temperature, (int, float)) or isinstance(temperature, bool):
+            raise ValueError("Generator temperature must be numeric")
+        if temperature < 0:
+            raise ValueError("Generator temperature cannot be negative")
         self.logger = logger
         self.provider = provider
+        self.temperature = float(temperature)
 
     def _validate_inputs(self, query, context):
         if not isinstance(query, str):
@@ -97,6 +102,11 @@ class Generator:
         self._validate_inputs(query, context)
         self.logger.info("Generation request received")
         return None
+
+    def get_generation_config(self):
+        return {
+            "temperature": self.temperature
+        }
 
     def generate_with_provider(self, query, context, system_prompt):
         if self.provider is None:

@@ -4348,6 +4348,63 @@ def full_test():
         print(red(e))
         print(red("Version 0.7.8 failed"))
 
+    try:
+        tests += 1
+        class ConfigurationLLMProvider(LLMProvider):
+            def __init__(self):
+                self.messages = None
+            def generate(self, messages):
+                self.messages = messages
+                return {"response": "Deterministic test response."}
+        configuration_provider = ConfigurationLLMProvider()
+        configuration_generator = Generator(
+            logger,
+            configuration_provider,
+            temperature=0.0
+        )
+        configuration = configuration_generator.get_generation_config()
+        assert isinstance(configuration, dict), "Generation configuration should return a configuration dictionary"
+        assert configuration["temperature"] == 0.0, "Generation configuration should preserve the configured deterministic temperature"
+        configured_generator = Generator(
+            logger,
+            configuration_provider,
+            temperature=0.7
+        )
+        configured_configuration = configured_generator.get_generation_config()
+        assert configured_configuration["temperature"] == 0.7, "Generation configuration should preserve a configured non-default temperature"
+        configured_generator.generate_with_provider(
+            "What is retrieval augmented generation?",
+            "Retrieval augmented generation combines retrieval with language model generation.",
+            "Answer only from the supplied context."
+        )
+        assert isinstance(configuration_provider.messages, list), "Provider integration should continue sending the established message-list interface"
+        assert configuration_provider.messages[0]["role"] == "system", "Configured generation should preserve the system message"
+        assert configuration_provider.messages[1]["role"] == "user", "Configured generation should preserve the user message"
+        try:
+            Generator(
+                logger,
+                configuration_provider,
+                temperature=-0.1
+            )
+            assert False, "Generator should reject a negative temperature"
+        except ValueError:
+            pass
+        try:
+            Generator(
+                logger,
+                configuration_provider,
+                temperature="0.0"
+            )
+            assert False, "Generator should reject a non-numeric temperature"
+        except ValueError:
+            pass
+        success += 1
+        print(green("Version 0.7.9 deterministic generation configuration is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.7.9 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
