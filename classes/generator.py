@@ -108,15 +108,27 @@ class Generator:
             context,
             system_prompt
         )
-        response = self.provider.generate(messages)
+        try:
+            response = self.provider.generate(messages)
+        except Exception as e:
+            self.logger.error(
+                f"Generator provider request failed: {e}"
+            )
+            raise RuntimeError(
+                f"LLM provider generation failed: {e}"
+            ) from e
         self.logger.info("Generation request sent to LLM provider")
         return response
 
     def _extract_response(self, response):
         if isinstance(response, str):
             if not response.strip():
-                self.logger.error("Generator provider returned an empty response")
-                raise ValueError("Generator provider returned an empty response")
+                self.logger.error(
+                    "Generator provider returned an empty response"
+                )
+                raise ValueError(
+                    "Generator provider returned an empty response"
+                )
             return response
         if isinstance(response, dict):
             if "response" not in response:

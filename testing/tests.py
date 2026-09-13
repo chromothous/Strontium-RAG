@@ -4313,6 +4313,41 @@ def full_test():
         print(red(e))
         print(red("Version 0.7.7 failed"))
 
+    try:
+        tests += 1
+        class FailingLLMProvider(LLMProvider):
+            def __init__(self):
+                self.calls = 0
+            def generate(self, messages):
+                self.calls += 1
+                raise RuntimeError("Simulated provider timeout")
+        failing_provider = FailingLLMProvider()
+        failing_generator = Generator(
+            logger,
+            failing_provider
+        )
+        query = "What is retrieval augmented generation?"
+        context = "Retrieval augmented generation combines retrieval with language model generation."
+        system_prompt = "Answer only from the supplied context."
+        try:
+            failing_generator.generate_with_provider(
+                query,
+                context,
+                system_prompt
+            )
+            assert False, "Generation should raise an error when the LLM provider fails"
+        except RuntimeError as e:
+            assert "Simulated provider timeout" in str(e), "Generation failure should preserve the original provider error information"
+            assert "LLM provider generation failed" in str(e), "Generation failure should provide useful generation-layer error information"
+        assert failing_provider.calls == 1, "Generation should make exactly one provider request before reporting the failure"
+        assert failing_generator.provider is failing_provider, "Generation failure handling should preserve the configured provider"
+        success += 1
+        print(green("Version 0.7.8 generation failure handling is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.7.8 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

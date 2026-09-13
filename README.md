@@ -354,3 +354,6 @@ Generation response handling is online.
 
 Version 0.7.7
 Empty-context handling is online.
+
+Version 0.7.8
+Generation failure handling is online.
