@@ -236,3 +236,37 @@ class Generator:
         }
         self.logger.info("Generation metadata captured successfully")
         return metadata
+
+    def generate_complete(self, query, results, context_builder, system_prompt):
+        if self.provider is None:
+            self.logger.error("Generator provider is not configured")
+            raise ValueError("Generator provider is not configured")
+        if not isinstance(context_builder, ContextBuilder):
+            self.logger.error(
+                "Generator context builder must be a ContextBuilder"
+            )
+            raise ValueError(
+                "Generator context builder must be a ContextBuilder"
+            )
+        context = context_builder.build(results)
+        messages = self.build_grounded_messages(
+            query,
+            context,
+            system_prompt
+        )
+        try:
+            response = self.provider.generate(messages)
+        except Exception as e:
+            self.logger.error(
+                f"Generator complete pipeline provider request failed: {e}"
+            )
+            raise RuntimeError(
+                f"Complete generation pipeline failed: {e}"
+            ) from e
+        content = self.handle_response(response)
+        metadata = self.get_generation_metadata(response)
+        self.logger.info("Complete generation pipeline executed successfully")
+        return {
+            "response": content,
+            "metadata": metadata
+        }

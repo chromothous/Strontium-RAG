@@ -372,3 +372,6 @@ Response validation is online.
 
 Version 0.7.13
 Grounding constraints are online.
+
+Version 0.7.14
+Complete generation pipeline is online.

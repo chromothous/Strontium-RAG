@@ -4584,6 +4584,87 @@ def full_test():
         print(red(e))
         print(red("Version 0.7.13 failed"))
 
+    try:
+        tests += 1
+        class CompleteLLMProvider(LLMProvider):
+            def __init__(self):
+                self.messages = None
+            def generate(self, messages):
+                self.messages = messages
+                return {
+                    "response": "The supplied context supports this answer.",
+                    "model": "complete-test-model",
+                    "usage": {
+                        "prompt_tokens": 40,
+                        "completion_tokens": 12
+                    },
+                    "finish_reason": "stop"
+                }
+        complete_first = Document(
+            "Retrieval provides relevant information.",
+            "complete_source_a.txt",
+            {
+                "document_id": "complete-document-a",
+                "chunk_index": 0
+            }
+        )
+        complete_first.id = "complete-chunk-a"
+        complete_second = Document(
+            "Generation uses that retrieved information to answer questions.",
+            "complete_source_b.txt",
+            {
+                "document_id": "complete-document-b",
+                "chunk_index": 0
+            }
+        )
+        complete_second.id = "complete-chunk-b"
+        complete_results = [
+            {
+                "chunk": complete_first,
+                "similarity": 1.0
+            },
+            {
+                "chunk": complete_second,
+                "similarity": 0.9
+            }
+        ]
+        complete_provider = CompleteLLMProvider()
+        complete_generator = Generator(
+            logger,
+            complete_provider,
+            temperature=0.0,
+            max_context_chars=1000
+        )
+        complete_context_builder = ContextBuilder(logger)
+        complete_result = complete_generator.generate_complete(
+            "How does this system answer questions?",
+            complete_results,
+            complete_context_builder,
+            "Answer only from the supplied context."
+        )
+        assert isinstance(complete_result, dict), "Complete generation pipeline should return a structured result"
+        assert complete_result["response"] == "The supplied context supports this answer.", "Complete generation pipeline should return the validated generated response"
+        assert isinstance(complete_result["metadata"], dict), "Complete generation pipeline should return generation metadata"
+        assert complete_result["metadata"]["model"] == "complete-test-model", "Complete generation pipeline should preserve model metadata"
+        assert complete_result["metadata"]["temperature"] == 0.0, "Complete generation pipeline should preserve deterministic generation configuration"
+        assert complete_result["metadata"]["usage"] == {"prompt_tokens": 40, "completion_tokens": 12}, "Complete generation pipeline should preserve provider usage metadata"
+        assert complete_result["metadata"]["finish_reason"] == "stop", "Complete generation pipeline should preserve provider finish metadata"
+        assert isinstance(complete_provider.messages, list), "Complete generation pipeline should send structured messages to the LLM provider"
+        assert len(complete_provider.messages) == 2, "Complete generation pipeline should preserve the established system and user message structure"
+        assert complete_provider.messages[0]["role"] == "system", "Complete generation pipeline should send grounding instructions through the system message"
+        assert "Use only the supplied context as evidence for your answer." in complete_provider.messages[0]["content"], "Complete generation pipeline should enforce the established grounding constraint"
+        assert complete_provider.messages[1]["role"] == "user", "Complete generation pipeline should send context and query through the user message"
+        assert "Retrieval provides relevant information." in complete_provider.messages[1]["content"], "Complete generation pipeline should include the first retrieved context chunk"
+        assert "Generation uses that retrieved information to answer questions." in complete_provider.messages[1]["content"], "Complete generation pipeline should include the second retrieved context chunk"
+        assert "How does this system answer questions?" in complete_provider.messages[1]["content"], "Complete generation pipeline should include the user query"
+        assert complete_generator.get_generation_config()["max_context_chars"] == 1000, "Complete generation pipeline should preserve the configured context limit"
+        success += 1
+        print(green("Version 0.7.14 complete generation pipeline is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.7.14 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
