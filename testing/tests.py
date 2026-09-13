@@ -4443,6 +4443,71 @@ def full_test():
         print(red(e))
         print(red("Version 0.7.10 failed"))
 
+    try:
+        tests += 1
+        class LimitLLMProvider(LLMProvider):
+            def __init__(self):
+                self.called = False
+            def generate(self, messages):
+                self.called = True
+                return {"response": "Limit test response."}
+        limit_provider = LimitLLMProvider()
+        limited_generator = Generator(
+            logger,
+            limit_provider,
+            max_context_chars=20
+        )
+        valid_context = "This context fits."
+        prompt = limited_generator.build_prompt(
+            "What is this?",
+            valid_context
+        )
+        assert valid_context in prompt, "Generation should accept context within the configured size limit"
+        assert limited_generator.max_context_chars == 20, "Generator should preserve the configured maximum context size"
+        oversized_context = "This context exceeds the configured maximum size."
+        try:
+            limited_generator.build_prompt(
+                "What is this?",
+                oversized_context
+            )
+            assert False, "Generation should reject context that exceeds the configured size limit"
+        except ValueError:
+            pass
+        try:
+            limited_generator.generate_with_provider(
+                "What is this?",
+                oversized_context,
+                "Answer using only the supplied context."
+            )
+            assert False, "Generation should reject oversized context before calling the LLM provider"
+        except ValueError:
+            pass
+        assert limit_provider.called is False, "Generation should not call the LLM provider when context exceeds the configured size limit"
+        try:
+            Generator(
+                logger,
+                limit_provider,
+                max_context_chars=0
+            )
+            assert False, "Generator should reject a non-positive maximum context size"
+        except ValueError:
+            pass
+        try:
+            Generator(
+                logger,
+                limit_provider,
+                max_context_chars="100"
+            )
+            assert False, "Generator should reject a non-integer maximum context size"
+        except ValueError:
+            pass
+        success += 1
+        print(green("Version 0.7.11 token and context limits are online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.7.11 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

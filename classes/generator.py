@@ -4,7 +4,7 @@ from classes.llm_provider import LLMProvider
 
 
 class Generator:
-    def __init__(self, logger, provider=None, temperature=0.0):
+    def __init__(self, logger, provider=None, temperature=0.0, max_context_chars=10000):
         if not isinstance(logger, Logger):
             raise ValueError("Generator logger must be a Logger")
         if provider is not None and not isinstance(provider, LLMProvider):
@@ -13,9 +13,14 @@ class Generator:
             raise ValueError("Generator temperature must be numeric")
         if temperature < 0:
             raise ValueError("Generator temperature cannot be negative")
+        if not isinstance(max_context_chars, int) or isinstance(max_context_chars, bool):
+            raise ValueError("Generator maximum context size must be an integer")
+        if max_context_chars <= 0:
+            raise ValueError("Generator maximum context size must be greater than zero")
         self.logger = logger
         self.provider = provider
         self.temperature = float(temperature)
+        self.max_context_chars = max_context_chars
 
     def _validate_inputs(self, query, context):
         if not isinstance(query, str):
@@ -43,6 +48,15 @@ class Generator:
                 "Generator cannot generate without usable context"
             )
 
+    def _validate_context_limit(self, context):
+        if len(context) > self.max_context_chars:
+            self.logger.error(
+                "Generator context exceeds the configured maximum size"
+            )
+            raise ValueError(
+                "Generator context exceeds the configured maximum size"
+            )
+
     def _build_prompt(self, query, context):
         return (
             "Context:\n"
@@ -53,6 +67,7 @@ class Generator:
 
     def build_prompt(self, query, context):
         self._validate_inputs(query, context)
+        self._validate_context_limit(context)
         prompt = self._build_prompt(query, context)
         self.logger.info("Generation prompt constructed successfully")
         return prompt
@@ -80,6 +95,7 @@ class Generator:
             self.logger.error("Generator system prompt cannot be empty")
             raise ValueError("Generator system prompt cannot be empty")
         self._validate_inputs(query, context)
+        self._validate_context_limit(context)
         messages = [
             {
                 "role": "system",
@@ -105,7 +121,8 @@ class Generator:
 
     def get_generation_config(self):
         return {
-            "temperature": self.temperature
+            "temperature": self.temperature,
+            "max_context_chars": self.max_context_chars
         }
 
     def generate_with_provider(self, query, context, system_prompt):

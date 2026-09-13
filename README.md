@@ -363,3 +363,6 @@ Deterministic generation configuration is online.
 
 Version 0.7.10
 Generation metadata is online.
+
+Version 0.7.11
+Token and context limits are online.
