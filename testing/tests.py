@@ -4083,6 +4083,24 @@ def full_test():
         print(red(e))
         print(red("Version 0.7.1 failed"))
 
+    try:
+        tests += 1
+        generator = Generator(logger)
+        query = "What is retrieval augmented generation?"
+        context = "Retrieval augmented generation combines retrieval with language model generation."
+        prompt = generator.build_prompt(query, context)
+        assert isinstance(prompt, str), "Prompt construction should return a string prompt"
+        assert prompt == "Context:\nRetrieval augmented generation combines retrieval with language model generation.\n\nQuestion:\nWhat is retrieval augmented generation?", "Prompt construction should use the established query and context formatting"
+        assert context in prompt, "Prompt construction should preserve the complete context content"
+        assert query in prompt, "Prompt construction should include the complete user query"
+        assert prompt.index(context) < prompt.index(query), "Prompt construction should place context before the user query"
+        success += 1
+        print(green("Version 0.7.2 prompt construction is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.7.2 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

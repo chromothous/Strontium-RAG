@@ -21,7 +21,21 @@ class Generator:
             self.logger.error("Generator context cannot be empty")
             raise ValueError("Generator context cannot be empty")
 
+    def _build_prompt(self, query, context):
+        return (
+            "Context:\n"
+            f"{context}\n\n"
+            "Question:\n"
+            f"{query}"
+        )
+
+    def build_prompt(self, query, context):
+        self._validate_inputs(query, context)
+        prompt = self._build_prompt(query, context)
+        self.logger.info("Generation prompt constructed successfully")
+        return prompt
+
     def generate(self, query, context):
         self._validate_inputs(query, context)
-        self.logger.info("Generation inputs validated successfully")
+        self.logger.info("Generation request received")
         return None
