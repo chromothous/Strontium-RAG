@@ -4508,6 +4508,49 @@ def full_test():
         print(red(e))
         print(red("Version 0.7.11 failed"))
 
+    try:
+        tests += 1
+        valid_response = "The retrieved context explains retrieval augmented generation."
+        validated_response = generator.validate_response(valid_response)
+        assert validated_response == valid_response, "Response validation should preserve valid generated output"
+        assert isinstance(validated_response, str), "Response validation should return generated output as a string"
+        try:
+            generator.validate_response("")
+            assert False, "Response validation should reject empty generated output"
+        except ValueError:
+            pass
+        try:
+            generator.validate_response("   ")
+            assert False, "Response validation should reject whitespace-only generated output"
+        except ValueError:
+            pass
+        try:
+            generator.validate_response(None)
+            assert False, "Response validation should reject non-string generated output"
+        except ValueError:
+            pass
+        try:
+            generator.validate_response(
+                {
+                    "response": "Generated answer."
+                }
+            )
+            assert False, "Response validation should reject structured responses after extraction"
+        except ValueError:
+            pass
+        handled_response = generator.handle_response(
+            {
+                "response": "A valid generated RAG answer."
+            }
+        )
+        assert handled_response == "A valid generated RAG answer.", "Response handling should validate and preserve a usable generated answer"
+        success += 1
+        print(green("Version 0.7.12 response validation is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.7.12 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

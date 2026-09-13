@@ -188,8 +188,18 @@ class Generator:
             "Generator provider response has an invalid structure"
         )
 
+    def validate_response(self, response):
+        if not isinstance(response, str):
+            self.logger.error("Generator response must be a string")
+            raise ValueError("Generator response must be a string")
+        if not response.strip():
+            self.logger.error("Generator response cannot be empty")
+            raise ValueError("Generator response cannot be empty")
+        return response
+
     def handle_response(self, response):
         content = self._extract_response(response)
+        content = self.validate_response(content)
         self.logger.info("Generation response handled successfully")
         return content
 
