@@ -4551,6 +4551,39 @@ def full_test():
         print(red(e))
         print(red("Version 0.7.12 failed"))
 
+    try:
+        tests += 1
+        system_prompt = "Answer questions about the retrieved information."
+        query = "What does the supplied context say?"
+        context = "The supplied context states that retrieval improves access to relevant information."
+        grounded_messages = generator.build_grounded_messages(
+            query,
+            context,
+            system_prompt
+        )
+        assert isinstance(grounded_messages, list), "Grounding constraints should return a message list"
+        assert len(grounded_messages) == 2, "Grounding constraints should preserve the established system and user message structure"
+        assert grounded_messages[0]["role"] == "system", "Grounding instructions should remain in the system message"
+        assert system_prompt in grounded_messages[0]["content"], "Grounding constraints should preserve the original system instructions"
+        assert "Use only the supplied context as evidence for your answer." in grounded_messages[0]["content"], "Grounding constraints should explicitly require context-based evidence"
+        assert "Do not make unsupported claims." in grounded_messages[0]["content"], "Grounding constraints should prohibit unsupported claims"
+        assert "cannot be determined from the supplied context" in grounded_messages[0]["content"], "Grounding constraints should define behavior when the context is insufficient"
+        assert grounded_messages[1]["role"] == "user", "Grounding constraints should preserve the user message"
+        assert context in grounded_messages[1]["content"], "Grounding constraints should preserve the supplied context"
+        assert query in grounded_messages[1]["content"], "Grounding constraints should preserve the user query"
+        original_messages = generator.build_messages(
+            query,
+            context,
+            system_prompt
+        )
+        assert original_messages[0]["content"] == system_prompt, "Grounding constraints should not modify the existing ungrounded message contract"
+        success += 1
+        print(green("Version 0.7.13 grounding constraints are online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.7.13 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

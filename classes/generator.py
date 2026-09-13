@@ -114,6 +114,23 @@ class Generator:
         self.logger.info("System and user prompts separated successfully")
         return messages
 
+    def build_grounded_messages(self, query, context, system_prompt):
+        messages = self.build_messages(
+            query,
+            context,
+            system_prompt
+        )
+        grounding_instruction = (
+            "\n\nUse only the supplied context as evidence for your answer. "
+            "Do not make unsupported claims. If the context does not contain "
+            "enough information to answer the question, say that the answer "
+            "cannot be determined from the supplied context."
+        )
+        messages[0] = messages[0].copy()
+        messages[0]["content"] += grounding_instruction
+        self.logger.info("Grounding constraints applied successfully")
+        return messages
+
     def generate(self, query, context):
         self._validate_inputs(query, context)
         self.logger.info("Generation request received")

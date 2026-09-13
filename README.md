@@ -369,3 +369,6 @@ Token and context limits are online.
 
 Version 0.7.12
 Response validation is online.
+
+Version 0.7.13
+Grounding constraints are online.
