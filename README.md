@@ -402,3 +402,6 @@ Citation and context consistency are online.
 
 Version 0.8.8
 Citation validation is online.
+
+Version 0.8.9
+Citation failure handling is online.

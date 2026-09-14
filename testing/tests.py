@@ -5051,6 +5051,46 @@ def full_test():
         print(red(e))
         print(red("Version 0.8.8 failed"))
 
+    try:
+        tests += 1
+        failure_source = {
+            "source": "failure_source.txt",
+            "document_id": "failure-document",
+            "chunk_id": "failure-chunk"
+        }
+        valid_answer = "The generated answer remains available."
+        successful_citation = citation.place_citations_safe(
+            valid_answer,
+            [failure_source]
+        )
+        assert successful_citation["answer"] == "The generated answer remains available. [failure_source.txt]", "Safe citation handling should preserve a successfully cited answer"
+        assert successful_citation["citations"] == [failure_source], "Safe citation handling should preserve successfully applied citations"
+        assert successful_citation["error"] is None, "Safe citation handling should report no error when citation generation succeeds"
+        invalid_source = {
+            "document_id": "invalid-document",
+            "chunk_id": "invalid-chunk"
+        }
+        failed_citation = citation.place_citations_safe(
+            valid_answer,
+            [invalid_source]
+        )
+        assert failed_citation["answer"] == valid_answer, "Citation failure handling should preserve the original generated answer when citation generation fails"
+        assert failed_citation["citations"] == [], "Citation failure handling should not report invalid citations as successfully generated"
+        assert isinstance(failed_citation["error"], str), "Citation failure handling should preserve useful failure information"
+        empty_citation = citation.place_citations_safe(
+            valid_answer,
+            []
+        )
+        assert empty_citation["answer"] == valid_answer, "Citation failure handling should preserve the answer when no citations are available"
+        assert empty_citation["citations"] == [], "Citation failure handling should report no citations when citation generation fails"
+        assert isinstance(empty_citation["error"], str), "Citation failure handling should preserve the reason for missing citations"
+        success += 1
+        print(green("Version 0.8.9 citation failure handling is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.8.9 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

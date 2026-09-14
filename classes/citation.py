@@ -213,6 +213,33 @@ class Citation:
         self.logger.info("Citation structure validated successfully")
         return True
 
+    def place_citations_safe(self, answer, citations):
+        if not isinstance(answer, str):
+            self.logger.error("Citation answer must be a string")
+            raise ValueError("Citation answer must be a string")
+        if not answer.strip():
+            self.logger.error("Citation answer cannot be empty")
+            raise ValueError("Citation answer cannot be empty")
+        try:
+            placed = self.place_unique_citations(
+                answer,
+                citations
+            )
+            return {
+                "answer": placed,
+                "citations": list(citations),
+                "error": None
+            }
+        except Exception as e:
+            self.logger.error(
+                f"Citation generation failed: {e}"
+            )
+            return {
+                "answer": answer,
+                "citations": [],
+                "error": str(e)
+            }
+
     def cite(self, answer, sources):
         self.logger.info("Citation request received")
         return None
