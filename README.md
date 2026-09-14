@@ -405,3 +405,6 @@ Citation validation is online.
 
 Version 0.8.9
 Citation failure handling is online.
+
+Version 0.8.10
+Complete citation pipeline is online.

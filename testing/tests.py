@@ -5091,6 +5091,58 @@ def full_test():
         print(red(e))
         print(red("Version 0.8.9 failed"))
 
+    try:
+        tests += 1
+        pipeline_source_first = {
+            "content": "First citation pipeline context.",
+            "source": "pipeline_source_a.txt",
+            "document_id": "pipeline-document-a",
+            "chunk_id": "pipeline-chunk-a",
+            "metadata": {
+                "page": 3,
+                "section": "Introduction"
+            }
+        }
+        pipeline_source_second = {
+            "content": "Second citation pipeline context.",
+            "source": "pipeline_source_b.txt",
+            "document_id": "pipeline-document-b",
+            "chunk_id": "pipeline-chunk-b",
+            "metadata": {
+                "page": 8,
+                "section": "Results"
+            }
+        }
+        pipeline_sources = [
+            pipeline_source_first,
+            pipeline_source_second
+        ]
+        pipeline_answer = "The generated answer is supported by the retrieved sources."
+        pipeline_result = citation.cite_complete(
+            pipeline_answer,
+            pipeline_sources
+        )
+        assert isinstance(pipeline_result, dict), "Complete citation pipeline should return a structured result"
+        assert pipeline_result["answer"] == "The generated answer is supported by the retrieved sources. [pipeline_source_a.txt] [pipeline_source_b.txt]", "Complete citation pipeline should attach all unique supporting source citations"
+        assert len(pipeline_result["citations"]) == 2, "Complete citation pipeline should preserve every supporting source citation"
+        assert pipeline_result["citations"][0]["source"] == "pipeline_source_a.txt", "Complete citation pipeline should preserve the first source identity"
+        assert pipeline_result["citations"][0]["document_id"] == "pipeline-document-a", "Complete citation pipeline should preserve the first document identity"
+        assert pipeline_result["citations"][0]["chunk_id"] == "pipeline-chunk-a", "Complete citation pipeline should preserve the first chunk identity"
+        assert pipeline_result["citations"][0]["metadata"] == {"page": 3, "section": "Introduction"}, "Complete citation pipeline should preserve the first source metadata"
+        assert pipeline_result["citations"][1]["source"] == "pipeline_source_b.txt", "Complete citation pipeline should preserve the second source identity"
+        assert pipeline_result["citations"][1]["document_id"] == "pipeline-document-b", "Complete citation pipeline should preserve the second document identity"
+        assert pipeline_result["citations"][1]["chunk_id"] == "pipeline-chunk-b", "Complete citation pipeline should preserve the second chunk identity"
+        assert pipeline_result["citations"][1]["metadata"] == {"page": 8, "section": "Results"}, "Complete citation pipeline should preserve the second source metadata"
+        assert pipeline_result["answer"].index("[pipeline_source_a.txt]") < pipeline_result["answer"].index("[pipeline_source_b.txt]"), "Complete citation pipeline should preserve citation ordering"
+        assert pipeline_sources[0]["content"] == "First citation pipeline context.", "Complete citation pipeline should not alter the first source content"
+        assert pipeline_sources[1]["content"] == "Second citation pipeline context.", "Complete citation pipeline should not alter the second source content"
+        success += 1
+        print(green("Version 0.8.10 complete citation pipeline is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.8.10 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

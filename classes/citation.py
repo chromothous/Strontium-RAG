@@ -240,6 +240,47 @@ class Citation:
                 "error": str(e)
             }
 
+    def cite_complete(self, answer, sources):
+        if not isinstance(answer, str):
+            self.logger.error("Citation answer must be a string")
+            raise ValueError("Citation answer must be a string")
+        if not answer.strip():
+            self.logger.error("Citation answer cannot be empty")
+            raise ValueError("Citation answer cannot be empty")
+        if not isinstance(sources, (list, tuple)):
+            self.logger.error("Citation sources must be a list or tuple")
+            raise ValueError("Citation sources must be a list or tuple")
+        if not sources:
+            self.logger.error("Citation sources cannot be empty")
+            raise ValueError("Citation sources cannot be empty")
+        propagated = self.propagate_source_identity(sources)
+        citation_metadata = []
+        for source in sources:
+            citation_metadata.append(
+                self.build_citation_metadata(source)
+            )
+        assert self.validate_context_consistency(
+            sources,
+            propagated
+        )
+        assert self.validate_completeness(
+            sources,
+            propagated
+        )
+        for citation in citation_metadata:
+            self.validate_citation(citation)
+        placed = self.place_unique_citations(
+            answer,
+            citation_metadata
+        )
+        self.logger.info(
+            "Complete citation pipeline executed successfully"
+        )
+        return {
+            "answer": placed,
+            "citations": citation_metadata
+        }
+
     def cite(self, answer, sources):
         self.logger.info("Citation request received")
         return None
