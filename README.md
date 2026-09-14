@@ -378,3 +378,6 @@ Complete generation pipeline is online.
 
 Version 0.8.0
 Citation foundation is online.
+
+Version 0.8.1
+Source identity propagation is online.

@@ -4683,6 +4683,44 @@ def full_test():
         print(red(e))
         print(red("Version 0.8.0 failed"))
 
+    try:
+        tests += 1
+        identity_sources = [
+            {
+                "content": "First citation context.",
+                "source": "citation_first.txt",
+                "document_id": "citation-document-first",
+                "chunk_id": "citation-chunk-first"
+            },
+            {
+                "content": "Second citation context.",
+                "source": "citation_second.txt",
+                "document_id": "citation-document-second",
+                "chunk_id": "citation-chunk-second"
+            }
+        ]
+        propagated_identity = citation.propagate_source_identity(
+            identity_sources
+        )
+        assert isinstance(propagated_identity, list), "Citation source identity propagation should return a list"
+        assert len(propagated_identity) == 2, "Citation source identity propagation should preserve every supplied source"
+        assert propagated_identity[0]["source"] == "citation_first.txt", "Citation should preserve the first source identity"
+        assert propagated_identity[0]["document_id"] == "citation-document-first", "Citation should preserve the first document identity"
+        assert propagated_identity[0]["chunk_id"] == "citation-chunk-first", "Citation should preserve the first chunk identity"
+        assert propagated_identity[1]["source"] == "citation_second.txt", "Citation should preserve the second source identity"
+        assert propagated_identity[1]["document_id"] == "citation-document-second", "Citation should preserve the second document identity"
+        assert propagated_identity[1]["chunk_id"] == "citation-chunk-second", "Citation should preserve the second chunk identity"
+        assert identity_sources[0]["content"] == "First citation context.", "Citation identity propagation should not alter existing source content"
+        assert identity_sources[1]["content"] == "Second citation context.", "Citation identity propagation should not alter existing source content"
+        assert identity_sources[0]["source"] == "citation_first.txt", "Citation identity propagation should not alter the original first source identity"
+        assert identity_sources[1]["source"] == "citation_second.txt", "Citation identity propagation should not alter the original second source identity"
+        success += 1
+        print(green("Version 0.8.1 source identity propagation is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.8.1 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
