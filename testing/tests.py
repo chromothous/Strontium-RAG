@@ -4721,6 +4721,68 @@ def full_test():
         print(red(e))
         print(red("Version 0.8.1 failed"))
 
+    try:
+        tests += 1
+        metadata_source = {
+            "content": "Citation metadata context.",
+            "source": "metadata_source.txt",
+            "document_id": "metadata-document",
+            "chunk_id": "metadata-chunk",
+            "metadata": {
+                "page": 12,
+                "section": "Introduction",
+                "author": "Test Author"
+            }
+        }
+        citation_metadata = citation.build_citation_metadata(
+            metadata_source
+        )
+        assert isinstance(citation_metadata, dict), "Citation metadata should return a metadata dictionary"
+        assert citation_metadata["source"] == "metadata_source.txt", "Citation metadata should preserve the source name"
+        assert citation_metadata["document_id"] == "metadata-document", "Citation metadata should preserve the document identity"
+        assert citation_metadata["chunk_id"] == "metadata-chunk", "Citation metadata should preserve the chunk identity"
+        assert citation_metadata["metadata"] == {
+            "page": 12,
+            "section": "Introduction",
+            "author": "Test Author"
+        }, "Citation metadata should preserve source metadata"
+        assert citation_metadata["metadata"] is not metadata_source["metadata"], "Citation metadata should copy source metadata instead of sharing the original dictionary"
+        assert metadata_source["metadata"]["page"] == 12, "Citation metadata generation should not alter the original source metadata"
+        success += 1
+        print(green("Version 0.8.2 citation metadata is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.8.2 failed"))
+
+    try:
+        tests += 1
+        placement_source = {
+            "content": "Citation placement context.",
+            "source": "placement_source.txt",
+            "document_id": "placement-document",
+            "chunk_id": "placement-chunk",
+            "metadata": {
+                "page": 4
+            }
+        }
+        placement_answer = "The retrieved context supports this answer."
+        placed_citation = citation.place_citation(
+            placement_answer,
+            placement_source
+        )
+        assert isinstance(placed_citation, str), "Citation placement should return a string"
+        assert placed_citation == "The retrieved context supports this answer. [placement_source.txt]", "Citation placement should use the established citation formatting"
+        assert placement_answer in placed_citation, "Citation placement should preserve the generated answer"
+        assert "[placement_source.txt]" in placed_citation, "Citation placement should attach the source identity to the generated answer"
+        assert placed_citation.index(placement_answer) < placed_citation.index("[placement_source.txt]"), "Citation placement should attach the citation after the generated answer"
+        success += 1
+        print(green("Version 0.8.3 citation placement is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.8.3 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

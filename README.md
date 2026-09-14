@@ -381,3 +381,9 @@ Citation foundation is online.
 
 Version 0.8.1
 Source identity propagation is online.
+
+Version 0.8.2
+Citation metadata is online.
+
+Version 0.8.3
+Citation placement is online.

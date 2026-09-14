@@ -47,6 +47,35 @@ class Citation:
         )
         return propagated
 
+    def build_citation_metadata(self, source):
+        self._validate_source_item(source)
+        metadata = source.get("metadata", {})
+        if not isinstance(metadata, dict):
+            self.logger.error("Citation source metadata must be a dictionary")
+            raise ValueError("Citation source metadata must be a dictionary")
+        return {
+            "source": source["source"],
+            "document_id": source["document_id"],
+            "chunk_id": source["chunk_id"],
+            "metadata": metadata.copy()
+        }
+
+    def place_citation(self, answer, citation):
+        if not isinstance(answer, str):
+            self.logger.error("Citation answer must be a string")
+            raise ValueError("Citation answer must be a string")
+        if not answer.strip():
+            self.logger.error("Citation answer cannot be empty")
+            raise ValueError("Citation answer cannot be empty")
+        if not isinstance(citation, dict):
+            self.logger.error("Citation must be a dictionary")
+            raise ValueError("Citation must be a dictionary")
+        self._validate_source_item(citation)
+        formatted_citation = f"[{citation['source']}]"
+        placed = f"{answer} {formatted_citation}"
+        self.logger.info("Citation placed successfully")
+        return placed
+
     def cite(self, answer, sources):
         self.logger.info("Citation request received")
         return None
