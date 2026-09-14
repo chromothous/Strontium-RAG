@@ -4783,6 +4783,41 @@ def full_test():
         print(red(e))
         print(red("Version 0.8.3 failed"))
 
+    try:
+        tests += 1
+        multiple_first = {
+            "content": "First supporting context.",
+            "source": "multiple_source_a.txt",
+            "document_id": "multiple-document-a",
+            "chunk_id": "multiple-chunk-a"
+        }
+        multiple_second = {
+            "content": "Second supporting context.",
+            "source": "multiple_source_b.txt",
+            "document_id": "multiple-document-b",
+            "chunk_id": "multiple-chunk-b"
+        }
+        multiple_citations = citation.place_citations(
+            "The generated answer uses multiple supporting sources.",
+            [
+                multiple_first,
+                multiple_second
+            ]
+        )
+        assert isinstance(multiple_citations, str), "Multiple-source citation placement should return a string"
+        assert multiple_citations == "The generated answer uses multiple supporting sources. [multiple_source_a.txt] [multiple_source_b.txt]", "Multiple-source citation placement should attach all supplied source citations in order"
+        assert "[multiple_source_a.txt]" in multiple_citations, "Multiple-source citation placement should include the first source citation"
+        assert "[multiple_source_b.txt]" in multiple_citations, "Multiple-source citation placement should include the second source citation"
+        assert multiple_citations.index("[multiple_source_a.txt]") < multiple_citations.index("[multiple_source_b.txt]"), "Multiple-source citation placement should preserve source ordering"
+        assert "multiple-document-a" not in multiple_citations, "Citation formatting should use the established source representation without replacing it with the document identity"
+        assert "multiple-document-b" not in multiple_citations, "Citation formatting should use the established source representation without replacing it with the document identity"
+        success += 1
+        print(green("Version 0.8.4 multiple-source citations are online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.8.4 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

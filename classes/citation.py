@@ -76,6 +76,29 @@ class Citation:
         self.logger.info("Citation placed successfully")
         return placed
 
+    def place_citations(self, answer, citations):
+        if not isinstance(answer, str):
+            self.logger.error("Citation answer must be a string")
+            raise ValueError("Citation answer must be a string")
+        if not answer.strip():
+            self.logger.error("Citation answer cannot be empty")
+            raise ValueError("Citation answer cannot be empty")
+        if not isinstance(citations, (list, tuple)):
+            self.logger.error("Citation sources must be a list or tuple")
+            raise ValueError("Citation sources must be a list or tuple")
+        if not citations:
+            self.logger.error("Citation sources cannot be empty")
+            raise ValueError("Citation sources cannot be empty")
+        formatted_citations = []
+        for citation in citations:
+            self._validate_source_item(citation)
+            formatted_citations.append(f"[{citation['source']}]")
+        placed = f"{answer} {' '.join(formatted_citations)}"
+        self.logger.info(
+            f"Multiple citations placed successfully: {len(citations)} sources"
+        )
+        return placed
+
     def cite(self, answer, sources):
         self.logger.info("Citation request received")
         return None

@@ -387,3 +387,6 @@ Citation metadata is online.
 
 Version 0.8.3
 Citation placement is online.
+
+Version 0.8.4
+Multiple-source citations are online.
