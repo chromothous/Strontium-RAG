@@ -411,3 +411,6 @@ Complete citation pipeline is online.
 
 Version 0.9.0
 Conversation foundation is online.
+
+Version 0.9.1
+Conversation query handling is online.

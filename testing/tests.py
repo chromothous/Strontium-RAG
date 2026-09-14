@@ -5160,6 +5160,34 @@ def full_test():
         print(red(e))
         print(red("Version 0.9.0 failed"))
 
+    try:
+        tests += 1
+        query = "What is retrieval augmented generation?"
+        handled_query = conversation.handle_query(query)
+        assert handled_query == query, "Conversation query handling should preserve the complete user query"
+        assert isinstance(handled_query, str), "Conversation query handling should return the query as a string"
+        try:
+            conversation.handle_query("")
+            assert False, "Conversation query handling should reject an empty query"
+        except ValueError:
+            pass
+        try:
+            conversation.handle_query("   ")
+            assert False, "Conversation query handling should reject a whitespace-only query"
+        except ValueError:
+            pass
+        try:
+            conversation.handle_query(None)
+            assert False, "Conversation query handling should reject a non-string query"
+        except ValueError:
+            pass
+        success += 1
+        print(green("Version 0.9.1 conversation query handling is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.9.1 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
