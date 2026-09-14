@@ -99,6 +99,37 @@ class Citation:
         )
         return placed
 
+    def place_unique_citations(self, answer, citations):
+        if not isinstance(answer, str):
+            self.logger.error("Citation answer must be a string")
+            raise ValueError("Citation answer must be a string")
+        if not answer.strip():
+            self.logger.error("Citation answer cannot be empty")
+            raise ValueError("Citation answer cannot be empty")
+        if not isinstance(citations, (list, tuple)):
+            self.logger.error("Citation sources must be a list or tuple")
+            raise ValueError("Citation sources must be a list or tuple")
+        if not citations:
+            self.logger.error("Citation sources cannot be empty")
+            raise ValueError("Citation sources cannot be empty")
+        unique_citations = []
+        seen_sources = set()
+        for citation in citations:
+            self._validate_source_item(citation)
+            source_key = (
+                citation["source"],
+                citation["document_id"]
+            )
+            if source_key in seen_sources:
+                continue
+            seen_sources.add(source_key)
+            unique_citations.append(f"[{citation['source']}]")
+        placed = f"{answer} {' '.join(unique_citations)}"
+        self.logger.info(
+            f"Unique citations placed successfully: {len(unique_citations)} sources"
+        )
+        return placed
+
     def cite(self, answer, sources):
         self.logger.info("Citation request received")
         return None

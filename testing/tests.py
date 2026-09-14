@@ -4818,6 +4818,47 @@ def full_test():
         print(red(e))
         print(red("Version 0.8.4 failed"))
 
+    try:
+        tests += 1
+        duplicate_first = {
+            "content": "First retrieved chunk from the same document.",
+            "source": "duplicate_source.txt",
+            "document_id": "duplicate-document",
+            "chunk_id": "duplicate-chunk-one"
+        }
+        duplicate_second = {
+            "content": "Second retrieved chunk from the same document.",
+            "source": "duplicate_source.txt",
+            "document_id": "duplicate-document",
+            "chunk_id": "duplicate-chunk-two"
+        }
+        unique_source = {
+            "content": "Retrieved chunk from another document.",
+            "source": "unique_source.txt",
+            "document_id": "unique-document",
+            "chunk_id": "unique-chunk-one"
+        }
+        duplicate_answer = "This answer uses repeated retrieval results."
+        unique_citations = citation.place_unique_citations(
+            duplicate_answer,
+            [
+                duplicate_first,
+                duplicate_second,
+                unique_source
+            ]
+        )
+        assert isinstance(unique_citations, str), "Duplicate-source citation handling should return a string"
+        assert unique_citations == "This answer uses repeated retrieval results. [duplicate_source.txt] [unique_source.txt]", "Duplicate-source citation handling should collapse repeated citations while preserving distinct sources"
+        assert unique_citations.count("[duplicate_source.txt]") == 1, "Duplicate-source citation handling should produce only one citation for repeated retrieval results from the same document"
+        assert unique_citations.count("[unique_source.txt]") == 1, "Duplicate-source citation handling should preserve citations for distinct documents"
+        assert unique_citations.index("[duplicate_source.txt]") < unique_citations.index("[unique_source.txt]"), "Duplicate-source citation handling should preserve the order of first source appearance"
+        success += 1
+        print(green("Version 0.8.5 duplicate-source citations are online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.8.5 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

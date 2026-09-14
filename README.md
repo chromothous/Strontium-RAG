@@ -390,3 +390,6 @@ Citation placement is online.
 
 Version 0.8.4
 Multiple-source citations are online.
+
+Version 0.8.5
+Duplicate source citations are online.
