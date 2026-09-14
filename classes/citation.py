@@ -201,6 +201,18 @@ class Citation:
         )
         return True
 
+    def validate_citation(self, citation):
+        if not isinstance(citation, dict):
+            self.logger.error("Citation must be a dictionary")
+            raise ValueError("Citation must be a dictionary")
+        self._validate_source_item(citation)
+        metadata = citation.get("metadata", {})
+        if not isinstance(metadata, dict):
+            self.logger.error("Citation metadata must be a dictionary")
+            raise ValueError("Citation metadata must be a dictionary")
+        self.logger.info("Citation structure validated successfully")
+        return True
+
     def cite(self, answer, sources):
         self.logger.info("Citation request received")
         return None

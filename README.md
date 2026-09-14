@@ -399,3 +399,6 @@ Citation completeness is online.
 
 Version 0.8.7
 Citation and context consistency are online.
+
+Version 0.8.8
+Citation validation is online.

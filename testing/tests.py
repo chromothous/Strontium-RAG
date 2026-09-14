@@ -4979,6 +4979,78 @@ def full_test():
         print(red(e))
         print(red("Version 0.8.7 failed"))
 
+    try:
+        tests += 1
+        valid_citation = {
+            "source": "validation_source.txt",
+            "document_id": "validation-document",
+            "chunk_id": "validation-chunk",
+            "metadata": {
+                "page": 7
+            }
+        }
+        assert citation.validate_citation(valid_citation) is True, "Citation validation should accept a complete citation structure"
+        invalid_citation = {
+            "document_id": "validation-document",
+            "chunk_id": "validation-chunk",
+            "metadata": {
+                "page": 7
+            }
+        }
+        try:
+            citation.validate_citation(invalid_citation)
+            assert False, "Citation validation should reject a citation missing source identity"
+        except ValueError:
+            pass
+        invalid_document_citation = {
+            "source": "validation_source.txt",
+            "document_id": None,
+            "chunk_id": "validation-chunk",
+            "metadata": {
+                "page": 7
+            }
+        }
+        try:
+            citation.validate_citation(invalid_document_citation)
+            assert False, "Citation validation should reject a citation with missing document identity"
+        except ValueError:
+            pass
+        invalid_chunk_citation = {
+            "source": "validation_source.txt",
+            "document_id": "validation-document",
+            "chunk_id": None,
+            "metadata": {
+                "page": 7
+            }
+        }
+        try:
+            citation.validate_citation(invalid_chunk_citation)
+            assert False, "Citation validation should reject a citation with missing chunk identity"
+        except ValueError:
+            pass
+        invalid_metadata_citation = {
+            "source": "validation_source.txt",
+            "document_id": "validation-document",
+            "chunk_id": "validation-chunk",
+            "metadata": "invalid metadata"
+        }
+        try:
+            citation.validate_citation(invalid_metadata_citation)
+            assert False, "Citation validation should reject malformed citation metadata"
+        except ValueError:
+            pass
+        try:
+            citation.validate_citation(None)
+            assert False, "Citation validation should reject a non-dictionary citation"
+        except ValueError:
+            pass
+        success += 1
+        print(green("Version 0.8.8 citation validation is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.8.8 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
