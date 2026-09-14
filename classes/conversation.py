@@ -1,5 +1,6 @@
 from classes.logger import Logger
 from classes.context_builder import ContextBuilder
+from classes.generator import Generator
 
 
 class Conversation:
@@ -44,6 +45,30 @@ class Conversation:
             "Conversation context constructed successfully"
         )
         return context
+
+    def generate_response(self, query, context, generator, system_prompt):
+        self._validate_query(query)
+        if not isinstance(generator, Generator):
+            self.logger.error(
+                "Conversation generator must be a Generator"
+            )
+            raise ValueError(
+                "Conversation generator must be a Generator"
+            )
+        response = generator.generate_with_provider(
+            query,
+            context,
+            system_prompt
+        )
+        content = generator.handle_response(response)
+        metadata = generator.get_generation_metadata(response)
+        self.logger.info(
+            "Conversation response generated successfully"
+        )
+        return {
+            "response": content,
+            "metadata": metadata
+        }
 
     def get_state(self):
         return self.state.copy()

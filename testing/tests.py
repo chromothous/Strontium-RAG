@@ -5280,6 +5280,60 @@ def full_test():
         print(red(e))
         print(red("Version 0.9.3 failed"))
 
+    try:
+        tests += 1
+        class ConversationLLMProvider(LLMProvider):
+            def generate(self, messages):
+                return {
+                    "response": "The conversation response is supported by the supplied context.",
+                    "model": "conversation-test-model",
+                    "usage": {
+                        "prompt_tokens": 30,
+                        "completion_tokens": 14
+                    },
+                    "finish_reason": "stop"
+                }
+        conversation_provider = ConversationLLMProvider()
+        conversation_generator = Generator(
+            logger,
+            conversation_provider,
+            temperature=0.0
+        )
+        conversation_context = (
+            "Retrieval provides information that can be used to answer the user's question."
+        )
+        conversation_query = "How does retrieved context support this answer?"
+        conversation_response = conversation.generate_response(
+            conversation_query,
+            conversation_context,
+            conversation_generator,
+            "Answer only from the supplied context."
+        )
+        assert isinstance(conversation_response, dict), "Conversation response integration should return a structured response"
+        assert conversation_response["response"] == "The conversation response is supported by the supplied context.", "Conversation response integration should return the generated response content"
+        assert isinstance(conversation_response["metadata"], dict), "Conversation response integration should preserve generation metadata"
+        assert conversation_response["metadata"]["model"] == "conversation-test-model", "Conversation response integration should preserve the generated model metadata"
+        assert conversation_response["metadata"]["temperature"] == 0.0, "Conversation response integration should preserve the generation configuration"
+        assert conversation_response["metadata"]["usage"] == {"prompt_tokens": 30, "completion_tokens": 14}, "Conversation response integration should preserve provider usage metadata"
+        assert conversation_response["metadata"]["finish_reason"] == "stop", "Conversation response integration should preserve the provider finish reason"
+        assert conversation_provider is not None, "Conversation response integration should retain the configured generation provider"
+        try:
+            conversation.generate_response(
+                conversation_query,
+                conversation_context,
+                None,
+                "Answer only from the supplied context."
+            )
+            assert False, "Conversation response integration should reject an invalid generator"
+        except ValueError:
+            pass
+        success += 1
+        print(green("Version 0.9.4 conversation response integration is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.9.4 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

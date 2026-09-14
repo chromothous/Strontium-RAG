@@ -420,3 +420,6 @@ Conversation state is online.
 
 Version 0.9.3
 Conversation context integration is online.
+
+Version 0.9.4
+Conversation response integration is online.
