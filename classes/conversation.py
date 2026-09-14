@@ -1,4 +1,5 @@
 from classes.logger import Logger
+from classes.context_builder import ContextBuilder
 
 
 class Conversation:
@@ -28,6 +29,21 @@ class Conversation:
         self._validate_query(query)
         self.logger.info("Conversation query validated successfully")
         return query
+
+    def build_context(self, query, results, context_builder):
+        self._validate_query(query)
+        if not isinstance(context_builder, ContextBuilder):
+            self.logger.error(
+                "Conversation context builder must be a ContextBuilder"
+            )
+            raise ValueError(
+                "Conversation context builder must be a ContextBuilder"
+            )
+        context = context_builder.build(results)
+        self.logger.info(
+            "Conversation context constructed successfully"
+        )
+        return context
 
     def get_state(self):
         return self.state.copy()

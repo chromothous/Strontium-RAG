@@ -5218,6 +5218,68 @@ def full_test():
         print(red(e))
         print(red("Version 0.9.2 failed"))
 
+    try:
+        tests += 1
+        conversation_context_builder = ContextBuilder(logger)
+        conversation_first = Document(
+            "First conversation context.",
+            "conversation_context_first.txt",
+            {
+                "document_id": "conversation-document-first",
+                "chunk_index": 0
+            }
+        )
+        conversation_first.id = "conversation-chunk-first"
+        conversation_second = Document(
+            "Second conversation context.",
+            "conversation_context_second.txt",
+            {
+                "document_id": "conversation-document-second",
+                "chunk_index": 0
+            }
+        )
+        conversation_second.id = "conversation-chunk-second"
+        conversation_results = [
+            {
+                "chunk": conversation_first,
+                "similarity": 1.0
+            },
+            {
+                "chunk": conversation_second,
+                "similarity": 0.9
+            }
+        ]
+        conversation_query = "What information was retrieved for this question?"
+        constructed_context = conversation.build_context(
+            conversation_query,
+            conversation_results,
+            conversation_context_builder
+        )
+        expected_context = (
+            "First conversation context.\n\n"
+            "Second conversation context."
+        )
+        assert constructed_context == expected_context, "Conversation context integration should preserve the complete constructed context"
+        assert conversation_first.content in constructed_context, "Conversation context integration should include the first retrieved source"
+        assert conversation_second.content in constructed_context, "Conversation context integration should include the second retrieved source"
+        assert constructed_context.index(conversation_first.content) < constructed_context.index(conversation_second.content), "Conversation context integration should preserve retrieved source ordering"
+        assert conversation.handle_query(conversation_query) == conversation_query, "Conversation context integration should preserve the established query handling behavior"
+        try:
+            conversation.build_context(
+                conversation_query,
+                conversation_results,
+                None
+            )
+            assert False, "Conversation context integration should reject an invalid context builder"
+        except ValueError:
+            pass
+        success += 1
+        print(green("Version 0.9.3 conversation context integration is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.9.3 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

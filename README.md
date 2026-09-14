@@ -417,3 +417,6 @@ Conversation query handling is online.
 
 Version 0.9.2
 Conversation state is online.
+
+Version 0.9.3
+Conversation context integration is online.
