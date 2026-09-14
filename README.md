@@ -414,3 +414,6 @@ Conversation foundation is online.
 
 Version 0.9.1
 Conversation query handling is online.
+
+Version 0.9.2
+Conversation state is online.

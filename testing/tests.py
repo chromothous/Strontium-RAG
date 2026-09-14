@@ -5188,6 +5188,36 @@ def full_test():
         print(red(e))
         print(red("Version 0.9.1 failed"))
 
+    try:
+        tests += 1
+        state_conversation = Conversation(
+            logger,
+            session_id="conversation-session-001"
+        )
+        state = state_conversation.get_state()
+        assert isinstance(state, dict), "Conversation state should be represented by a dictionary"
+        assert state["session_id"] == "conversation-session-001", "Conversation state should preserve the configured session identity"
+        assert state_conversation.session_id == "conversation-session-001", "Conversation should preserve its current session identity"
+        state["session_id"] = "modified-session"
+        assert state_conversation.get_state()["session_id"] == "conversation-session-001", "Conversation state access should not allow external mutation of internal state"
+        assert state_conversation.handle_query("What is RAG?") == "What is RAG?", "Conversation state should preserve the established query-handling behavior"
+        try:
+            Conversation(logger, session_id="")
+            assert False, "Conversation should reject an empty session ID"
+        except ValueError:
+            pass
+        try:
+            Conversation(logger, session_id=None).get_state()["session_id"]
+            assert True, "Conversation should allow an unspecified session identity"
+        except Exception:
+            assert False, "Conversation should allow state creation without an initial session identity"
+        success += 1
+        print(green("Version 0.9.2 conversation state is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.9.2 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
