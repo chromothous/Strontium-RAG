@@ -4859,6 +4859,65 @@ def full_test():
         print(red(e))
         print(red("Version 0.8.5 failed"))
 
+    try:
+        tests += 1
+        complete_first = {
+            "content": "First supporting source.",
+            "source": "complete_source_a.txt",
+            "document_id": "complete-document-a",
+            "chunk_id": "complete-chunk-a"
+        }
+        complete_second = {
+            "content": "Second supporting source.",
+            "source": "complete_source_b.txt",
+            "document_id": "complete-document-b",
+            "chunk_id": "complete-chunk-b"
+        }
+        complete_third = {
+            "content": "Third supporting source.",
+            "source": "complete_source_c.txt",
+            "document_id": "complete-document-c",
+            "chunk_id": "complete-chunk-c"
+        }
+        complete_sources = [
+            complete_first,
+            complete_second,
+            complete_third
+        ]
+        complete_citations = [
+            complete_first,
+            complete_second,
+            complete_third
+        ]
+        assert citation.validate_completeness(
+            complete_sources,
+            complete_citations
+        ) is True, "Citation completeness should confirm when every required supporting source is represented"
+        incomplete_citations = [
+            complete_first,
+            complete_second
+        ]
+        assert citation.validate_completeness(
+            complete_sources,
+            incomplete_citations
+        ) is False, "Citation completeness should detect when a required supporting source is missing"
+        duplicate_citations = [
+            complete_first,
+            complete_first,
+            complete_second,
+            complete_third
+        ]
+        assert citation.validate_completeness(
+            complete_sources,
+            duplicate_citations
+        ) is True, "Citation completeness should remain satisfied when a source is cited more than once"
+        success += 1
+        print(green("Version 0.8.6 citation completeness is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.8.6 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

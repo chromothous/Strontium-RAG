@@ -393,3 +393,6 @@ Multiple-source citations are online.
 
 Version 0.8.5
 Duplicate source citations are online.
+
+Version 0.8.6
+Citation completeness is online.

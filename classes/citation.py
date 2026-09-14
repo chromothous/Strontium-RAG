@@ -130,6 +130,45 @@ class Citation:
         )
         return placed
 
+    def validate_completeness(self, sources, citations):
+        if not isinstance(sources, (list, tuple)):
+            self.logger.error("Citation sources must be a list or tuple")
+            raise ValueError("Citation sources must be a list or tuple")
+        if not sources:
+            self.logger.error("Citation sources cannot be empty")
+            raise ValueError("Citation sources cannot be empty")
+        if not isinstance(citations, (list, tuple)):
+            self.logger.error("Citation citations must be a list or tuple")
+            raise ValueError("Citation citations must be a list or tuple")
+        required_sources = set()
+        cited_sources = set()
+        for source in sources:
+            self._validate_source_item(source)
+            required_sources.add(
+                (
+                    source["source"],
+                    source["document_id"]
+                )
+            )
+        for citation in citations:
+            self._validate_source_item(citation)
+            cited_sources.add(
+                (
+                    citation["source"],
+                    citation["document_id"]
+                )
+            )
+        missing_sources = required_sources - cited_sources
+        if missing_sources:
+            self.logger.error(
+                f"Citation completeness check found missing sources: {len(missing_sources)}"
+            )
+            return False
+        self.logger.info(
+            "Citation completeness check passed"
+        )
+        return True
+
     def cite(self, answer, sources):
         self.logger.info("Citation request received")
         return None
