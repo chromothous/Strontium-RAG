@@ -426,3 +426,6 @@ Conversation response integration is online.
 
 Version 0.9.5
 Conversation citation integration is online.
+
+Version 0.9.6
+Conversation history is online.

@@ -18,6 +18,7 @@ class Conversation:
         self.state = {
             "session_id": session_id
         }
+        self.history = []
 
     def _validate_query(self, query):
         if not isinstance(query, str):
@@ -100,6 +101,40 @@ class Conversation:
             f"{len(context_items)} sources"
         )
         return citation_result
+
+    def add_user_message(self, query):
+        self._validate_query(query)
+        self.history.append({
+            "role": "user",
+            "content": query
+        })
+        self.logger.info("Conversation user message added to history")
+
+    def add_assistant_message(self, response):
+        if not isinstance(response, str):
+            self.logger.error(
+                "Conversation assistant response must be a string"
+            )
+            raise ValueError(
+                "Conversation assistant response must be a string"
+            )
+        if not response.strip():
+            self.logger.error(
+                "Conversation assistant response cannot be empty"
+            )
+            raise ValueError(
+                "Conversation assistant response cannot be empty"
+            )
+        self.history.append({
+            "role": "assistant",
+            "content": response
+        })
+        self.logger.info(
+            "Conversation assistant message added to history"
+        )
+
+    def get_history(self):
+        return [message.copy() for message in self.history]
 
     def get_state(self):
         return self.state.copy()

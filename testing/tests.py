@@ -5414,6 +5414,53 @@ def full_test():
         print(red(e))
         print(red("Version 0.9.5 failed"))
 
+    try:
+        tests += 1
+        history_conversation = Conversation(
+            logger,
+            session_id="history-session-001"
+        )
+        user_query = "What is retrieval augmented generation?"
+        assistant_response = "Retrieval augmented generation combines retrieval with language model generation."
+        history_conversation.add_user_message(user_query)
+        history_conversation.add_assistant_message(assistant_response)
+        history = history_conversation.get_history()
+        assert isinstance(history, list), "Conversation history should be represented by a list"
+        assert len(history) == 2, "Conversation history should preserve each stored message"
+        assert history[0]["role"] == "user", "Conversation history should preserve the user message role"
+        assert history[0]["content"] == user_query, "Conversation history should preserve the complete user query"
+        assert history[1]["role"] == "assistant", "Conversation history should preserve the assistant message role"
+        assert history[1]["content"] == assistant_response, "Conversation history should preserve the complete assistant response"
+        history.append({
+            "role": "user",
+            "content": "External modification"
+        })
+        history[0]["content"] = "Modified query"
+        internal_history = history_conversation.get_history()
+        assert len(internal_history) == 2, "Conversation history access should not allow external additions to alter internal history"
+        assert internal_history[0]["content"] == user_query, "Conversation history access should not allow external modification of stored message content"
+        history_conversation.add_user_message("Second user query")
+        history_conversation.add_assistant_message("Second assistant response")
+        ordered_history = history_conversation.get_history()
+        assert ordered_history[2]["content"] == "Second user query", "Conversation history should preserve chronological message ordering"
+        assert ordered_history[3]["content"] == "Second assistant response", "Conversation history should preserve chronological assistant response ordering"
+        try:
+            history_conversation.add_user_message("")
+            assert False, "Conversation history should reject an empty user message"
+        except ValueError:
+            pass
+        try:
+            history_conversation.add_assistant_message("")
+            assert False, "Conversation history should reject an empty assistant response"
+        except ValueError:
+            pass
+        success += 1
+        print(green("Version 0.9.6 conversation history is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.9.6 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
