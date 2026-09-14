@@ -1,5 +1,6 @@
 from classes.generator import Generator
 from classes.llm_provider import LLMProvider
+from classes.citation import Citation
 
 
 def green(text):
@@ -4664,6 +4665,23 @@ def full_test():
         failure += 1
         print(red(e))
         print(red("Version 0.7.14 failed"))
+
+    try:
+        tests += 1
+        citation = Citation(logger)
+        assert isinstance(citation, Citation), "Citation foundation should create a valid Citation instance"
+        assert citation.logger is logger, "Citation foundation should preserve the configured logger"
+        result = citation.cite(
+            "The retrieved information supports this answer.",
+            []
+        )
+        assert result is None, "Citation foundation should establish the citation interface without generating citations yet"
+        success += 1
+        print(green("Version 0.8.0 citation foundation is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.8.0 failed"))
 
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
