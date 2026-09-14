@@ -1,6 +1,7 @@
 from classes.generator import Generator
 from classes.llm_provider import LLMProvider
 from classes.citation import Citation
+from classes.conversation import Conversation
 
 
 def green(text):
@@ -5142,6 +5143,22 @@ def full_test():
         failure += 1
         print(red(e))
         print(red("Version 0.8.10 failed"))
+
+    try:
+        tests += 1
+        conversation = Conversation(logger)
+        assert isinstance(conversation, Conversation), "Conversation foundation should create a valid Conversation instance"
+        assert conversation.logger is logger, "Conversation foundation should preserve the configured logger"
+        response = conversation.request(
+            "What is retrieval augmented generation?"
+        )
+        assert response is None, "Conversation foundation should establish the request boundary without executing the RAG pipeline yet"
+        success += 1
+        print(green("Version 0.9.0 conversation foundation is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.9.0 failed"))
 
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))

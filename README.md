@@ -408,3 +408,6 @@ Citation failure handling is online.
 
 Version 0.8.10
 Complete citation pipeline is online.
+
+Version 0.9.0
+Conversation foundation is online.
