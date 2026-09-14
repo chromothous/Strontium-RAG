@@ -7,6 +7,39 @@ class Citation:
             raise ValueError("Citation logger must be a Logger")
         self.logger = logger
 
+    def _normalize_source_item(self, source):
+        if not isinstance(source, dict):
+            self.logger.error("Citation source must be a dictionary")
+            raise ValueError("Citation source must be a dictionary")
+        if "chunk" in source:
+            chunk = source["chunk"]
+            if not hasattr(chunk, "content"):
+                self.logger.error("Citation source chunk must contain content")
+                raise ValueError("Citation source chunk must contain content")
+            if not hasattr(chunk, "source"):
+                self.logger.error("Citation source chunk must contain source identity")
+                raise ValueError("Citation source chunk must contain source identity")
+            metadata = getattr(chunk, "metadata", {})
+            if not isinstance(metadata, dict):
+                self.logger.error("Citation source chunk metadata must be a dictionary")
+                raise ValueError("Citation source chunk metadata must be a dictionary")
+            document_id = metadata.get("document_id")
+            chunk_id = getattr(chunk, "id", None)
+            if document_id is None:
+                self.logger.error("Citation source chunk is missing document identity")
+                raise ValueError("Citation source chunk is missing document identity")
+            if chunk_id is None:
+                self.logger.error("Citation source chunk is missing chunk identity")
+                raise ValueError("Citation source chunk is missing chunk identity")
+            return {
+                "content": chunk.content,
+                "source": chunk.source,
+                "document_id": document_id,
+                "chunk_id": chunk_id,
+                "metadata": metadata.copy()
+            }
+        return source.copy()
+
     def _validate_source_item(self, source):
         if not isinstance(source, dict):
             self.logger.error("Citation source must be a dictionary")
@@ -36,11 +69,12 @@ class Citation:
             raise ValueError("Citation sources must be a list or tuple")
         propagated = []
         for source in sources:
-            self._validate_source_item(source)
+            normalized = self._normalize_source_item(source)
+            self._validate_source_item(normalized)
             propagated.append({
-                "source": source["source"],
-                "document_id": source["document_id"],
-                "chunk_id": source["chunk_id"]
+                "source": normalized["source"],
+                "document_id": normalized["document_id"],
+                "chunk_id": normalized["chunk_id"]
             })
         self.logger.info(
             f"Citation source identities propagated: {len(propagated)} sources"
@@ -48,15 +82,16 @@ class Citation:
         return propagated
 
     def build_citation_metadata(self, source):
-        self._validate_source_item(source)
-        metadata = source.get("metadata", {})
+        normalized = self._normalize_source_item(source)
+        self._validate_source_item(normalized)
+        metadata = normalized.get("metadata", {})
         if not isinstance(metadata, dict):
             self.logger.error("Citation source metadata must be a dictionary")
             raise ValueError("Citation source metadata must be a dictionary")
         return {
-            "source": source["source"],
-            "document_id": source["document_id"],
-            "chunk_id": source["chunk_id"],
+            "source": normalized["source"],
+            "document_id": normalized["document_id"],
+            "chunk_id": normalized["chunk_id"],
             "metadata": metadata.copy()
         }
 
@@ -67,11 +102,9 @@ class Citation:
         if not answer.strip():
             self.logger.error("Citation answer cannot be empty")
             raise ValueError("Citation answer cannot be empty")
-        if not isinstance(citation, dict):
-            self.logger.error("Citation must be a dictionary")
-            raise ValueError("Citation must be a dictionary")
-        self._validate_source_item(citation)
-        formatted_citation = f"[{citation['source']}]"
+        normalized = self._normalize_source_item(citation)
+        self._validate_source_item(normalized)
+        formatted_citation = f"[{normalized['source']}]"
         placed = f"{answer} {formatted_citation}"
         self.logger.info("Citation placed successfully")
         return placed
@@ -91,8 +124,9 @@ class Citation:
             raise ValueError("Citation sources cannot be empty")
         formatted_citations = []
         for citation in citations:
-            self._validate_source_item(citation)
-            formatted_citations.append(f"[{citation['source']}]")
+            normalized = self._normalize_source_item(citation)
+            self._validate_source_item(normalized)
+            formatted_citations.append(f"[{normalized['source']}]")
         placed = f"{answer} {' '.join(formatted_citations)}"
         self.logger.info(
             f"Multiple citations placed successfully: {len(citations)} sources"
@@ -115,15 +149,16 @@ class Citation:
         unique_citations = []
         seen_sources = set()
         for citation in citations:
-            self._validate_source_item(citation)
+            normalized = self._normalize_source_item(citation)
+            self._validate_source_item(normalized)
             source_key = (
-                citation["source"],
-                citation["document_id"]
+                normalized["source"],
+                normalized["document_id"]
             )
             if source_key in seen_sources:
                 continue
             seen_sources.add(source_key)
-            unique_citations.append(f"[{citation['source']}]")
+            unique_citations.append(f"[{normalized['source']}]")
         placed = f"{answer} {' '.join(unique_citations)}"
         self.logger.info(
             f"Unique citations placed successfully: {len(unique_citations)} sources"
@@ -143,19 +178,21 @@ class Citation:
         required_sources = set()
         cited_sources = set()
         for source in sources:
-            self._validate_source_item(source)
+            normalized = self._normalize_source_item(source)
+            self._validate_source_item(normalized)
             required_sources.add(
                 (
-                    source["source"],
-                    source["document_id"]
+                    normalized["source"],
+                    normalized["document_id"]
                 )
             )
         for citation in citations:
-            self._validate_source_item(citation)
+            normalized = self._normalize_source_item(citation)
+            self._validate_source_item(normalized)
             cited_sources.add(
                 (
-                    citation["source"],
-                    citation["document_id"]
+                    normalized["source"],
+                    normalized["document_id"]
                 )
             )
         missing_sources = required_sources - cited_sources
@@ -178,18 +215,20 @@ class Citation:
             raise ValueError("Citation citations must be a list or tuple")
         context_sources = set()
         for source in sources:
-            self._validate_source_item(source)
+            normalized = self._normalize_source_item(source)
+            self._validate_source_item(normalized)
             context_sources.add(
                 (
-                    source["source"],
-                    source["document_id"]
+                    normalized["source"],
+                    normalized["document_id"]
                 )
             )
         for citation in citations:
-            self._validate_source_item(citation)
+            normalized = self._normalize_source_item(citation)
+            self._validate_source_item(normalized)
             citation_source = (
-                citation["source"],
-                citation["document_id"]
+                normalized["source"],
+                normalized["document_id"]
             )
             if citation_source not in context_sources:
                 self.logger.error(
@@ -202,11 +241,9 @@ class Citation:
         return True
 
     def validate_citation(self, citation):
-        if not isinstance(citation, dict):
-            self.logger.error("Citation must be a dictionary")
-            raise ValueError("Citation must be a dictionary")
-        self._validate_source_item(citation)
-        metadata = citation.get("metadata", {})
+        normalized = self._normalize_source_item(citation)
+        self._validate_source_item(normalized)
+        metadata = normalized.get("metadata", {})
         if not isinstance(metadata, dict):
             self.logger.error("Citation metadata must be a dictionary")
             raise ValueError("Citation metadata must be a dictionary")
@@ -253,18 +290,22 @@ class Citation:
         if not sources:
             self.logger.error("Citation sources cannot be empty")
             raise ValueError("Citation sources cannot be empty")
-        propagated = self.propagate_source_identity(sources)
+        normalized_sources = [
+            self._normalize_source_item(source)
+            for source in sources
+        ]
+        propagated = self.propagate_source_identity(normalized_sources)
         citation_metadata = []
-        for source in sources:
+        for source in normalized_sources:
             citation_metadata.append(
                 self.build_citation_metadata(source)
             )
         assert self.validate_context_consistency(
-            sources,
+            normalized_sources,
             propagated
         )
         assert self.validate_completeness(
-            sources,
+            normalized_sources,
             propagated
         )
         for citation in citation_metadata:

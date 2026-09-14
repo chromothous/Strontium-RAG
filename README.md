@@ -423,3 +423,6 @@ Conversation context integration is online.
 
 Version 0.9.4
 Conversation response integration is online.
+
+Version 0.9.5
+Conversation citation integration is online.

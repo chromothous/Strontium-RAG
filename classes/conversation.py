@@ -1,6 +1,7 @@
 from classes.logger import Logger
 from classes.context_builder import ContextBuilder
 from classes.generator import Generator
+from classes.citation import Citation
 
 
 class Conversation:
@@ -69,6 +70,36 @@ class Conversation:
             "response": content,
             "metadata": metadata
         }
+
+    def add_citations(self, answer, results, citation):
+        if not isinstance(answer, str):
+            self.logger.error("Conversation answer must be a string")
+            raise ValueError("Conversation answer must be a string")
+        if not answer.strip():
+            self.logger.error("Conversation answer cannot be empty")
+            raise ValueError("Conversation answer cannot be empty")
+        if not isinstance(results, (list, tuple)):
+            self.logger.error("Conversation results must be a list or tuple")
+            raise ValueError("Conversation results must be a list or tuple")
+        if not isinstance(citation, Citation):
+            self.logger.error(
+                "Conversation citation component must be a Citation"
+            )
+            raise ValueError(
+                "Conversation citation component must be a Citation"
+            )
+        context_items = citation.propagate_source_identity(
+            results
+        )
+        citation_result = citation.cite_complete(
+            answer,
+            results
+        )
+        self.logger.info(
+            f"Conversation citations integrated successfully: "
+            f"{len(context_items)} sources"
+        )
+        return citation_result
 
     def get_state(self):
         return self.state.copy()

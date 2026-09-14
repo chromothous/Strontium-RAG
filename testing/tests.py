@@ -5334,6 +5334,86 @@ def full_test():
         print(red(e))
         print(red("Version 0.9.4 failed"))
 
+    try:
+        tests += 1
+        citation_integration_provider = ConversationLLMProvider()
+        citation_integration_generator = Generator(
+            logger,
+            citation_integration_provider,
+            temperature=0.0
+        )
+        citation_integration_builder = ContextBuilder(logger)
+        conversation_citation = Citation(logger)
+        citation_first = Document(
+            "First citation integration source.",
+            "conversation_citation_a.txt",
+            {
+                "document_id": "conversation-citation-document-a",
+                "chunk_index": 0
+            }
+        )
+        citation_first.id = "conversation-citation-chunk-a"
+        citation_second = Document(
+            "Second citation integration source.",
+            "conversation_citation_b.txt",
+            {
+                "document_id": "conversation-citation-document-b",
+                "chunk_index": 0
+            }
+        )
+        citation_second.id = "conversation-citation-chunk-b"
+        citation_results = [
+            {
+                "chunk": citation_first,
+                "similarity": 1.0
+            },
+            {
+                "chunk": citation_second,
+                "similarity": 0.9
+            }
+        ]
+        citation_context = citation_integration_builder.build(
+            citation_results
+        )
+        generated_response = citation_integration_generator.generate_with_provider(
+            "What information do the sources provide?",
+            citation_context,
+            "Answer only from the supplied context."
+        )
+        generated_answer = citation_integration_generator.handle_response(
+            generated_response
+        )
+        cited_response = conversation.add_citations(
+            generated_answer,
+            citation_results,
+            conversation_citation
+        )
+        assert isinstance(cited_response, dict), "Conversation citation integration should return a structured citation response"
+        assert cited_response["answer"] == "The conversation response is supported by the supplied context. [conversation_citation_a.txt] [conversation_citation_b.txt]", "Conversation citation integration should attach citations to the generated answer"
+        assert len(cited_response["citations"]) == 2, "Conversation citation integration should preserve all supporting sources"
+        assert cited_response["citations"][0]["source"] == "conversation_citation_a.txt", "Conversation citation integration should preserve the first source attribution"
+        assert cited_response["citations"][1]["source"] == "conversation_citation_b.txt", "Conversation citation integration should preserve the second source attribution"
+        assert cited_response["citations"][0]["document_id"] == "conversation-citation-document-a", "Conversation citation integration should preserve the first document identity"
+        assert cited_response["citations"][1]["document_id"] == "conversation-citation-document-b", "Conversation citation integration should preserve the second document identity"
+        assert cited_response["citations"][0]["chunk_id"] == "conversation-citation-chunk-a", "Conversation citation integration should preserve the first chunk identity"
+        assert cited_response["citations"][1]["chunk_id"] == "conversation-citation-chunk-b", "Conversation citation integration should preserve the second chunk identity"
+        assert citation_context.index(citation_first.content) < citation_context.index(citation_second.content), "Conversation citation integration should preserve the established context ordering before attribution"
+        try:
+            conversation.add_citations(
+                generated_answer,
+                citation_results,
+                None
+            )
+            assert False, "Conversation citation integration should reject an invalid citation component"
+        except ValueError:
+            pass
+        success += 1
+        print(green("Version 0.9.5 conversation citation integration is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.9.5 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
