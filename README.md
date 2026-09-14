@@ -396,3 +396,6 @@ Duplicate source citations are online.
 
 Version 0.8.6
 Citation completeness is online.
+
+Version 0.8.7
+Citation and context consistency are online.

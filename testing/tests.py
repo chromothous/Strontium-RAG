@@ -4918,6 +4918,67 @@ def full_test():
         print(red(e))
         print(red("Version 0.8.6 failed"))
 
+    try:
+        tests += 1
+        context_source_first = {
+            "content": "First supplied context.",
+            "source": "context_source_a.txt",
+            "document_id": "context-document-a",
+            "chunk_id": "context-chunk-a"
+        }
+        context_source_second = {
+            "content": "Second supplied context.",
+            "source": "context_source_b.txt",
+            "document_id": "context-document-b",
+            "chunk_id": "context-chunk-b"
+        }
+        context_sources = [
+            context_source_first,
+            context_source_second
+        ]
+        matching_citations = [
+            {
+                "source": "context_source_a.txt",
+                "document_id": "context-document-a",
+                "chunk_id": "context-chunk-a"
+            },
+            {
+                "source": "context_source_b.txt",
+                "document_id": "context-document-b",
+                "chunk_id": "context-chunk-b"
+            }
+        ]
+        assert citation.validate_context_consistency(
+            context_sources,
+            matching_citations
+        ) is True, "Citation and context consistency should pass when every citation references a supplied context source"
+        unrelated_citation = {
+            "source": "unrelated_source.txt",
+            "document_id": "unrelated-document",
+            "chunk_id": "unrelated-chunk"
+        }
+        assert citation.validate_context_consistency(
+            context_sources,
+            [matching_citations[0], unrelated_citation]
+        ) is False, "Citation and context consistency should detect citations referencing unavailable sources"
+        repeated_context_citation = {
+            "source": "context_source_a.txt",
+            "document_id": "context-document-a",
+            "chunk_id": "different-chunk"
+        }
+        assert citation.validate_context_consistency(
+            context_sources,
+            [repeated_context_citation]
+        ) is True, "Citation and context consistency should associate citations with the supplied document source identity without requiring an identical chunk occurrence"
+        assert context_sources[0]["content"] == "First supplied context.", "Citation and context consistency should not alter supplied context content"
+        assert context_sources[1]["content"] == "Second supplied context.", "Citation and context consistency should preserve all supplied context content"
+        success += 1
+        print(green("Version 0.8.7 citation and context consistency are online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.8.7 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

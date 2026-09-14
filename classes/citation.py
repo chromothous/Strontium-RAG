@@ -169,6 +169,38 @@ class Citation:
         )
         return True
 
+    def validate_context_consistency(self, sources, citations):
+        if not isinstance(sources, (list, tuple)):
+            self.logger.error("Citation sources must be a list or tuple")
+            raise ValueError("Citation sources must be a list or tuple")
+        if not isinstance(citations, (list, tuple)):
+            self.logger.error("Citation citations must be a list or tuple")
+            raise ValueError("Citation citations must be a list or tuple")
+        context_sources = set()
+        for source in sources:
+            self._validate_source_item(source)
+            context_sources.add(
+                (
+                    source["source"],
+                    source["document_id"]
+                )
+            )
+        for citation in citations:
+            self._validate_source_item(citation)
+            citation_source = (
+                citation["source"],
+                citation["document_id"]
+            )
+            if citation_source not in context_sources:
+                self.logger.error(
+                    "Citation references a source not present in the supplied context"
+                )
+                return False
+        self.logger.info(
+            "Citation and context consistency check passed"
+        )
+        return True
+
     def cite(self, answer, sources):
         self.logger.info("Citation request received")
         return None
