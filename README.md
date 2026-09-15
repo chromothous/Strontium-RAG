@@ -447,3 +447,6 @@ Evaluation foundation is online.
 
 Version 0.10.1
 Evaluation input validation is online.
+
+Version 0.10.2
+Retrieval evaluation is online.

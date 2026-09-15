@@ -5889,6 +5889,79 @@ def full_test():
         print(red(e))
         print(red("Version 0.10.1 failed"))
 
+    try:
+        tests += 1
+        retrieval_relevant = Document(
+            "Relevant retrieval content.",
+            "relevant_source.txt",
+            {
+                "document_id": "retrieval-document-relevant",
+                "chunk_index": 0
+            }
+        )
+        retrieval_relevant.id = "retrieval-chunk-relevant"
+        retrieval_irrelevant = Document(
+            "Irrelevant retrieval content.",
+            "irrelevant_source.txt",
+            {
+                "document_id": "retrieval-document-irrelevant",
+                "chunk_index": 0
+            }
+        )
+        retrieval_irrelevant.id = "retrieval-chunk-irrelevant"
+        retrieval_results = [
+            {
+                "chunk": retrieval_relevant,
+                "similarity": 1.0
+            },
+            {
+                "chunk": retrieval_irrelevant,
+                "similarity": 0.2
+            }
+        ]
+        retrieval_evaluation = evaluator.evaluate_retrieval(
+            retrieval_results,
+            ["relevant_source.txt", "missing_source.txt"]
+        )
+        assert isinstance(retrieval_evaluation, dict), "Retrieval evaluation should return a structured evaluation result"
+        assert retrieval_evaluation["score"] == 0.5, "Retrieval evaluation should measure the proportion of expected sources that were retrieved"
+        assert "relevant_source.txt" in retrieval_evaluation["retrieved_sources"], "Retrieval evaluation should preserve retrieved source identities"
+        assert "irrelevant_source.txt" in retrieval_evaluation["retrieved_sources"], "Retrieval evaluation should preserve all retrieved source identities"
+        assert "relevant_source.txt" in retrieval_evaluation["relevant_sources"], "Retrieval evaluation should identify retrieved sources that match expected relevant sources"
+        assert "missing_source.txt" in retrieval_evaluation["missing_sources"], "Retrieval evaluation should identify expected sources that were not retrieved"
+        perfect_retrieval = evaluator.evaluate_retrieval(
+            [
+                {
+                    "chunk": retrieval_relevant,
+                    "similarity": 1.0
+                }
+            ],
+            ["relevant_source.txt"]
+        )
+        assert perfect_retrieval["score"] == 1.0, "Retrieval evaluation should produce a perfect score when all expected sources are retrieved"
+        try:
+            evaluator.evaluate_retrieval(
+                retrieval_results,
+                []
+            )
+            assert False, "Retrieval evaluation should reject an empty expected source set"
+        except ValueError:
+            pass
+        try:
+            evaluator.evaluate_retrieval(
+                {},
+                ["relevant_source.txt"]
+            )
+            assert False, "Retrieval evaluation should reject invalid retrieval result collections"
+        except ValueError:
+            pass
+        success += 1
+        print(green("Version 0.10.2 retrieval evaluation is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.10.2 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
