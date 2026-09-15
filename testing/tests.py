@@ -7282,6 +7282,96 @@ def full_test():
         print(red(e))
         print(red("Version 0.11.9 failed"))
 
+    try:
+        tests += 1
+        from classes.logger import Logger
+        from testing import TestRunner
+        logger = Logger()
+        runner = TestRunner(logger)
+        def deterministic_test(state):
+            state["value"] = 42
+            assert state["value"] == 42, "Repeatability testing should preserve deterministic test behavior"
+        repeatability_tests = [
+            {
+                "name": "deterministic_test",
+                "function": deterministic_test
+            }
+        ]
+        repeatability_report = runner.analyze_repeatability(
+            repeatability_tests,
+            repetitions=3
+        )
+        assert isinstance(repeatability_report, dict), "Repeatability analysis should return a structured report"
+        assert repeatability_report["repetitions"] == 3, "Repeatability analysis should preserve the configured repetition count"
+        assert repeatability_report["deterministic"] is True, "Repeatability analysis should identify deterministic test execution"
+        assert repeatability_report["inconsistent_runs"] == [], "Repeatability analysis should report no inconsistent runs for deterministic tests"
+        assert repeatability_report["state_leakage_detected"] is False, "Repeatability analysis should confirm runner state isolation between repetitions"
+        assert len(repeatability_report["runs"]) == 3, "Repeatability analysis should preserve every execution run"
+        assert repeatability_report["runs"][0]["tests"] == 1, "Repeatability analysis should account for tests in the first run"
+        assert repeatability_report["runs"][1]["tests"] == 1, "Repeatability analysis should account for tests in the second run"
+        assert repeatability_report["runs"][2]["tests"] == 1, "Repeatability analysis should account for tests in the third run"
+        assert repeatability_report["runs"][0]["success"] == 1, "Repeatability analysis should preserve successful execution counts"
+        assert repeatability_report["runs"][1]["success"] == 1, "Repeatability analysis should preserve successful execution counts across repetitions"
+        assert repeatability_report["runs"][2]["success"] == 1, "Repeatability analysis should preserve successful execution counts across repetitions"
+        assert runner.get_repeatability() == repeatability_report, "Repeatability access should preserve the latest analysis"
+        runner.reset()
+        def stable_test():
+            value = 10
+            value += 5
+            assert value == 15, "Repeatability testing should preserve stable stateless execution"
+        stable_report = runner.analyze_repeatability(
+            [
+                {
+                    "name": "stable_test",
+                    "function": stable_test
+                }
+            ],
+            repetitions=2
+        )
+        assert stable_report["deterministic"] is True, "Repeatability analysis should identify stable stateless execution"
+        assert stable_report["inconsistent_runs"] == [], "Repeatability analysis should report no inconsistent stateless runs"
+        assert stable_report["state_leakage_detected"] is False, "Repeatability analysis should confirm isolated stateless execution"
+        runner.reset()
+        counter = {"value": 0}
+        def nondeterministic_test():
+            counter["value"] += 1
+            assert counter["value"] == 1, "Repeatability testing should expose nondeterministic state-dependent behavior"
+        nondeterministic_report = runner.analyze_repeatability(
+            [
+                {
+                    "name": "nondeterministic_test",
+                    "function": nondeterministic_test
+                }
+            ],
+            repetitions=2
+        )
+        assert nondeterministic_report["deterministic"] is False, "Repeatability analysis should detect inconsistent test outcomes"
+        assert 2 in nondeterministic_report["inconsistent_runs"], "Repeatability analysis should identify the inconsistent repetition"
+        assert nondeterministic_report["state_leakage_detected"] is False, "Repeatability analysis should distinguish external state changes from runner state leakage"
+        runner.reset()
+        try:
+            runner.analyze_repeatability(
+                repeatability_tests,
+                repetitions=1
+            )
+            assert False, "Repeatability analysis should reject fewer than two repetitions"
+        except ValueError:
+            pass
+        try:
+            runner.analyze_repeatability(
+                "invalid repeatability tests"
+            )
+            assert False, "Repeatability analysis should reject invalid test collections"
+        except ValueError:
+            pass
+        assert runner.logger is logger, "Repeatability analysis should preserve the configured Logger instance"
+        success += 1
+        print(green("Version 0.11.10 repeatability and determinism are online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.11.10 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

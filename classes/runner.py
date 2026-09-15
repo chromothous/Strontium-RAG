@@ -24,6 +24,7 @@ class TestRunner:
         self._fixtures = {}
         self._integration_tests = {}
         self._coverage_results = {}
+        self._repeatability_results = {}
         self.logger.info("Test runner initialized")
 
     def register(self, name, test_function):
@@ -818,6 +819,145 @@ class TestRunner:
             "coverage": dict(self._coverage_results)
         }
 
+    def _validate_repeatability_tests(self, tests):
+        if not isinstance(tests, (list, tuple)):
+            self.logger.error(
+                "Repeatability tests must be a list or tuple"
+            )
+            raise ValueError(
+                "Repeatability tests must be a list or tuple"
+            )
+        for test in tests:
+            if not isinstance(test, dict):
+                self.logger.error(
+                    "Each repeatability test must be a dictionary"
+                )
+                raise ValueError(
+                    "Each repeatability test must be a dictionary"
+                )
+            if "name" not in test:
+                self.logger.error(
+                    "Repeatability test is missing name"
+                )
+                raise ValueError(
+                    "Repeatability test is missing name"
+                )
+            if "function" not in test:
+                self.logger.error(
+                    "Repeatability test is missing function"
+                )
+                raise ValueError(
+                    "Repeatability test is missing function"
+                )
+            if not isinstance(test["name"], str):
+                self.logger.error(
+                    "Repeatability test name must be a string"
+                )
+                raise ValueError(
+                    "Repeatability test name must be a string"
+                )
+            if not callable(test["function"]):
+                self.logger.error(
+                    "Repeatability test function must be callable"
+                )
+                raise ValueError(
+                    "Repeatability test function must be callable"
+                )
+
+    def _result_signature(self, result):
+        return (
+            result["name"],
+            result["success"],
+            result.get("skipped", False),
+            result.get("failure_type"),
+            result.get("error")
+        )
+
+    def _execute_repeatability_run(self, tests):
+        self.reset()
+        self.clear_test_state()
+        results = self.execute(
+            list(tests)
+        )
+        final_state = self.get_test_state()
+        return {
+            "results": [
+                self._result_signature(result)
+                for result in results
+            ],
+            "state": dict(final_state),
+            "tests": self.tests,
+            "success": self.success,
+            "failure": self.failure,
+            "skipped": self.skipped
+        }
+
+    def analyze_repeatability(self, tests=None, repetitions=2):
+        if tests is None:
+            tests = self._registered_tests
+        self._validate_repeatability_tests(tests)
+        if not isinstance(repetitions, int):
+            self.logger.error(
+                "Repeatability repetitions must be an integer"
+            )
+            raise ValueError(
+                "Repeatability repetitions must be an integer"
+            )
+        if repetitions < 2:
+            self.logger.error(
+                "Repeatability repetitions must be at least two"
+            )
+            raise ValueError(
+                "Repeatability repetitions must be at least two"
+            )
+
+        runs = []
+        for index in range(repetitions):
+            self.logger.info(
+                f"Repeatability run started: {index + 1}"
+            )
+            runs.append(
+                self._execute_repeatability_run(
+                    list(tests)
+                )
+            )
+            self.logger.info(
+                f"Repeatability run completed: {index + 1}"
+            )
+
+        baseline = runs[0]
+        inconsistent_runs = []
+        state_leakage_detected = False
+
+        for index, current_run in enumerate(runs[1:], start=2):
+            if current_run != baseline:
+                inconsistent_runs.append(index)
+
+        for run in runs:
+            if run["state"] != {}:
+                state_leakage_detected = True
+
+        deterministic = (
+            len(inconsistent_runs) == 0
+            and not state_leakage_detected
+        )
+
+        self._repeatability_results = {
+            "repetitions": repetitions,
+            "deterministic": deterministic,
+            "inconsistent_runs": inconsistent_runs,
+            "state_leakage_detected": state_leakage_detected,
+            "runs": runs
+        }
+
+        self.logger.info(
+            f"Repeatability analysis completed: deterministic={deterministic}"
+        )
+        return dict(self._repeatability_results)
+
+    def get_repeatability(self):
+        return dict(self._repeatability_results)
+
     def reset(self):
         self.tests = 0
         self.success = 0
@@ -826,4 +966,5 @@ class TestRunner:
         self.results = []
         self._test_state = {}
         self._coverage_results = {}
+        self._repeatability_results = {}
         self.logger.info("Test runner state reset")
