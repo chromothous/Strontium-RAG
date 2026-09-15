@@ -189,6 +189,39 @@ class Conversation:
         self.logger.info("Conversation state validated successfully")
         return True
 
+    def handle_failure(self, error, operation):
+        if not isinstance(error, Exception):
+            self.logger.error(
+                "Conversation failure must be an Exception"
+            )
+            raise ValueError(
+                "Conversation failure must be an Exception"
+            )
+        if not isinstance(operation, str):
+            self.logger.error(
+                "Conversation failure operation must be a string"
+            )
+            raise ValueError(
+                "Conversation failure operation must be a string"
+            )
+        if not operation.strip():
+            self.logger.error(
+                "Conversation failure operation cannot be empty"
+            )
+            raise ValueError(
+                "Conversation failure operation cannot be empty"
+            )
+        failure = {
+            "success": False,
+            "operation": operation,
+            "error": str(error),
+            "error_type": type(error).__name__
+        }
+        self.logger.error(
+            f"Conversation operation failed: {operation}: {error}"
+        )
+        return failure
+
     def get_state(self):
         return self.state.copy()
 

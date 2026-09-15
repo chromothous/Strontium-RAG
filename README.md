@@ -435,3 +435,6 @@ Conversation history isolation is online.
 
 Version 0.9.8
 Conversation invalid-input handling is online.
+
+Version 0.9.9
+Conversation failure handling is online.

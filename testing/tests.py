@@ -5587,6 +5587,75 @@ def full_test():
         print(red(e))
         print(red("Version 0.9.8 failed"))
 
+    try:
+        tests += 1
+        failure_conversation = Conversation(
+            logger,
+            session_id="failure-session"
+        )
+        failure_conversation.add_user_message(
+            "Previous conversation message."
+        )
+        failure_conversation.add_assistant_message(
+            "Previous conversation response."
+        )
+        original_history = failure_conversation.get_history()
+        original_state = failure_conversation.get_state()
+        retrieval_failure = RuntimeError(
+            "Simulated retrieval failure"
+        )
+        retrieval_result = failure_conversation.handle_failure(
+            retrieval_failure,
+            "retrieval"
+        )
+        assert isinstance(retrieval_result, dict), "Conversation failure handling should return a structured failure result"
+        assert retrieval_result["success"] is False, "Conversation failure handling should mark failed operations as unsuccessful"
+        assert retrieval_result["operation"] == "retrieval", "Conversation failure handling should preserve the failed operation"
+        assert retrieval_result["error"] == "Simulated retrieval failure", "Conversation failure handling should preserve useful failure information"
+        assert retrieval_result["error_type"] == "RuntimeError", "Conversation failure handling should preserve the failure type"
+        generation_failure = RuntimeError(
+            "Simulated generation failure"
+        )
+        generation_result = failure_conversation.handle_failure(
+            generation_failure,
+            "generation"
+        )
+        assert generation_result["operation"] == "generation", "Conversation failure handling should identify generation failures correctly"
+        assert generation_result["error"] == "Simulated generation failure", "Conversation failure handling should preserve generation failure information"
+        citation_failure = ValueError(
+            "Simulated citation failure"
+        )
+        citation_result = failure_conversation.handle_failure(
+            citation_failure,
+            "citation"
+        )
+        assert citation_result["operation"] == "citation", "Conversation failure handling should identify citation failures correctly"
+        assert citation_result["error"] == "Simulated citation failure", "Conversation failure handling should preserve citation failure information"
+        assert failure_conversation.get_history() == original_history, "Conversation failure handling should preserve existing conversation history after a component failure"
+        assert failure_conversation.get_state() == original_state, "Conversation failure handling should preserve existing conversation state after a component failure"
+        try:
+            failure_conversation.handle_failure(
+                "invalid failure",
+                "retrieval"
+            )
+            assert False, "Conversation failure handling should reject non-Exception failures"
+        except ValueError:
+            pass
+        try:
+            failure_conversation.handle_failure(
+                RuntimeError("failure"),
+                ""
+            )
+            assert False, "Conversation failure handling should reject an empty operation name"
+        except ValueError:
+            pass
+        success += 1
+        print(green("Version 0.9.9 conversation failure handling is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.9.9 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
