@@ -533,6 +533,151 @@ class Evaluator:
         )
         return results
 
+    def evaluate_complete(
+        self,
+        question,
+        context,
+        response,
+        expected_data,
+        retrieval_results,
+        available_sources,
+        citations
+    ):
+        self.validate_inputs(
+            question,
+            context,
+            response,
+            expected_data
+        )
+        if not isinstance(retrieval_results, (list, tuple)):
+            self.logger.error(
+                "Evaluator complete retrieval results must be a list or tuple"
+            )
+            raise ValueError(
+                "Evaluator complete retrieval results must be a list or tuple"
+            )
+        if not isinstance(available_sources, (list, tuple)):
+            self.logger.error(
+                "Evaluator complete available sources must be a list or tuple"
+            )
+            raise ValueError(
+                "Evaluator complete available sources must be a list or tuple"
+            )
+        if not isinstance(citations, (list, tuple)):
+            self.logger.error(
+                "Evaluator complete citations must be a list or tuple"
+            )
+            raise ValueError(
+                "Evaluator complete citations must be a list or tuple"
+            )
+        required_expected_fields = {
+            "sources",
+            "content",
+            "answer"
+        }
+        missing_expected_fields = (
+            required_expected_fields - set(expected_data.keys())
+        )
+        if missing_expected_fields:
+            self.logger.error(
+                "Evaluator complete expected data is missing required evaluation fields"
+            )
+            raise ValueError(
+                "Evaluator complete expected data is missing required evaluation fields"
+            )
+        retrieval_evaluation = self.evaluate_retrieval(
+            retrieval_results,
+            expected_data["sources"]
+        )
+        context_evaluation = self.evaluate_context(
+            context,
+            expected_data["content"]
+        )
+        generation_evaluation = self.evaluate_generation(
+            response,
+            expected_data["answer"]
+        )
+        citation_evaluation = self.evaluate_citations(
+            citations,
+            available_sources
+        )
+        grounding_evaluation = self.evaluate_grounding(
+            context,
+            response
+        )
+        metrics = self.evaluate_metrics(
+            retrieval_evaluation["score"],
+            context_evaluation["score"],
+            generation_evaluation["score"],
+            citation_evaluation["score"],
+            grounding_evaluation["score"]
+        )
+        self.logger.info(
+            f"Complete evaluation pipeline completed for question: {question}"
+        )
+        return {
+            "question": question,
+            "retrieval": retrieval_evaluation,
+            "context": context_evaluation,
+            "generation": generation_evaluation,
+            "citations": citation_evaluation,
+            "grounding": grounding_evaluation,
+            "metrics": metrics
+        }
+
+    def evaluate_dataset_complete(self, dataset, evaluation_function):
+        self._validate_dataset(dataset)
+        if not callable(evaluation_function):
+            self.logger.error(
+                "Evaluator complete dataset evaluation function must be callable"
+            )
+            raise ValueError(
+                "Evaluator complete dataset evaluation function must be callable"
+            )
+        results = []
+        overall_scores = []
+        for index, case in enumerate(dataset):
+            result = evaluation_function(case)
+            if not isinstance(result, dict):
+                self.logger.error(
+                    f"Evaluator complete dataset case {index} result must be a dictionary"
+                )
+                raise ValueError(
+                    f"Evaluator complete dataset case {index} result must be a dictionary"
+                )
+            if "metrics" not in result:
+                self.logger.error(
+                    f"Evaluator complete dataset case {index} result is missing metrics"
+                )
+                raise ValueError(
+                    f"Evaluator complete dataset case {index} result is missing metrics"
+                )
+            if "overall" not in result["metrics"]:
+                self.logger.error(
+                    f"Evaluator complete dataset case {index} metrics are missing overall score"
+                )
+                raise ValueError(
+                    f"Evaluator complete dataset case {index} metrics are missing overall score"
+                )
+            results.append(result)
+            overall_scores.append(result["metrics"]["overall"])
+        aggregate_metrics = {
+            "cases": len(results),
+            "overall": float(
+                round(
+                    sum(overall_scores) / len(overall_scores),
+                    6
+                )
+            )
+        }
+        self.logger.info(
+            f"Complete evaluation dataset pipeline completed: {len(results)} cases"
+        )
+        return {
+            "results": results,
+            "metrics": aggregate_metrics
+        }
+
     def evaluate(self, question, context, response):
         self.logger.info("Evaluation request received")
         return None

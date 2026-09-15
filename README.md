@@ -471,3 +471,6 @@ Evaluation datasets are online.
 
 Version 0.10.9
 Evaluation failure handling is online.
+
+Version 0.10.10
+Complete RAG evaluation pipeline is online.

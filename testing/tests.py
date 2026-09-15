@@ -6411,6 +6411,150 @@ def full_test():
         print(red(e))
         print(red("Version 0.10.9 failed"))
 
+    try:
+        tests += 1
+        class EvaluationChunk:
+            def __init__(self, source):
+                self.source = source
+        retrieval_results = [
+            {
+                "chunk": EvaluationChunk("manual.txt")
+            },
+            {
+                "chunk": EvaluationChunk("guide.txt")
+            }
+        ]
+        available_sources = [
+            "manual.txt",
+            "guide.txt"
+        ]
+        citations = [
+            {
+                "source": "manual.txt"
+            },
+            {
+                "source": "guide.txt"
+            }
+        ]
+        complete_expected_data = {
+            "sources": [
+                "manual.txt",
+                "guide.txt"
+            ],
+            "content": [
+                "Python uses indentation.",
+                "Python is dynamically typed."
+            ],
+            "answer": "Python uses indentation and is dynamically typed."
+        }
+        complete_evaluation = evaluator.evaluate_complete(
+            "How does Python use indentation and typing?",
+            "Python uses indentation. Python is dynamically typed.",
+            "Python uses indentation and is dynamically typed.",
+            complete_expected_data,
+            retrieval_results,
+            available_sources,
+            citations
+        )
+        assert isinstance(complete_evaluation, dict), "Complete evaluation should return a structured evaluation result"
+        assert "retrieval" in complete_evaluation, "Complete evaluation should include retrieval evaluation"
+        assert "context" in complete_evaluation, "Complete evaluation should include context evaluation"
+        assert "generation" in complete_evaluation, "Complete evaluation should include generation evaluation"
+        assert "citations" in complete_evaluation, "Complete evaluation should include citation evaluation"
+        assert "grounding" in complete_evaluation, "Complete evaluation should include grounding evaluation"
+        assert "metrics" in complete_evaluation, "Complete evaluation should include aggregated metrics"
+        assert complete_evaluation["retrieval"]["score"] == 1.0, "Complete evaluation should preserve retrieval quality"
+        assert complete_evaluation["context"]["score"] == 1.0, "Complete evaluation should preserve context quality"
+        assert complete_evaluation["generation"]["score"] == 1.0, "Complete evaluation should preserve generation quality"
+        assert complete_evaluation["citations"]["score"] == 1.0, "Complete evaluation should preserve citation quality"
+        assert complete_evaluation["grounding"]["score"] == 1.0, "Complete evaluation should preserve grounding quality"
+        assert complete_evaluation["metrics"]["overall"] == 1.0, "Complete evaluation should calculate the overall quality score from all evaluation dimensions"
+        evaluation_dataset = [
+            {
+                "question": "Question one",
+                "context": "Python uses indentation.",
+                "response": "Python uses indentation.",
+                "expected_data": {
+                    "sources": ["manual.txt"],
+                    "content": ["Python uses indentation."],
+                    "answer": "Python uses indentation."
+                }
+            },
+            {
+                "question": "Question two",
+                "context": "Python is dynamically typed.",
+                "response": "Python is dynamically typed.",
+                "expected_data": {
+                    "sources": ["guide.txt"],
+                    "content": ["Python is dynamically typed."],
+                    "answer": "Python is dynamically typed."
+                }
+            }
+        ]
+        def run_complete_case(case):
+            case_source = "manual.txt"
+            if case["question"] == "Question two":
+                case_source = "guide.txt"
+            case_chunk = EvaluationChunk(case_source)
+            case_results = [
+                {
+                    "chunk": case_chunk
+                }
+            ]
+            case_sources = [case_source]
+            case_citations = [
+                {
+                    "source": case_source
+                }
+            ]
+            return evaluator.evaluate_complete(
+                case["question"],
+                case["context"],
+                case["response"],
+                case["expected_data"],
+                case_results,
+                case_sources,
+                case_citations
+            )
+        complete_dataset = evaluator.evaluate_dataset_complete(
+            evaluation_dataset,
+            run_complete_case
+        )
+        assert isinstance(complete_dataset, dict), "Complete dataset evaluation should return a structured aggregate result"
+        assert len(complete_dataset["results"]) == 2, "Complete dataset evaluation should evaluate every case"
+        assert complete_dataset["metrics"]["cases"] == 2, "Complete dataset evaluation should report the number of evaluated cases"
+        assert complete_dataset["metrics"]["overall"] == 1.0, "Complete dataset evaluation should aggregate case scores into a dataset-level score"
+        try:
+            evaluator.evaluate_complete(
+                "Invalid expected data",
+                "Valid context",
+                "Valid response",
+                {
+                    "sources": ["manual.txt"],
+                    "content": ["Valid context"]
+                },
+                retrieval_results,
+                available_sources,
+                citations
+            )
+            assert False, "Complete evaluation should reject expected data missing required evaluation fields"
+        except ValueError:
+            pass
+        try:
+            evaluator.evaluate_dataset_complete(
+                evaluation_dataset,
+                "not callable"
+            )
+            assert False, "Complete dataset evaluation should reject non-callable evaluation functions"
+        except ValueError:
+            pass
+        success += 1
+        print(green("Version 0.10.10 complete RAG evaluation pipeline is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.10.10 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
