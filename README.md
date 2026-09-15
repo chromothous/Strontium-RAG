@@ -501,3 +501,6 @@ Integration test automation is online.
 
 Version 0.11.8
 Test reporting is online.
+
+Version 0.11.9
+Automated coverage analysis is online.

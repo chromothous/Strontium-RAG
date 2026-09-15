@@ -1,6 +1,7 @@
 import importlib.util
 import inspect
 import os
+import trace
 import traceback
 
 from classes.logger import Logger
@@ -22,6 +23,7 @@ class TestRunner:
         self._test_state = {}
         self._fixtures = {}
         self._integration_tests = {}
+        self._coverage_results = {}
         self.logger.info("Test runner initialized")
 
     def register(self, name, test_function):
@@ -699,6 +701,123 @@ class TestRunner:
         )
         return report
 
+    def start_coverage(self):
+        self._coverage_results = {}
+        self._coverage_tracer = trace.Trace(
+            count=True,
+            trace=False
+        )
+        self._coverage_tracer.runfunc(
+            lambda: None
+        )
+        self.logger.info("Coverage analysis started")
+
+    def _run_with_coverage(self, tests):
+        tracer = trace.Trace(
+            count=True,
+            trace=False
+        )
+
+        def execute_tests():
+            for test in tests:
+                self.run_test(
+                    test["name"],
+                    test["function"]
+                )
+
+        tracer.runfunc(execute_tests)
+        results = tracer.results()
+        coverage_data = {}
+
+        for (filename, lineno), count in results.counts.items():
+            if filename not in coverage_data:
+                coverage_data[filename] = {
+                    "executed_lines": [],
+                    "execution_counts": {}
+                }
+            coverage_data[filename]["executed_lines"].append(lineno)
+            coverage_data[filename]["execution_counts"][lineno] = count
+
+        for filename in coverage_data:
+            coverage_data[filename]["executed_lines"].sort()
+
+        self._coverage_results = coverage_data
+        self.logger.info(
+            "Coverage analysis completed"
+        )
+        return coverage_data
+
+    def analyze_coverage(self, tests=None):
+        if tests is None:
+            tests = self._registered_tests
+        if not isinstance(tests, (list, tuple)):
+            self.logger.error(
+                "Coverage tests must be a list or tuple"
+            )
+            raise ValueError(
+                "Coverage tests must be a list or tuple"
+            )
+        for test in tests:
+            if not isinstance(test, dict):
+                self.logger.error(
+                    "Each coverage test must be a dictionary"
+                )
+                raise ValueError(
+                    "Each coverage test must be a dictionary"
+                )
+            if "name" not in test:
+                self.logger.error(
+                    "Coverage test is missing name"
+                )
+                raise ValueError(
+                    "Coverage test is missing name"
+                )
+            if "function" not in test:
+                self.logger.error(
+                    "Coverage test is missing function"
+                )
+                raise ValueError(
+                    "Coverage test is missing function"
+                )
+            if not isinstance(test["name"], str):
+                self.logger.error(
+                    "Coverage test name must be a string"
+                )
+                raise ValueError(
+                    "Coverage test name must be a string"
+                )
+            if not callable(test["function"]):
+                self.logger.error(
+                    "Coverage test function must be callable"
+                )
+                raise ValueError(
+                    "Coverage test function must be callable"
+                )
+
+        self.reset()
+        coverage_data = self._run_with_coverage(
+            list(tests)
+        )
+
+        report = {
+            "files": len(coverage_data),
+            "coverage": dict(coverage_data),
+            "tests": self.tests,
+            "success": self.success,
+            "failure": self.failure,
+            "skipped": self.skipped
+        }
+        self.logger.info(
+            "Coverage report generated"
+        )
+        return report
+
+    def get_coverage(self):
+        return {
+            "files": len(self._coverage_results),
+            "coverage": dict(self._coverage_results)
+        }
+
     def reset(self):
         self.tests = 0
         self.success = 0
@@ -706,4 +825,5 @@ class TestRunner:
         self.skipped = 0
         self.results = []
         self._test_state = {}
+        self._coverage_results = {}
         self.logger.info("Test runner state reset")

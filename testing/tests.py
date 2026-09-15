@@ -7217,6 +7217,71 @@ def full_test():
         print(red(e))
         print(red("Version 0.11.8 failed"))
 
+    try:
+        tests += 1
+        from classes.logger import Logger
+        from testing import TestRunner
+        logger = Logger()
+        runner = TestRunner(logger)
+        def covered_test():
+            value = 10
+            value += 5
+            assert value == 15, "Coverage analysis should execute instrumented test code"
+        coverage_tests = [
+            {
+                "name": "covered_test",
+                "function": covered_test
+            }
+        ]
+        coverage_report = runner.analyze_coverage(
+            coverage_tests
+        )
+        assert isinstance(coverage_report, dict), "Coverage analysis should return a structured coverage report"
+        assert "files" in coverage_report, "Coverage analysis should report the number of covered files"
+        assert "coverage" in coverage_report, "Coverage analysis should expose collected coverage data"
+        assert isinstance(coverage_report["coverage"], dict), "Coverage analysis should return structured file coverage data"
+        assert coverage_report["tests"] == 1, "Coverage analysis should account for executed coverage tests"
+        assert coverage_report["success"] == 1, "Coverage analysis should account for successful coverage tests"
+        assert coverage_report["failure"] == 0, "Coverage analysis should report zero failures for successful coverage tests"
+        assert coverage_report["skipped"] == 0, "Coverage analysis should report zero skipped tests when none were skipped"
+        assert coverage_report["files"] >= 1, "Coverage analysis should identify at least one executed Python file"
+        coverage = runner.get_coverage()
+        assert isinstance(coverage, dict), "Coverage access should return a structured coverage object"
+        assert coverage["files"] >= 1, "Coverage access should preserve discovered covered files"
+        assert isinstance(coverage["coverage"], dict), "Coverage access should preserve file coverage data"
+        covered_files = list(coverage["coverage"].values())
+        assert len(covered_files) >= 1, "Coverage access should preserve at least one file result"
+        assert "executed_lines" in covered_files[0], "Coverage results should identify executed source lines"
+        assert "execution_counts" in covered_files[0], "Coverage results should preserve source execution counts"
+        assert len(covered_files[0]["executed_lines"]) >= 1, "Coverage analysis should record executed source lines"
+        runner.reset()
+        empty_coverage = runner.get_coverage()
+        assert empty_coverage["files"] == 0, "Coverage analysis should reset covered file accounting"
+        assert empty_coverage["coverage"] == {}, "Coverage analysis should reset stored coverage results"
+        try:
+            runner.analyze_coverage("invalid coverage tests")
+            assert False, "Coverage analysis should reject invalid test collections"
+        except ValueError:
+            pass
+        try:
+            runner.analyze_coverage(
+                [
+                    {
+                        "name": "invalid_test"
+                    }
+                ]
+            )
+            assert False, "Coverage analysis should reject test definitions without functions"
+        except ValueError:
+            pass
+        assert runner.logger is logger, "Coverage analysis should preserve the configured Logger instance"
+        success += 1
+        print(green("Version 0.11.9 automated coverage analysis is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.11.9 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
