@@ -222,6 +222,85 @@ class Conversation:
         )
         return failure
 
+    def process_complete(
+        self,
+        query,
+        retrieval_function,
+        context_builder,
+        generator,
+        citation,
+        system_prompt
+    ):
+        try:
+            self._validate_query(query)
+            if not callable(retrieval_function):
+                self.logger.error(
+                    "Conversation retrieval function must be callable"
+                )
+                raise ValueError(
+                    "Conversation retrieval function must be callable"
+                )
+            if not isinstance(context_builder, ContextBuilder):
+                self.logger.error(
+                    "Conversation context builder must be a ContextBuilder"
+                )
+                raise ValueError(
+                    "Conversation context builder must be a ContextBuilder"
+                )
+            if not isinstance(generator, Generator):
+                self.logger.error(
+                    "Conversation generator must be a Generator"
+                )
+                raise ValueError(
+                    "Conversation generator must be a Generator"
+                )
+            if not isinstance(citation, Citation):
+                self.logger.error(
+                    "Conversation citation component must be a Citation"
+                )
+                raise ValueError(
+                    "Conversation citation component must be a Citation"
+                )
+            results = retrieval_function(query)
+            context = self.build_context(
+                query,
+                results,
+                context_builder
+            )
+            response = generator.generate_grounded_with_provider(
+                query,
+                context,
+                system_prompt
+            )
+            content = generator.handle_response(response)
+            metadata = generator.get_generation_metadata(response)
+            generation_response = {
+                "response": content,
+                "metadata": metadata
+            }
+            citation_response = self.add_citations(
+                generation_response["response"],
+                results,
+                citation
+            )
+            self.add_user_message(query)
+            self.add_assistant_message(
+                citation_response["answer"]
+            )
+            self.logger.info(
+                "Complete conversation pipeline executed successfully"
+            )
+            return {
+                "response": citation_response["answer"],
+                "citations": citation_response["citations"],
+                "metadata": generation_response["metadata"]
+            }
+        except Exception as e:
+            return self.handle_failure(
+                e,
+                "conversation pipeline"
+            )
+
     def get_state(self):
         return self.state.copy()
 

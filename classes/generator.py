@@ -164,6 +164,30 @@ class Generator:
         self.logger.info("Generation request sent to LLM provider")
         return response
 
+    def generate_grounded_with_provider(self, query, context, system_prompt):
+        if self.provider is None:
+            self.logger.error("Generator provider is not configured")
+            raise ValueError("Generator provider is not configured")
+        self._validate_context_available(context)
+        messages = self.build_grounded_messages(
+            query,
+            context,
+            system_prompt
+        )
+        try:
+            response = self.provider.generate(messages)
+        except Exception as e:
+            self.logger.error(
+                f"Generator grounded provider request failed: {e}"
+            )
+            raise RuntimeError(
+                f"LLM grounded provider generation failed: {e}"
+            ) from e
+        self.logger.info(
+            "Grounded generation request sent to LLM provider"
+        )
+        return response
+
     def _extract_response(self, response):
         if isinstance(response, str):
             if not response.strip():

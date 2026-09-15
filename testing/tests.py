@@ -5656,6 +5656,119 @@ def full_test():
         print(red(e))
         print(red("Version 0.9.9 failed"))
 
+    try:
+        tests += 1
+        class CompleteConversationProvider(LLMProvider):
+            def __init__(self):
+                self.messages = None
+            def generate(self, messages):
+                self.messages = messages
+                return {
+                    "response": "The complete conversation pipeline produced this grounded answer.",
+                    "model": "complete-conversation-model",
+                    "usage": {
+                        "prompt_tokens": 50,
+                        "completion_tokens": 15
+                    },
+                    "finish_reason": "stop"
+                }
+        complete_conversation_provider = CompleteConversationProvider()
+        complete_conversation_generator = Generator(
+            logger,
+            complete_conversation_provider,
+            temperature=0.0
+        )
+        complete_context_builder = ContextBuilder(logger)
+        complete_citation = Citation(logger)
+        complete_conversation_first = Document(
+            "The first complete conversation source.",
+            "complete_conversation_a.txt",
+            {
+                "document_id": "complete-conversation-document-a",
+                "chunk_index": 0
+            }
+        )
+        complete_conversation_first.id = "complete-conversation-chunk-a"
+        complete_conversation_second = Document(
+            "The second complete conversation source.",
+            "complete_conversation_b.txt",
+            {
+                "document_id": "complete-conversation-document-b",
+                "chunk_index": 0
+            }
+        )
+        complete_conversation_second.id = "complete-conversation-chunk-b"
+        complete_retrieval_results = [
+            {
+                "chunk": complete_conversation_first,
+                "similarity": 1.0
+            },
+            {
+                "chunk": complete_conversation_second,
+                "similarity": 0.9
+            }
+        ]
+        complete_retrieval_queries = []
+        def complete_retrieval(query):
+            complete_retrieval_queries.append(query)
+            return complete_retrieval_results
+        complete_conversation = Conversation(
+            logger,
+            session_id="complete-conversation-session"
+        )
+        complete_query = "What does the complete conversation pipeline produce?"
+        complete_result = complete_conversation.process_complete(
+            complete_query,
+            complete_retrieval,
+            complete_context_builder,
+            complete_conversation_generator,
+            complete_citation,
+            "Answer only from the supplied context."
+        )
+        assert isinstance(complete_result, dict), "Complete conversation pipeline should return a structured response"
+        assert complete_result["response"] == "The complete conversation pipeline produced this grounded answer. [complete_conversation_a.txt] [complete_conversation_b.txt]", "Complete conversation pipeline should return the generated answer with source citations"
+        assert len(complete_result["citations"]) == 2, "Complete conversation pipeline should preserve all supporting citations"
+        assert complete_result["citations"][0]["source"] == "complete_conversation_a.txt", "Complete conversation pipeline should preserve the first citation source"
+        assert complete_result["citations"][1]["source"] == "complete_conversation_b.txt", "Complete conversation pipeline should preserve the second citation source"
+        assert complete_result["citations"][0]["document_id"] == "complete-conversation-document-a", "Complete conversation pipeline should preserve the first document identity"
+        assert complete_result["citations"][1]["document_id"] == "complete-conversation-document-b", "Complete conversation pipeline should preserve the second document identity"
+        assert complete_result["citations"][0]["chunk_id"] == "complete-conversation-chunk-a", "Complete conversation pipeline should preserve the first chunk identity"
+        assert complete_result["citations"][1]["chunk_id"] == "complete-conversation-chunk-b", "Complete conversation pipeline should preserve the second chunk identity"
+        assert complete_result["metadata"]["model"] == "complete-conversation-model", "Complete conversation pipeline should preserve generation model metadata"
+        assert complete_result["metadata"]["temperature"] == 0.0, "Complete conversation pipeline should preserve generation configuration metadata"
+        assert complete_result["metadata"]["usage"] == {"prompt_tokens": 50, "completion_tokens": 15}, "Complete conversation pipeline should preserve generation usage metadata"
+        assert complete_result["metadata"]["finish_reason"] == "stop", "Complete conversation pipeline should preserve generation finish metadata"
+        assert complete_retrieval_queries == [complete_query], "Complete conversation pipeline should send the user query into retrieval"
+        assert isinstance(complete_conversation_provider.messages, list), "Complete conversation pipeline should send structured messages to the generation provider"
+        assert "The first complete conversation source." in complete_conversation_provider.messages[1]["content"], "Complete conversation pipeline should pass the first retrieved source into generation"
+        assert "The second complete conversation source." in complete_conversation_provider.messages[1]["content"], "Complete conversation pipeline should pass the second retrieved source into generation"
+        assert complete_query in complete_conversation_provider.messages[1]["content"], "Complete conversation pipeline should preserve the user query through generation"
+        assert "Use only the supplied context as evidence for your answer." in complete_conversation_provider.messages[0]["content"], "Complete conversation pipeline should preserve grounding constraints"
+        complete_history = complete_conversation.get_history()
+        assert len(complete_history) == 2, "Complete conversation pipeline should record the completed conversational exchange"
+        assert complete_history[0]["role"] == "user", "Complete conversation pipeline should record the user message first"
+        assert complete_history[0]["content"] == complete_query, "Complete conversation pipeline should preserve the complete user query in history"
+        assert complete_history[1]["role"] == "assistant", "Complete conversation pipeline should record the assistant response second"
+        assert complete_history[1]["content"] == complete_result["response"], "Complete conversation pipeline should preserve the cited assistant response in history"
+        assert complete_conversation.get_state()["session_id"] == "complete-conversation-session", "Complete conversation pipeline should preserve conversation session state"
+        invalid_pipeline = complete_conversation.process_complete(
+            complete_query,
+            None,
+            complete_context_builder,
+            complete_conversation_generator,
+            complete_citation,
+            "Answer only from the supplied context."
+        )
+        assert invalid_pipeline["success"] is False, "Complete conversation pipeline should return structured failure information when retrieval is invalid"
+        assert invalid_pipeline["operation"] == "conversation pipeline", "Complete conversation pipeline should identify the failed pipeline operation"
+        assert len(complete_conversation.get_history()) == 2, "Complete conversation pipeline should preserve existing history when a later request fails"
+        success += 1
+        print(green("Version 0.9.10 complete conversation pipeline is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.9.10 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

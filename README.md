@@ -438,3 +438,6 @@ Conversation invalid-input handling is online.
 
 Version 0.9.9
 Conversation failure handling is online.
+
+Version 0.9.10
+Complete conversation pipeline is online.
