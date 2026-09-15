@@ -5788,6 +5788,107 @@ def full_test():
         print(red(e))
         print(red("Version 0.10.0 failed"))
 
+    try:
+        tests += 1
+        evaluation_question = "What is retrieval augmented generation?"
+        evaluation_context = "Retrieval augmented generation combines retrieval with language model generation."
+        evaluation_response = "Retrieval augmented generation uses retrieved information to support a generated answer."
+        evaluation_expected_data = {
+            "expected_answer": "Retrieval augmented generation uses retrieved information to support an answer."
+        }
+        assert evaluator.validate_inputs(
+            evaluation_question,
+            evaluation_context,
+            evaluation_response,
+            evaluation_expected_data
+        ) is True, "Evaluation input validation should accept complete valid evaluation data"
+        try:
+            evaluator.validate_inputs(
+                "",
+                evaluation_context,
+                evaluation_response,
+                evaluation_expected_data
+            )
+            assert False, "Evaluation input validation should reject an empty evaluation question"
+        except ValueError:
+            pass
+        try:
+            evaluator.validate_inputs(
+                evaluation_question,
+                "",
+                evaluation_response,
+                evaluation_expected_data
+            )
+            assert False, "Evaluation input validation should reject empty retrieved context"
+        except ValueError:
+            pass
+        try:
+            evaluator.validate_inputs(
+                evaluation_question,
+                evaluation_context,
+                "",
+                evaluation_expected_data
+            )
+            assert False, "Evaluation input validation should reject an empty generated response"
+        except ValueError:
+            pass
+        try:
+            evaluator.validate_inputs(
+                evaluation_question,
+                evaluation_context,
+                evaluation_response,
+                None
+            )
+            assert False, "Evaluation input validation should reject missing expected evaluation data"
+        except ValueError:
+            pass
+        try:
+            evaluator.validate_inputs(
+                None,
+                evaluation_context,
+                evaluation_response,
+                evaluation_expected_data
+            )
+            assert False, "Evaluation input validation should reject a non-string evaluation question"
+        except ValueError:
+            pass
+        try:
+            evaluator.validate_inputs(
+                evaluation_question,
+                None,
+                evaluation_response,
+                evaluation_expected_data
+            )
+            assert False, "Evaluation input validation should reject non-string retrieved context"
+        except ValueError:
+            pass
+        try:
+            evaluator.validate_inputs(
+                evaluation_question,
+                evaluation_context,
+                None,
+                evaluation_expected_data
+            )
+            assert False, "Evaluation input validation should reject a non-string generated response"
+        except ValueError:
+            pass
+        try:
+            evaluator.validate_inputs(
+                evaluation_question,
+                evaluation_context,
+                evaluation_response,
+                []
+            )
+            assert False, "Evaluation input validation should reject non-dictionary expected evaluation data"
+        except ValueError:
+            pass
+        success += 1
+        print(green("Version 0.10.1 evaluation input validation is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.10.1 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
