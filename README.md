@@ -480,3 +480,6 @@ Automated testing foundation is online.
 
 Version 0.11.1
 Test discovery is online.
+
+Version 0.11.2
+Test execution is online.

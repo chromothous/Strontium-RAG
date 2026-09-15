@@ -110,6 +110,49 @@ class TestRunner:
             )
         return discovered
 
+    def execute(self, tests=None):
+        if tests is None:
+            tests = self._registered_tests
+        if not isinstance(tests, (list, tuple)):
+            raise ValueError(
+                "Tests to execute must be a list or tuple"
+            )
+        execution_results = []
+        for test in tests:
+            if not isinstance(test, dict):
+                raise ValueError(
+                    "Each test to execute must be a dictionary"
+                )
+            if "name" not in test:
+                raise ValueError(
+                    "Test to execute is missing name"
+                )
+            if "function" not in test:
+                raise ValueError(
+                    "Test to execute is missing function"
+                )
+            name = test["name"]
+            test_function = test["function"]
+            if not isinstance(name, str):
+                raise ValueError(
+                    "Test execution name must be a string"
+                )
+            if not callable(test_function):
+                raise ValueError(
+                    "Test execution function must be callable"
+                )
+            execution_results.append(
+                self.run_test(
+                    name,
+                    test_function
+                )
+            )
+        return execution_results
+
+    def execute_discovered(self, directory):
+        self.register_discovered(directory)
+        return self.execute()
+
     def logger_info(self, message):
         return message
 

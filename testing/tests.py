@@ -6674,6 +6674,103 @@ def full_test():
         print(red(e))
         print(red("Version 0.11.1 failed"))
 
+    try:
+        tests += 1
+        from testing import TestRunner
+        runner = TestRunner()
+        execution_order = []
+        def test_first_execution():
+            execution_order.append("first")
+        def test_second_execution():
+            execution_order.append("second")
+        runner.register(
+            "test_first_execution",
+            test_first_execution
+        )
+        runner.register(
+            "test_second_execution",
+            test_second_execution
+        )
+        execution_results = runner.execute()
+        assert isinstance(execution_results, list), "Test execution should return a collection of individual test results"
+        assert len(execution_results) == 2, "Test execution should execute every supplied test"
+        assert execution_results[0]["name"] == "test_first_execution", "Test execution should preserve the first test identity"
+        assert execution_results[1]["name"] == "test_second_execution", "Test execution should preserve the second test identity"
+        assert execution_results[0]["success"] is True, "Test execution should record successful execution for the first test"
+        assert execution_results[1]["success"] is True, "Test execution should record successful execution for the second test"
+        assert execution_order == ["first", "second"], "Test execution should preserve the registered execution order"
+        assert runner.tests == 2, "Test execution should increment the total execution count for every test"
+        assert runner.success == 2, "Test execution should increment the success count for successful tests"
+        assert runner.failure == 0, "Test execution should keep the failure count at zero when all tests succeed"
+        runner.reset()
+        failing_execution_order = []
+        def successful_test():
+            failing_execution_order.append("success")
+        def failing_test():
+            failing_execution_order.append("failure")
+            raise RuntimeError("Execution failure")
+        def final_test():
+            failing_execution_order.append("final")
+        execution_results = runner.execute(
+            [
+                {
+                    "name": "successful_test",
+                    "function": successful_test
+                },
+                {
+                    "name": "failing_test",
+                    "function": failing_test
+                },
+                {
+                    "name": "final_test",
+                    "function": final_test
+                }
+            ]
+        )
+        assert len(execution_results) == 3, "Test execution should continue through the complete supplied test collection"
+        assert execution_results[0]["success"] is True, "Test execution should preserve successful results before a failure"
+        assert execution_results[1]["success"] is False, "Test execution should capture a failed test result"
+        assert execution_results[1]["error"] == "Execution failure", "Test execution should preserve the failure message"
+        assert execution_results[2]["success"] is True, "Test execution should continue after a failed test"
+        assert failing_execution_order == ["success", "failure", "final"], "Test execution should preserve execution order across successful and failed tests"
+        assert runner.tests == 3, "Test execution should account for all tests in a mixed execution"
+        assert runner.success == 2, "Test execution should account for successful tests in a mixed execution"
+        assert runner.failure == 1, "Test execution should account for failed tests in a mixed execution"
+        try:
+            runner.execute("invalid tests")
+            assert False, "Test execution should reject invalid test collections"
+        except ValueError:
+            pass
+        try:
+            runner.execute(
+                [
+                    {
+                        "name": "missing_function"
+                    }
+                ]
+            )
+            assert False, "Test execution should reject tests missing their executable function"
+        except ValueError:
+            pass
+        try:
+            runner.execute(
+                [
+                    {
+                        "name": "invalid_function",
+                        "function": "not callable"
+                    }
+                ]
+            )
+            assert False, "Test execution should reject non-callable test functions"
+        except ValueError:
+            pass
+        success += 1
+        print(green("Version 0.11.2 test execution is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.11.2 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
