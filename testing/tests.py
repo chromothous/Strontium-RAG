@@ -6074,6 +6074,85 @@ def full_test():
         print(red(e))
         print(red("Version 0.10.4 failed"))
 
+    try:
+        tests += 1
+        citation_source_first = {
+            "source": "citation_eval_source_a.txt",
+            "document_id": "citation-eval-document-a",
+            "chunk_id": "citation-eval-chunk-a"
+        }
+        citation_source_second = {
+            "source": "citation_eval_source_b.txt",
+            "document_id": "citation-eval-document-b",
+            "chunk_id": "citation-eval-chunk-b"
+        }
+        available_citation_sources = [
+            citation_source_first,
+            citation_source_second
+        ]
+        valid_citations = [
+            {
+                "source": "citation_eval_source_a.txt"
+            },
+            {
+                "source": "citation_eval_source_b.txt"
+            }
+        ]
+        citation_evaluation = evaluator.evaluate_citations(
+            valid_citations,
+            available_citation_sources
+        )
+        assert isinstance(citation_evaluation, dict), "Citation evaluation should return a structured evaluation result"
+        assert citation_evaluation["score"] == 1.0, "Citation evaluation should produce a complete correctness score when all citations correspond to available sources"
+        assert citation_evaluation["coverage"] == 1.0, "Citation evaluation should produce complete coverage when every available source is cited"
+        assert citation_evaluation["invalid_sources"] == [], "Citation evaluation should report no invalid sources when every citation is valid"
+        assert "citation_eval_source_a.txt" in citation_evaluation["valid_sources"], "Citation evaluation should identify the first valid citation source"
+        assert "citation_eval_source_b.txt" in citation_evaluation["valid_sources"], "Citation evaluation should identify the second valid citation source"
+        partial_citations = [
+            {
+                "source": "citation_eval_source_a.txt"
+            }
+        ]
+        partial_evaluation = evaluator.evaluate_citations(
+            partial_citations,
+            available_citation_sources
+        )
+        assert partial_evaluation["score"] == 1.0, "Citation evaluation should distinguish citation correctness from citation coverage"
+        assert partial_evaluation["coverage"] == 0.5, "Citation evaluation should measure citation coverage across available sources"
+        invalid_citation = [
+            {
+                "source": "unavailable_source.txt"
+            }
+        ]
+        invalid_evaluation = evaluator.evaluate_citations(
+            invalid_citation,
+            available_citation_sources
+        )
+        assert invalid_evaluation["score"] == 0.0, "Citation evaluation should detect citations that do not correspond to available sources"
+        assert "unavailable_source.txt" in invalid_evaluation["invalid_sources"], "Citation evaluation should identify unavailable citation sources"
+        try:
+            evaluator.evaluate_citations(
+                [],
+                available_citation_sources
+            )
+            assert False, "Citation evaluation should reject an empty citation set"
+        except ValueError:
+            pass
+        try:
+            evaluator.evaluate_citations(
+                valid_citations,
+                []
+            )
+            assert False, "Citation evaluation should reject an empty available source set"
+        except ValueError:
+            pass
+        success += 1
+        print(green("Version 0.10.5 citation evaluation is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.10.5 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

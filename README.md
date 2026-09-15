@@ -456,3 +456,6 @@ Context evaluation is online.
 
 Version 0.10.4
 Generation evaluation is online.
+
+Version 0.10.5
+Citation evaluation is online.

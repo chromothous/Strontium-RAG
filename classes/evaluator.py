@@ -225,6 +225,111 @@ class Evaluator:
             "missing_terms": list(missing_terms)
         }
 
+    def evaluate_citations(self, citations, available_sources):
+        if not isinstance(citations, (list, tuple)):
+            self.logger.error(
+                "Evaluator citations must be a list or tuple"
+            )
+            raise ValueError(
+                "Evaluator citations must be a list or tuple"
+            )
+        if not isinstance(available_sources, (list, tuple)):
+            self.logger.error(
+                "Evaluator available sources must be a list or tuple"
+            )
+            raise ValueError(
+                "Evaluator available sources must be a list or tuple"
+            )
+        if not citations:
+            self.logger.error(
+                "Evaluator citations cannot be empty"
+            )
+            raise ValueError(
+                "Evaluator citations cannot be empty"
+            )
+        if not available_sources:
+            self.logger.error(
+                "Evaluator available sources cannot be empty"
+            )
+            raise ValueError(
+                "Evaluator available sources cannot be empty"
+            )
+        available = set()
+        for source in available_sources:
+            if isinstance(source, dict):
+                if "source" not in source:
+                    self.logger.error(
+                        "Evaluator available source is missing source identity"
+                    )
+                    raise ValueError(
+                        "Evaluator available source is missing source identity"
+                    )
+                source_name = source["source"]
+            else:
+                source_name = source
+            if not isinstance(source_name, str):
+                self.logger.error(
+                    "Evaluator available source must contain a string identity"
+                )
+                raise ValueError(
+                    "Evaluator available source must contain a string identity"
+                )
+            if not source_name.strip():
+                self.logger.error(
+                    "Evaluator available source identity cannot be empty"
+                )
+                raise ValueError(
+                    "Evaluator available source identity cannot be empty"
+                )
+            available.add(source_name)
+        cited = []
+        valid = []
+        invalid = []
+        for citation in citations:
+            if isinstance(citation, dict):
+                if "source" not in citation:
+                    self.logger.error(
+                        "Evaluator citation is missing source identity"
+                    )
+                    raise ValueError(
+                        "Evaluator citation is missing source identity"
+                    )
+                source_name = citation["source"]
+            else:
+                source_name = citation
+            if not isinstance(source_name, str):
+                self.logger.error(
+                    "Evaluator citation source must be a string"
+                )
+                raise ValueError(
+                    "Evaluator citation source must be a string"
+                )
+            if not source_name.strip():
+                self.logger.error(
+                    "Evaluator citation source cannot be empty"
+                )
+                raise ValueError(
+                    "Evaluator citation source cannot be empty"
+                )
+            cited.append(source_name)
+            if source_name in available:
+                valid.append(source_name)
+            else:
+                invalid.append(source_name)
+        score = len(valid) / len(cited)
+        coverage = len(set(valid)) / len(available)
+        self.logger.info(
+            f"Citation evaluation completed: "
+            f"{len(valid)}/{len(cited)} valid citations"
+        )
+        return {
+            "score": score,
+            "coverage": coverage,
+            "cited_sources": cited,
+            "valid_sources": valid,
+            "invalid_sources": invalid
+        }
+
     def evaluate(self, question, context, response):
         self.logger.info("Evaluation request received")
         return None
