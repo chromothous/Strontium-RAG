@@ -6962,6 +6962,89 @@ def full_test():
         print(red(e))
         print(red("Version 0.11.5 failed"))
 
+    try:
+        tests += 1
+        from testing import TestRunner
+        runner = TestRunner()
+        def document_fixture():
+            return {
+                "content": "Reusable test document.",
+                "source": "fixture.txt"
+            }
+        runner.register_fixture(
+            "document",
+            document_fixture
+        )
+        fixtures = runner.get_registered_fixtures()
+        assert isinstance(fixtures, dict), "Test fixtures should expose a structured fixture registry"
+        assert "document" in fixtures, "Test fixtures should preserve registered fixture names"
+        assert callable(fixtures["document"]), "Test fixtures should preserve executable fixture functions"
+        first_fixture = runner.get_fixture("document")
+        second_fixture = runner.get_fixture("document")
+        assert isinstance(first_fixture, dict), "Test fixtures should produce reusable structured test data"
+        assert first_fixture["content"] == "Reusable test document.", "Test fixtures should preserve deterministic fixture content"
+        assert first_fixture["source"] == "fixture.txt", "Test fixtures should preserve deterministic fixture metadata"
+        assert first_fixture == second_fixture, "Test fixtures should produce consistent deterministic data"
+        assert first_fixture is not second_fixture, "Test fixtures should create a fresh fixture instance for each request"
+        first_fixture["modified"] = True
+        assert "modified" not in second_fixture, "Test fixtures should prevent mutable fixture state from leaking between requests"
+        loaded_fixtures = runner.load_fixtures(
+            [
+                {
+                    "name": "chunk",
+                    "function": lambda: {
+                        "content": "Reusable chunk."
+                    }
+                },
+                {
+                    "name": "response",
+                    "function": lambda: "Reusable response."
+                }
+            ]
+        )
+        assert isinstance(loaded_fixtures, dict), "Test fixture loading should return the registered fixture collection"
+        assert "chunk" in loaded_fixtures, "Test fixture loading should register the chunk fixture"
+        assert "response" in loaded_fixtures, "Test fixture loading should register the response fixture"
+        assert runner.get_fixture("chunk")["content"] == "Reusable chunk.", "Test fixtures should provide deterministic reusable chunk data"
+        assert runner.get_fixture("response") == "Reusable response.", "Test fixtures should provide deterministic reusable response data"
+        isolated_values = []
+        def fixture_test(state):
+            state["document"] = runner.get_fixture("document")
+            isolated_values.append(state["document"])
+        first_result = runner.run_isolated_test(
+            "fixture_test_one",
+            fixture_test
+        )
+        second_result = runner.run_isolated_test(
+            "fixture_test_two",
+            fixture_test
+        )
+        assert first_result["success"] is True, "Fixture-backed isolated tests should execute successfully"
+        assert second_result["success"] is True, "Fixture-backed isolated tests should execute successfully on repeated runs"
+        assert len(isolated_values) == 2, "Fixture-backed tests should receive fixture data on every execution"
+        assert isolated_values[0] is not isolated_values[1], "Fixture-backed tests should receive distinct fixture instances"
+        try:
+            runner.get_fixture("missing_fixture")
+            assert False, "Test fixtures should reject requests for unregistered fixtures"
+        except ValueError:
+            pass
+        try:
+            runner.register_fixture("", document_fixture)
+            assert False, "Test fixtures should reject empty fixture names"
+        except ValueError:
+            pass
+        try:
+            runner.register_fixture("invalid_fixture", "not callable")
+            assert False, "Test fixtures should reject non-callable fixture definitions"
+        except ValueError:
+            pass
+        success += 1
+        print(green("Version 0.11.6 test fixtures and reusable test data are online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.11.6 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

@@ -492,3 +492,6 @@ Regression suite automation is online.
 
 Version 0.11.5
 Test isolation and state control are online.
+
+Version 0.11.6
+Test fixtures and reusable test data are online.

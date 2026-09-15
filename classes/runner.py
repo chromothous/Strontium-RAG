@@ -3,28 +3,43 @@ import inspect
 import os
 import traceback
 
+from classes.logger import Logger
+
 
 class TestRunner:
-    def __init__(self):
+    def __init__(self, logger=None):
+        if logger is None:
+            logger = Logger()
+        if not isinstance(logger, Logger):
+            raise ValueError("Test runner logger must be a Logger")
+        self.logger = logger
         self.tests = 0
         self.success = 0
         self.failure = 0
         self.results = []
         self._registered_tests = []
         self._test_state = {}
+        self._fixtures = {}
+        self.logger.info("Test runner initialized")
 
     def register(self, name, test_function):
         if not isinstance(name, str):
+            self.logger.error("Test name must be a string")
             raise ValueError("Test name must be a string")
         if not name.strip():
+            self.logger.error("Test name cannot be empty")
             raise ValueError("Test name cannot be empty")
         if not callable(test_function):
+            self.logger.error("Test function must be callable")
             raise ValueError("Test function must be callable")
         self._registered_tests.append(
             {
                 "name": name,
                 "function": test_function
             }
+        )
+        self.logger.info(
+            f"Test registered: {name}"
         )
 
     def get_registered_tests(self):
@@ -35,13 +50,89 @@ class TestRunner:
 
     def set_test_state(self, key, value):
         if not isinstance(key, str):
+            self.logger.error("Test state key must be a string")
             raise ValueError("Test state key must be a string")
         if not key.strip():
+            self.logger.error("Test state key cannot be empty")
             raise ValueError("Test state key cannot be empty")
         self._test_state[key] = value
+        self.logger.info(
+            f"Test state updated: {key}"
+        )
 
     def clear_test_state(self):
         self._test_state = {}
+        self.logger.info("Test state cleared")
+
+    def register_fixture(self, name, fixture_function):
+        if not isinstance(name, str):
+            self.logger.error("Fixture name must be a string")
+            raise ValueError("Fixture name must be a string")
+        if not name.strip():
+            self.logger.error("Fixture name cannot be empty")
+            raise ValueError("Fixture name cannot be empty")
+        if not callable(fixture_function):
+            self.logger.error("Fixture function must be callable")
+            raise ValueError("Fixture function must be callable")
+        self._fixtures[name] = fixture_function
+        self.logger.info(
+            f"Test fixture registered: {name}"
+        )
+
+    def get_registered_fixtures(self):
+        return dict(self._fixtures)
+
+    def get_fixture(self, name):
+        if not isinstance(name, str):
+            self.logger.error("Fixture name must be a string")
+            raise ValueError("Fixture name must be a string")
+        if name not in self._fixtures:
+            self.logger.error(
+                f"Fixture not found: {name}"
+            )
+            raise ValueError(
+                f"Fixture '{name}' is not registered"
+            )
+        self.logger.info(
+            f"Test fixture requested: {name}"
+        )
+        return self._fixtures[name]()
+
+    def load_fixtures(self, fixture_definitions):
+        if not isinstance(fixture_definitions, (list, tuple)):
+            self.logger.error(
+                "Fixture definitions must be a list or tuple"
+            )
+            raise ValueError(
+                "Fixture definitions must be a list or tuple"
+            )
+        for fixture in fixture_definitions:
+            if not isinstance(fixture, dict):
+                self.logger.error(
+                    "Fixture definition must be a dictionary"
+                )
+                raise ValueError(
+                    "Each fixture definition must be a dictionary"
+                )
+            if "name" not in fixture:
+                self.logger.error(
+                    "Fixture definition is missing name"
+                )
+                raise ValueError(
+                    "Fixture definition is missing name"
+                )
+            if "function" not in fixture:
+                self.logger.error(
+                    "Fixture definition is missing function"
+                )
+                raise ValueError(
+                    "Fixture definition is missing function"
+                )
+            self.register_fixture(
+                fixture["name"],
+                fixture["function"]
+            )
+        return self.get_registered_fixtures()
 
     def _execute_function(self, test_function):
         parameters = inspect.signature(test_function).parameters
@@ -55,6 +146,9 @@ class TestRunner:
 
     def run_test(self, name, test_function):
         self.tests += 1
+        self.logger.info(
+            f"Test execution started: {name}"
+        )
         try:
             self._execute_function(test_function)
             self.success += 1
@@ -65,6 +159,9 @@ class TestRunner:
                 "error": None,
                 "traceback": None
             }
+            self.logger.info(
+                f"Test execution succeeded: {name}"
+            )
         except AssertionError as e:
             self.failure += 1
             result = {
@@ -74,6 +171,9 @@ class TestRunner:
                 "error": str(e),
                 "traceback": traceback.format_exc()
             }
+            self.logger.error(
+                f"Test assertion failure: {name} - {e}"
+            )
         except Exception as e:
             self.failure += 1
             result = {
@@ -83,36 +183,60 @@ class TestRunner:
                 "error": str(e),
                 "traceback": traceback.format_exc()
             }
+            self.logger.error(
+                f"Test exception: {name} - {e}"
+            )
         self.results.append(result)
         return result
 
     def run_isolated_test(self, name, test_function):
+        self.logger.info(
+            f"Isolated test execution started: {name}"
+        )
         self.clear_test_state()
         result = self.run_test(
             name,
             test_function
         )
         self.clear_test_state()
+        self.logger.info(
+            f"Isolated test execution completed: {name}"
+        )
         return result
 
     def run_registered(self):
+        self.logger.info(
+            f"Registered test execution started: {len(self._registered_tests)} tests"
+        )
         for test in self._registered_tests:
             self.run_test(
                 test["name"],
                 test["function"]
             )
+        self.logger.info(
+            "Registered test execution completed"
+        )
         return self.get_results()
 
     def discover(self, directory):
         if not isinstance(directory, str):
+            self.logger.error(
+                "Test discovery directory must be a string"
+            )
             raise ValueError(
                 "Test discovery directory must be a string"
             )
         if not directory.strip():
+            self.logger.error(
+                "Test discovery directory cannot be empty"
+            )
             raise ValueError(
                 "Test discovery directory cannot be empty"
             )
         if not os.path.isdir(directory):
+            self.logger.error(
+                "Test discovery directory does not exist"
+            )
             raise ValueError(
                 "Test discovery directory does not exist"
             )
@@ -131,6 +255,9 @@ class TestRunner:
                 module_path
             )
             if spec is None or spec.loader is None:
+                self.logger.warning(
+                    f"Test module could not be loaded: {filename}"
+                )
                 continue
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
@@ -145,9 +272,8 @@ class TestRunner:
                             "function": test_function
                         }
                     )
-        self.logger_info(
-            f"Test discovery completed: "
-            f"{len(discovered)} tests discovered"
+        self.logger.info(
+            f"Test discovery completed: {len(discovered)} tests discovered"
         )
         return discovered
 
@@ -158,36 +284,60 @@ class TestRunner:
                 test["name"],
                 test["function"]
             )
+        self.logger.info(
+            f"Discovered tests registered: {len(discovered)}"
+        )
         return discovered
 
     def execute(self, tests=None):
         if tests is None:
             tests = self._registered_tests
         if not isinstance(tests, (list, tuple)):
+            self.logger.error(
+                "Tests to execute must be a list or tuple"
+            )
             raise ValueError(
                 "Tests to execute must be a list or tuple"
             )
         execution_results = []
+        self.logger.info(
+            f"Test execution requested: {len(tests)} tests"
+        )
         for test in tests:
             if not isinstance(test, dict):
+                self.logger.error(
+                    "Each test to execute must be a dictionary"
+                )
                 raise ValueError(
                     "Each test to execute must be a dictionary"
                 )
             if "name" not in test:
+                self.logger.error(
+                    "Test to execute is missing name"
+                )
                 raise ValueError(
                     "Test to execute is missing name"
                 )
             if "function" not in test:
+                self.logger.error(
+                    "Test to execute is missing function"
+                )
                 raise ValueError(
                     "Test to execute is missing function"
                 )
             name = test["name"]
             test_function = test["function"]
             if not isinstance(name, str):
+                self.logger.error(
+                    "Test execution name must be a string"
+                )
                 raise ValueError(
                     "Test execution name must be a string"
                 )
             if not callable(test_function):
+                self.logger.error(
+                    "Test execution function must be callable"
+                )
                 raise ValueError(
                     "Test execution function must be callable"
                 )
@@ -197,36 +347,60 @@ class TestRunner:
                     test_function
                 )
             )
+        self.logger.info(
+            "Test execution completed"
+        )
         return execution_results
 
     def execute_isolated(self, tests=None):
         if tests is None:
             tests = self._registered_tests
         if not isinstance(tests, (list, tuple)):
+            self.logger.error(
+                "Isolated tests to execute must be a list or tuple"
+            )
             raise ValueError(
                 "Isolated tests to execute must be a list or tuple"
             )
         execution_results = []
+        self.logger.info(
+            f"Isolated test execution requested: {len(tests)} tests"
+        )
         for test in tests:
             if not isinstance(test, dict):
+                self.logger.error(
+                    "Each isolated test must be a dictionary"
+                )
                 raise ValueError(
                     "Each isolated test must be a dictionary"
                 )
             if "name" not in test:
+                self.logger.error(
+                    "Isolated test is missing name"
+                )
                 raise ValueError(
                     "Isolated test is missing name"
                 )
             if "function" not in test:
+                self.logger.error(
+                    "Isolated test is missing function"
+                )
                 raise ValueError(
                     "Isolated test is missing function"
                 )
             name = test["name"]
             test_function = test["function"]
             if not isinstance(name, str):
+                self.logger.error(
+                    "Isolated test name must be a string"
+                )
                 raise ValueError(
                     "Isolated test name must be a string"
                 )
             if not callable(test_function):
+                self.logger.error(
+                    "Isolated test function must be callable"
+                )
                 raise ValueError(
                     "Isolated test function must be callable"
                 )
@@ -236,22 +410,37 @@ class TestRunner:
                     test_function
                 )
             )
+        self.logger.info(
+            "Isolated test execution completed"
+        )
         return execution_results
 
     def execute_discovered(self, directory):
+        self.logger.info(
+            f"Discovered test execution requested: {directory}"
+        )
         self.register_discovered(directory)
         return self.execute()
 
     def run_regression_suite(self, suite_path):
         if not isinstance(suite_path, str):
+            self.logger.error(
+                "Regression suite path must be a string"
+            )
             raise ValueError(
                 "Regression suite path must be a string"
             )
         if not suite_path.strip():
+            self.logger.error(
+                "Regression suite path cannot be empty"
+            )
             raise ValueError(
                 "Regression suite path cannot be empty"
             )
         if not os.path.isfile(suite_path):
+            self.logger.error(
+                "Regression suite file does not exist"
+            )
             raise ValueError(
                 "Regression suite file does not exist"
             )
@@ -263,27 +452,36 @@ class TestRunner:
             suite_path
         )
         if spec is None or spec.loader is None:
+            self.logger.error(
+                "Regression suite could not be loaded"
+            )
             raise ValueError(
                 "Regression suite could not be loaded"
             )
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         if not hasattr(module, "full_test"):
+            self.logger.error(
+                "Regression suite must provide a full_test function"
+            )
             raise ValueError(
                 "Regression suite must provide a full_test function"
             )
         full_test = module.full_test
         if not callable(full_test):
+            self.logger.error(
+                "Regression suite full_test must be callable"
+            )
             raise ValueError(
                 "Regression suite full_test must be callable"
             )
+        self.logger.info(
+            "Cumulative regression suite execution started"
+        )
         return self.run_test(
             "cumulative_regression_suite",
             full_test
         )
-
-    def logger_info(self, message):
-        return message
 
     def get_results(self):
         return {
@@ -299,3 +497,4 @@ class TestRunner:
         self.failure = 0
         self.results = []
         self._test_state = {}
+        self.logger.info("Test runner state reset")
