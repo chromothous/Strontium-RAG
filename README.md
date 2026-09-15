@@ -474,3 +474,6 @@ Evaluation failure handling is online.
 
 Version 0.10.10
 Complete RAG evaluation pipeline is online.
+
+Version 0.11.0
+Automated testing foundation is online.

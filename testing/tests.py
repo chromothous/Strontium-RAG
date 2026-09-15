@@ -6555,6 +6555,66 @@ def full_test():
         print(red(e))
         print(red("Version 0.10.10 failed"))
 
+    try:
+        tests += 1
+        from testing import TestRunner
+        runner = TestRunner()
+        assert isinstance(runner, TestRunner), "Testing foundation should create a valid automated test runner"
+        assert runner.tests == 0, "Testing foundation should initialize the test count at zero"
+        assert runner.success == 0, "Testing foundation should initialize the success count at zero"
+        assert runner.failure == 0, "Testing foundation should initialize the failure count at zero"
+        assert isinstance(runner.results, list), "Testing foundation should initialize structured test results"
+        def passing_test():
+            assert True, "Foundation passing test should execute successfully"
+        runner.register("passing_test", passing_test)
+        registered_tests = runner.get_registered_tests()
+        assert isinstance(registered_tests, list), "Testing foundation should expose registered tests as a collection"
+        assert len(registered_tests) == 1, "Testing foundation should retain registered tests"
+        assert registered_tests[0]["name"] == "passing_test", "Testing foundation should preserve the registered test name"
+        assert callable(registered_tests[0]["function"]), "Testing foundation should preserve the registered test callable"
+        result = runner.run_registered()
+        assert isinstance(result, dict), "Testing foundation should return structured execution results"
+        assert result["tests"] == 1, "Testing foundation should account for executed tests"
+        assert result["success"] == 1, "Testing foundation should account for successful tests"
+        assert result["failure"] == 0, "Testing foundation should account for zero failures when execution succeeds"
+        assert len(result["results"]) == 1, "Testing foundation should preserve the individual test result"
+        assert result["results"][0]["success"] is True, "Testing foundation should record successful execution"
+        assert result["results"][0]["error"] is None, "Testing foundation should leave successful test errors empty"
+        def failing_test():
+            raise ValueError("Foundation failure")
+        failed_result = runner.run_test(
+            "failing_test",
+            failing_test
+        )
+        assert failed_result["success"] is False, "Testing foundation should record failed test execution"
+        assert failed_result["error"] == "Foundation failure", "Testing foundation should preserve the test failure message"
+        assert "traceback" in failed_result, "Testing foundation should preserve diagnostic traceback information"
+        assert runner.tests == 2, "Testing foundation should accumulate total test executions"
+        assert runner.success == 1, "Testing foundation should preserve successful execution accounting after a failure"
+        assert runner.failure == 1, "Testing foundation should accumulate failed execution accounting"
+        try:
+            runner.register("", passing_test)
+            assert False, "Testing foundation should reject empty test names"
+        except ValueError:
+            pass
+        try:
+            runner.register("invalid_test", "not callable")
+            assert False, "Testing foundation should reject non-callable test functions"
+        except ValueError:
+            pass
+        runner.reset()
+        reset_results = runner.get_results()
+        assert reset_results["tests"] == 0, "Testing foundation should reset test execution accounting"
+        assert reset_results["success"] == 0, "Testing foundation should reset successful execution accounting"
+        assert reset_results["failure"] == 0, "Testing foundation should reset failed execution accounting"
+        assert reset_results["results"] == [], "Testing foundation should clear prior execution results"
+        success += 1
+        print(green("Version 0.11.0 automated testing foundation is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.11.0 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
