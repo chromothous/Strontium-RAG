@@ -459,3 +459,6 @@ Generation evaluation is online.
 
 Version 0.10.5
 Citation evaluation is online.
+
+Version 0.10.6
+Grounding evaluation is online.

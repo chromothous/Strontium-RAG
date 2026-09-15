@@ -41,6 +41,37 @@ class Evaluator:
                 "Evaluator expected data must be a dictionary"
             )
 
+    def _get_content_terms(self, text):
+        stopwords = {
+            "a",
+            "an",
+            "and",
+            "are",
+            "as",
+            "at",
+            "be",
+            "by",
+            "for",
+            "from",
+            "in",
+            "is",
+            "it",
+            "of",
+            "on",
+            "or",
+            "that",
+            "the",
+            "this",
+            "to",
+            "was",
+            "were",
+            "with"
+        }
+        terms = set(
+            re.findall(r"\b\w+\b", text.lower())
+        )
+        return terms - stopwords
+
     def validate_inputs(
         self,
         question,
@@ -204,12 +235,8 @@ class Evaluator:
             raise ValueError(
                 "Evaluator expected answer cannot be empty"
             )
-        expected_terms = set(
-            re.findall(r"\b\w+\b", expected_answer.lower())
-        )
-        response_terms = set(
-            re.findall(r"\b\w+\b", response.lower())
-        )
+        expected_terms = self._get_content_terms(expected_answer)
+        response_terms = self._get_content_terms(response)
         matched_terms = expected_terms.intersection(response_terms)
         missing_terms = expected_terms - response_terms
         score = len(matched_terms) / len(expected_terms)
@@ -328,6 +355,26 @@ class Evaluator:
             "cited_sources": cited,
             "valid_sources": valid,
             "invalid_sources": invalid
+        }
+
+    def evaluate_grounding(self, context, response):
+        self._validate_context(context)
+        self._validate_response(response)
+        context_terms = self._get_content_terms(context)
+        response_terms = self._get_content_terms(response)
+        unsupported_terms = response_terms - context_terms
+        supported_terms = response_terms.intersection(context_terms)
+        score = len(supported_terms) / len(response_terms)
+        self.logger.info(
+            f"Grounding evaluation completed: "
+            f"{len(supported_terms)}/{len(response_terms)} response terms supported"
+        )
+        return {
+            "score": score,
+            "supported_terms": list(supported_terms),
+            "unsupported_terms": list(unsupported_terms),
+            "context_terms": list(context_terms),
+            "response_terms": list(response_terms)
         }
 
     def evaluate(self, question, context, response):

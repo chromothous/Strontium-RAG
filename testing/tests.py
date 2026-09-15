@@ -6153,6 +6153,57 @@ def full_test():
         print(red(e))
         print(red("Version 0.10.5 failed"))
 
+    try:
+        tests += 1
+        grounding_context = "Retrieval augmented generation uses retrieved information to support a generated answer."
+        grounded_response = "Retrieval augmented generation uses retrieved information to support an answer."
+        grounding_evaluation = evaluator.evaluate_grounding(
+            grounding_context,
+            grounded_response
+        )
+        assert isinstance(grounding_evaluation, dict), "Grounding evaluation should return a structured evaluation result"
+        assert grounding_evaluation["score"] == 1.0, "Grounding evaluation should produce a complete score when every response term is supported by the supplied context"
+        assert grounding_evaluation["unsupported_terms"] == [], "Grounding evaluation should report no unsupported terms when the response is fully supported by context"
+        assert "retrieval" in grounding_evaluation["supported_terms"], "Grounding evaluation should identify supported response terms"
+        unsupported_response = "Retrieval augmented generation uses quantum teleportation to support an answer."
+        unsupported_evaluation = evaluator.evaluate_grounding(
+            grounding_context,
+            unsupported_response
+        )
+        assert unsupported_evaluation["score"] < 1.0, "Grounding evaluation should detect responses containing unsupported information"
+        assert "quantum" in unsupported_evaluation["unsupported_terms"], "Grounding evaluation should identify unsupported claims represented by response terms"
+        assert "teleportation" in unsupported_evaluation["unsupported_terms"], "Grounding evaluation should identify additional unsupported claim terms"
+        try:
+            evaluator.evaluate_grounding(
+                "",
+                grounded_response
+            )
+            assert False, "Grounding evaluation should reject empty context"
+        except ValueError:
+            pass
+        try:
+            evaluator.evaluate_grounding(
+                grounding_context,
+                ""
+            )
+            assert False, "Grounding evaluation should reject an empty response"
+        except ValueError:
+            pass
+        try:
+            evaluator.evaluate_grounding(
+                grounding_context,
+                None
+            )
+            assert False, "Grounding evaluation should reject a non-string response"
+        except ValueError:
+            pass
+        success += 1
+        print(green("Version 0.10.6 grounding evaluation is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.10.6 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
