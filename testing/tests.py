@@ -6024,6 +6024,56 @@ def full_test():
         print(red(e))
         print(red("Version 0.10.3 failed"))
 
+    try:
+        tests += 1
+        generation_response = "Retrieval augmented generation uses retrieved information to support a generated answer."
+        generation_expected = "Retrieval augmented generation uses retrieved information."
+        generation_evaluation = evaluator.evaluate_generation(
+            generation_response,
+            generation_expected
+        )
+        assert isinstance(generation_evaluation, dict), "Generation evaluation should return a structured evaluation result"
+        assert generation_evaluation["score"] == 1.0, "Generation evaluation should produce a complete score when all expected answer terms are present"
+        assert generation_evaluation["expected_answer"] == generation_expected, "Generation evaluation should preserve the expected answer"
+        assert generation_evaluation["response"] == generation_response, "Generation evaluation should preserve the generated response"
+        assert generation_evaluation["missing_terms"] == [], "Generation evaluation should report no missing expected terms when the response fully contains the expected answer content"
+        partial_generation = evaluator.evaluate_generation(
+            "Retrieval augmented generation uses retrieved information.",
+            "Retrieval augmented generation uses retrieved information to support an answer."
+        )
+        assert partial_generation["score"] < 1.0, "Generation evaluation should distinguish incomplete generated content from a complete expected answer"
+        assert len(partial_generation["missing_terms"]) > 0, "Generation evaluation should identify expected answer terms missing from the generated response"
+        try:
+            evaluator.evaluate_generation(
+                "",
+                generation_expected
+            )
+            assert False, "Generation evaluation should reject an empty generated response"
+        except ValueError:
+            pass
+        try:
+            evaluator.evaluate_generation(
+                generation_response,
+                ""
+            )
+            assert False, "Generation evaluation should reject an empty expected answer"
+        except ValueError:
+            pass
+        try:
+            evaluator.evaluate_generation(
+                generation_response,
+                None
+            )
+            assert False, "Generation evaluation should reject a non-string expected answer"
+        except ValueError:
+            pass
+        success += 1
+        print(green("Version 0.10.4 generation evaluation is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.10.4 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

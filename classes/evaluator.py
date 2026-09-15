@@ -1,3 +1,4 @@
+import re
 from classes.logger import Logger
 
 
@@ -185,6 +186,43 @@ class Evaluator:
             "expected_content": expected,
             "present_content": present,
             "missing_content": missing
+        }
+
+    def evaluate_generation(self, response, expected_answer):
+        self._validate_response(response)
+        if not isinstance(expected_answer, str):
+            self.logger.error(
+                "Evaluator expected answer must be a string"
+            )
+            raise ValueError(
+                "Evaluator expected answer must be a string"
+            )
+        if not expected_answer.strip():
+            self.logger.error(
+                "Evaluator expected answer cannot be empty"
+            )
+            raise ValueError(
+                "Evaluator expected answer cannot be empty"
+            )
+        expected_terms = set(
+            re.findall(r"\b\w+\b", expected_answer.lower())
+        )
+        response_terms = set(
+            re.findall(r"\b\w+\b", response.lower())
+        )
+        matched_terms = expected_terms.intersection(response_terms)
+        missing_terms = expected_terms - response_terms
+        score = len(matched_terms) / len(expected_terms)
+        self.logger.info(
+            f"Generation evaluation completed: "
+            f"{len(matched_terms)}/{len(expected_terms)} expected terms matched"
+        )
+        return {
+            "score": score,
+            "expected_answer": expected_answer,
+            "response": response,
+            "matched_terms": list(matched_terms),
+            "missing_terms": list(missing_terms)
         }
 
     def evaluate(self, question, context, response):

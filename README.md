@@ -453,3 +453,6 @@ Retrieval evaluation is online.
 
 Version 0.10.3
 Context evaluation is online.
+
+Version 0.10.4
+Generation evaluation is online.
