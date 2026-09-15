@@ -462,3 +462,6 @@ Citation evaluation is online.
 
 Version 0.10.6
 Grounding evaluation is online.
+
+Version 0.10.7
+Evaluation metrics are online.

@@ -377,6 +377,49 @@ class Evaluator:
             "response_terms": list(response_terms)
         }
 
+    def evaluate_metrics(
+        self,
+        retrieval_score,
+        context_score,
+        generation_score,
+        citation_score,
+        grounding_score
+    ):
+        scores = {
+            "retrieval": retrieval_score,
+            "context": context_score,
+            "generation": generation_score,
+            "citation": citation_score,
+            "grounding": grounding_score
+        }
+        for name, score in scores.items():
+            if not isinstance(score, (int, float)) or isinstance(score, bool):
+                self.logger.error(
+                    f"Evaluator {name} score must be numeric"
+                )
+                raise ValueError(
+                    f"Evaluator {name} score must be numeric"
+                )
+            if score < 0 or score > 1:
+                self.logger.error(
+                    f"Evaluator {name} score must be between zero and one"
+                )
+                raise ValueError(
+                    f"Evaluator {name} score must be between zero and one"
+                )
+        overall_score = round(sum(scores.values()) / len(scores), 6)
+        self.logger.info(
+            "Evaluation metrics aggregated successfully"
+        )
+        return {
+            "retrieval": float(retrieval_score),
+            "context": float(context_score),
+            "generation": float(generation_score),
+            "citation": float(citation_score),
+            "grounding": float(grounding_score),
+            "overall": float(overall_score)
+        }
+
     def evaluate(self, question, context, response):
         self.logger.info("Evaluation request received")
         return None

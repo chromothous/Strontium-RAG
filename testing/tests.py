@@ -6204,6 +6204,62 @@ def full_test():
         print(red(e))
         print(red("Version 0.10.6 failed"))
 
+    try:
+        tests += 1
+        evaluation_metrics = evaluator.evaluate_metrics(
+            1.0,
+            0.8,
+            0.9,
+            1.0,
+            0.7
+        )
+        assert isinstance(evaluation_metrics, dict), "Evaluation metrics should return a structured metrics result"
+        assert evaluation_metrics["retrieval"] == 1.0, "Evaluation metrics should preserve the retrieval score"
+        assert evaluation_metrics["context"] == 0.8, "Evaluation metrics should preserve the context score"
+        assert evaluation_metrics["generation"] == 0.9, "Evaluation metrics should preserve the generation score"
+        assert evaluation_metrics["citation"] == 1.0, "Evaluation metrics should preserve the citation score"
+        assert evaluation_metrics["grounding"] == 0.7, "Evaluation metrics should preserve the grounding score"
+        assert evaluation_metrics["overall"] == 0.88, "Evaluation metrics should calculate the overall score as the standardized mean of component scores"
+        try:
+            evaluator.evaluate_metrics(
+                1.1,
+                0.8,
+                0.9,
+                1.0,
+                0.7
+            )
+            assert False, "Evaluation metrics should reject scores greater than one"
+        except ValueError:
+            pass
+        try:
+            evaluator.evaluate_metrics(
+                1.0,
+                -0.1,
+                0.9,
+                1.0,
+                0.7
+            )
+            assert False, "Evaluation metrics should reject scores below zero"
+        except ValueError:
+            pass
+        try:
+            evaluator.evaluate_metrics(
+                1.0,
+                "0.8",
+                0.9,
+                1.0,
+                0.7
+            )
+            assert False, "Evaluation metrics should reject non-numeric component scores"
+        except ValueError:
+            pass
+        success += 1
+        print(green("Version 0.10.7 evaluation metrics are online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.10.7 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
