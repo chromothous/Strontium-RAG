@@ -5962,6 +5962,68 @@ def full_test():
         print(red(e))
         print(red("Version 0.10.2 failed"))
 
+    try:
+        tests += 1
+        context_evaluation = evaluator.evaluate_context(
+            "First relevant fact. Second relevant fact. Additional context.",
+            [
+                "First relevant fact.",
+                "Second relevant fact."
+            ]
+        )
+        assert isinstance(context_evaluation, dict), "Context evaluation should return a structured evaluation result"
+        assert context_evaluation["score"] == 1.0, "Context evaluation should produce a complete score when all expected content is present"
+        assert "First relevant fact." in context_evaluation["present_content"], "Context evaluation should identify the first expected item as present"
+        assert "Second relevant fact." in context_evaluation["present_content"], "Context evaluation should identify the second expected item as present"
+        assert context_evaluation["missing_content"] == [], "Context evaluation should report no missing content when all expected information is present"
+        incomplete_context_evaluation = evaluator.evaluate_context(
+            "First relevant fact.",
+            [
+                "First relevant fact.",
+                "Second relevant fact."
+            ]
+        )
+        assert incomplete_context_evaluation["score"] == 0.5, "Context evaluation should measure the proportion of expected information present in the constructed context"
+        assert "Second relevant fact." in incomplete_context_evaluation["missing_content"], "Context evaluation should identify expected information missing from the constructed context"
+        try:
+            evaluator.evaluate_context(
+                "",
+                ["Expected content."]
+            )
+            assert False, "Context evaluation should reject empty constructed context"
+        except ValueError:
+            pass
+        try:
+            evaluator.evaluate_context(
+                "Valid context.",
+                []
+            )
+            assert False, "Context evaluation should reject an empty expected content set"
+        except ValueError:
+            pass
+        try:
+            evaluator.evaluate_context(
+                "Valid context.",
+                ["", "Expected content."]
+            )
+            assert False, "Context evaluation should reject empty expected context content"
+        except ValueError:
+            pass
+        try:
+            evaluator.evaluate_context(
+                "Valid context.",
+                [123]
+            )
+            assert False, "Context evaluation should reject non-string expected context content"
+        except ValueError:
+            pass
+        success += 1
+        print(green("Version 0.10.3 context evaluation is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.10.3 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

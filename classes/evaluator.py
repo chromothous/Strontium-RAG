@@ -56,40 +56,73 @@ class Evaluator:
 
     def evaluate_retrieval(self, results, expected_sources):
         if not isinstance(results, (list, tuple)):
-            self.logger.error("Evaluator retrieval results must be a list or tuple")
-            raise ValueError("Evaluator retrieval results must be a list or tuple")
+            self.logger.error(
+                "Evaluator retrieval results must be a list or tuple"
+            )
+            raise ValueError(
+                "Evaluator retrieval results must be a list or tuple"
+            )
         if not isinstance(expected_sources, (list, tuple)):
-            self.logger.error("Evaluator expected sources must be a list or tuple")
-            raise ValueError("Evaluator expected sources must be a list or tuple")
+            self.logger.error(
+                "Evaluator expected sources must be a list or tuple"
+            )
+            raise ValueError(
+                "Evaluator expected sources must be a list or tuple"
+            )
         if not expected_sources:
-            self.logger.error("Evaluator expected sources cannot be empty")
-            raise ValueError("Evaluator expected sources cannot be empty")
+            self.logger.error(
+                "Evaluator expected sources cannot be empty"
+            )
+            raise ValueError(
+                "Evaluator expected sources cannot be empty"
+            )
         retrieved_sources = set()
         for result in results:
             if not isinstance(result, dict):
-                self.logger.error("Evaluator retrieval result must be a dictionary")
-                raise ValueError("Evaluator retrieval result must be a dictionary")
+                self.logger.error(
+                    "Evaluator retrieval result must be a dictionary"
+                )
+                raise ValueError(
+                    "Evaluator retrieval result must be a dictionary"
+                )
             if "chunk" not in result:
-                self.logger.error("Evaluator retrieval result is missing chunk")
-                raise ValueError("Evaluator retrieval result is missing chunk")
+                self.logger.error(
+                    "Evaluator retrieval result is missing chunk"
+                )
+                raise ValueError(
+                    "Evaluator retrieval result is missing chunk"
+                )
             chunk = result["chunk"]
             if not hasattr(chunk, "source"):
-                self.logger.error("Evaluator retrieval chunk must contain source identity")
-                raise ValueError("Evaluator retrieval chunk must contain source identity")
+                self.logger.error(
+                    "Evaluator retrieval chunk must contain source identity"
+                )
+                raise ValueError(
+                    "Evaluator retrieval chunk must contain source identity"
+                )
             retrieved_sources.add(chunk.source)
         expected = set()
         for source in expected_sources:
             if not isinstance(source, str):
-                self.logger.error("Evaluator expected source must be a string")
-                raise ValueError("Evaluator expected source must be a string")
+                self.logger.error(
+                    "Evaluator expected source must be a string"
+                )
+                raise ValueError(
+                    "Evaluator expected source must be a string"
+                )
             if not source.strip():
-                self.logger.error("Evaluator expected source cannot be empty")
-                raise ValueError("Evaluator expected source cannot be empty")
+                self.logger.error(
+                    "Evaluator expected source cannot be empty"
+                )
+                raise ValueError(
+                    "Evaluator expected source cannot be empty"
+                )
             expected.add(source)
         relevant_sources = retrieved_sources.intersection(expected)
         score = len(relevant_sources) / len(expected)
         self.logger.info(
-            f"Retrieval evaluation completed: {len(relevant_sources)}/{len(expected)} relevant sources"
+            f"Retrieval evaluation completed: "
+            f"{len(relevant_sources)}/{len(expected)} relevant sources"
         )
         return {
             "score": score,
@@ -97,6 +130,61 @@ class Evaluator:
             "expected_sources": list(expected),
             "relevant_sources": list(relevant_sources),
             "missing_sources": list(expected - retrieved_sources)
+        }
+
+    def evaluate_context(self, context, expected_content):
+        self._validate_context(context)
+        if not isinstance(expected_content, (list, tuple)):
+            self.logger.error(
+                "Evaluator expected content must be a list or tuple"
+            )
+            raise ValueError(
+                "Evaluator expected content must be a list or tuple"
+            )
+        if not expected_content:
+            self.logger.error(
+                "Evaluator expected content cannot be empty"
+            )
+            raise ValueError(
+                "Evaluator expected content cannot be empty"
+            )
+        expected = []
+        for content in expected_content:
+            if not isinstance(content, str):
+                self.logger.error(
+                    "Evaluator expected context content must be a string"
+                )
+                raise ValueError(
+                    "Evaluator expected context content must be a string"
+                )
+            if not content.strip():
+                self.logger.error(
+                    "Evaluator expected context content cannot be empty"
+                )
+                raise ValueError(
+                    "Evaluator expected context content cannot be empty"
+                )
+            expected.append(content)
+        present = [
+            content
+            for content in expected
+            if content in context
+        ]
+        missing = [
+            content
+            for content in expected
+            if content not in context
+        ]
+        score = len(present) / len(expected)
+        self.logger.info(
+            f"Context evaluation completed: "
+            f"{len(present)}/{len(expected)} expected items present"
+        )
+        return {
+            "score": score,
+            "expected_content": expected,
+            "present_content": present,
+            "missing_content": missing
         }
 
     def evaluate(self, question, context, response):
