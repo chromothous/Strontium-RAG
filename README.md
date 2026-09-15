@@ -495,3 +495,6 @@ Test isolation and state control are online.
 
 Version 0.11.6
 Test fixtures and reusable test data are online.
+
+Version 0.11.7
+Integration test automation is online.

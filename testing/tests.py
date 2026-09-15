@@ -7045,6 +7045,114 @@ def full_test():
         print(red(e))
         print(red("Version 0.11.6 failed"))
 
+    try:
+        tests += 1
+        from classes.logger import Logger
+        from testing import TestRunner
+        logger = Logger()
+        runner = TestRunner(logger)
+        integration_events = []
+        def integrated_pipeline(state):
+            state["ingestion"] = "document"
+            state["retrieval"] = "chunk"
+            state["context"] = "constructed context"
+            state["generation"] = "generated response"
+            state["citation"] = "source citation"
+            integration_events.append(
+                (
+                    state["ingestion"],
+                    state["retrieval"],
+                    state["context"],
+                    state["generation"],
+                    state["citation"]
+                )
+            )
+            assert state["ingestion"] == "document", "Integration testing should preserve the ingestion stage"
+            assert state["retrieval"] == "chunk", "Integration testing should preserve the retrieval stage"
+            assert state["context"] == "constructed context", "Integration testing should preserve the context construction stage"
+            assert state["generation"] == "generated response", "Integration testing should preserve the generation stage"
+            assert state["citation"] == "source citation", "Integration testing should preserve the citation stage"
+        runner.register_integration_test(
+            "rag_pipeline",
+            integrated_pipeline
+        )
+        integration_tests = runner.get_registered_integration_tests()
+        assert isinstance(integration_tests, dict), "Integration testing should expose a structured integration test registry"
+        assert "rag_pipeline" in integration_tests, "Integration testing should preserve registered integration tests"
+        assert callable(integration_tests["rag_pipeline"]), "Integration testing should preserve executable integration test functions"
+        integration_results = runner.run_registered_integration()
+        assert isinstance(integration_results, dict), "Integration testing should return structured execution results"
+        assert integration_results["tests"] == 1, "Integration testing should account for each executed integration test"
+        assert integration_results["success"] == 1, "Integration testing should account for successful integration tests"
+        assert integration_results["failure"] == 0, "Integration testing should report zero failures for successful integration tests"
+        assert len(integration_results["results"]) == 1, "Integration testing should preserve the individual integration result"
+        assert integration_results["results"][0]["name"] == "integration:rag_pipeline", "Integration testing should identify the integration test separately from isolated tests"
+        assert integration_results["results"][0]["success"] is True, "Integration testing should report a successful cross-component test"
+        assert integration_events == [
+            (
+                "document",
+                "chunk",
+                "constructed context",
+                "generated response",
+                "source citation"
+            )
+        ], "Integration testing should preserve the complete subsystem relationship in execution order"
+        assert runner.get_test_state() == {}, "Integration testing should isolate state after integration execution"
+        runner.reset()
+        failure_result = runner.run_integration_test(
+            "failing_pipeline",
+            lambda state: (_ for _ in ()).throw(
+                RuntimeError("Integration failure")
+            )
+        )
+        assert failure_result["success"] is False, "Integration testing should capture failed subsystem interactions"
+        assert failure_result["failure_type"] == "exception", "Integration testing should distinguish unexpected integration exceptions"
+        assert failure_result["error"] == "Integration failure", "Integration testing should preserve integration failure information"
+        assert runner.failure == 1, "Integration testing should account for integration failures"
+        runner.reset()
+        execution_results = runner.execute_integration(
+            [
+                {
+                    "name": "first_integration",
+                    "function": lambda state: state.update(
+                        {"stage": "first"}
+                    )
+                },
+                {
+                    "name": "second_integration",
+                    "function": lambda state: state.update(
+                        {"stage": "second"}
+                    )
+                }
+            ]
+        )
+        assert len(execution_results) == 2, "Integration test execution should execute every supplied integration test"
+        assert execution_results[0]["success"] is True, "Integration test execution should preserve the first successful integration result"
+        assert execution_results[1]["success"] is True, "Integration test execution should preserve the second successful integration result"
+        assert runner.tests == 2, "Integration test execution should account for every integration test"
+        assert runner.success == 2, "Integration test execution should account for successful integration tests"
+        assert runner.failure == 0, "Integration test execution should report no failures when all integrations succeed"
+        assert runner.logger is logger, "Integration testing should preserve the configured Logger instance"
+        try:
+            runner.register_integration_test(
+                "",
+                integrated_pipeline
+            )
+            assert False, "Integration testing should reject empty integration test names"
+        except ValueError:
+            pass
+        try:
+            runner.execute_integration("invalid integration tests")
+            assert False, "Integration testing should reject invalid integration test collections"
+        except ValueError:
+            pass
+        success += 1
+        print(green("Version 0.11.7 integration test automation is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.11.7 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

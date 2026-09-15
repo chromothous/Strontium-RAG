@@ -20,6 +20,7 @@ class TestRunner:
         self._registered_tests = []
         self._test_state = {}
         self._fixtures = {}
+        self._integration_tests = {}
         self.logger.info("Test runner initialized")
 
     def register(self, name, test_function):
@@ -134,6 +135,36 @@ class TestRunner:
             )
         return self.get_registered_fixtures()
 
+    def register_integration_test(self, name, test_function):
+        if not isinstance(name, str):
+            self.logger.error(
+                "Integration test name must be a string"
+            )
+            raise ValueError(
+                "Integration test name must be a string"
+            )
+        if not name.strip():
+            self.logger.error(
+                "Integration test name cannot be empty"
+            )
+            raise ValueError(
+                "Integration test name cannot be empty"
+            )
+        if not callable(test_function):
+            self.logger.error(
+                "Integration test function must be callable"
+            )
+            raise ValueError(
+                "Integration test function must be callable"
+            )
+        self._integration_tests[name] = test_function
+        self.logger.info(
+            f"Integration test registered: {name}"
+        )
+
+    def get_registered_integration_tests(self):
+        return dict(self._integration_tests)
+
     def _execute_function(self, test_function):
         parameters = inspect.signature(test_function).parameters
         if len(parameters) == 0:
@@ -204,9 +235,25 @@ class TestRunner:
         )
         return result
 
+    def run_integration_test(self, name, test_function):
+        self.logger.info(
+            f"Integration test execution started: {name}"
+        )
+        self.clear_test_state()
+        result = self.run_test(
+            f"integration:{name}",
+            test_function
+        )
+        self.clear_test_state()
+        self.logger.info(
+            f"Integration test execution completed: {name}"
+        )
+        return result
+
     def run_registered(self):
         self.logger.info(
-            f"Registered test execution started: {len(self._registered_tests)} tests"
+            f"Registered test execution started: "
+            f"{len(self._registered_tests)} tests"
         )
         for test in self._registered_tests:
             self.run_test(
@@ -215,6 +262,21 @@ class TestRunner:
             )
         self.logger.info(
             "Registered test execution completed"
+        )
+        return self.get_results()
+
+    def run_registered_integration(self):
+        self.logger.info(
+            f"Registered integration test execution started: "
+            f"{len(self._integration_tests)} tests"
+        )
+        for name, test_function in self._integration_tests.items():
+            self.run_integration_test(
+                name,
+                test_function
+            )
+        self.logger.info(
+            "Registered integration test execution completed"
         )
         return self.get_results()
 
@@ -412,6 +474,67 @@ class TestRunner:
             )
         self.logger.info(
             "Isolated test execution completed"
+        )
+        return execution_results
+
+    def execute_integration(self, tests=None):
+        if tests is None:
+            tests = self._integration_tests
+        if isinstance(tests, dict):
+            tests = list(tests.items())
+        if not isinstance(tests, (list, tuple)):
+            self.logger.error(
+                "Integration tests to execute must be a list, tuple, or dictionary"
+            )
+            raise ValueError(
+                "Integration tests to execute must be a list, tuple, or dictionary"
+            )
+        execution_results = []
+        self.logger.info(
+            f"Integration test execution requested: {len(tests)} tests"
+        )
+        for test in tests:
+            if isinstance(test, tuple):
+                if len(test) != 2:
+                    self.logger.error(
+                        "Integration test tuple must contain a name and function"
+                    )
+                    raise ValueError(
+                        "Integration test tuple must contain a name and function"
+                    )
+                name, test_function = test
+            elif isinstance(test, dict):
+                if "name" not in test:
+                    self.logger.error(
+                        "Integration test is missing name"
+                    )
+                    raise ValueError(
+                        "Integration test is missing name"
+                    )
+                if "function" not in test:
+                    self.logger.error(
+                        "Integration test is missing function"
+                    )
+                    raise ValueError(
+                        "Integration test is missing function"
+                    )
+                name = test["name"]
+                test_function = test["function"]
+            else:
+                self.logger.error(
+                    "Integration test must be a tuple or dictionary"
+                )
+                raise ValueError(
+                    "Integration test must be a tuple or dictionary"
+                )
+            execution_results.append(
+                self.run_integration_test(
+                    name,
+                    test_function
+                )
+            )
+        self.logger.info(
+            "Integration test execution completed"
         )
         return execution_results
 
