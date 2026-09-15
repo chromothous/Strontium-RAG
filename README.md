@@ -477,3 +477,6 @@ Complete RAG evaluation pipeline is online.
 
 Version 0.11.0
 Automated testing foundation is online.
+
+Version 0.11.1
+Test discovery is online.

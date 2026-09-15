@@ -6615,6 +6615,65 @@ def full_test():
         print(red(e))
         print(red("Version 0.11.0 failed"))
 
+    try:
+        tests += 1
+        import os
+        import tempfile
+        from testing import TestRunner
+        runner = TestRunner()
+        with tempfile.TemporaryDirectory() as directory:
+            test_one_path = os.path.join(directory, "test_alpha.py")
+            test_two_path = os.path.join(directory, "test_beta.py")
+            ignored_path = os.path.join(directory, "helper.py")
+            with open(test_one_path, "w", encoding="utf-8") as file:
+                file.write(
+                    "def test_first():\n"
+                    "    return True\n"
+                )
+            with open(test_two_path, "w", encoding="utf-8") as file:
+                file.write(
+                    "def test_second():\n"
+                    "    return True\n"
+                )
+            with open(ignored_path, "w", encoding="utf-8") as file:
+                file.write(
+                    "def test_ignored():\n"
+                    "    return True\n"
+                )
+            discovered_tests = runner.discover(directory)
+            assert isinstance(discovered_tests, list), "Test discovery should return a list of discovered tests"
+            assert len(discovered_tests) == 2, "Test discovery should identify every matching test module"
+            assert discovered_tests[0]["name"] == "test_alpha.py:test_first", "Test discovery should return deterministic test identity for the first discovered test"
+            assert discovered_tests[1]["name"] == "test_beta.py:test_second", "Test discovery should return deterministic test identity for the second discovered test"
+            assert callable(discovered_tests[0]["function"]), "Test discovery should return the executable function for each discovered test"
+            assert callable(discovered_tests[1]["function"]), "Test discovery should return executable functions for all discovered tests"
+            runner.register_discovered(directory)
+            registered_tests = runner.get_registered_tests()
+            assert len(registered_tests) == 2, "Test discovery should register every discovered test without manual selection"
+            assert registered_tests[0]["name"] == "test_alpha.py:test_first", "Test discovery should preserve discovered test identity when registering tests"
+            assert registered_tests[1]["name"] == "test_beta.py:test_second", "Test discovery should preserve registration order"
+        try:
+            runner.discover("")
+            assert False, "Test discovery should reject an empty discovery directory"
+        except ValueError:
+            pass
+        try:
+            runner.discover("directory_that_does_not_exist")
+            assert False, "Test discovery should reject a directory that does not exist"
+        except ValueError:
+            pass
+        try:
+            runner.discover(None)
+            assert False, "Test discovery should reject a non-string discovery directory"
+        except ValueError:
+            pass
+        success += 1
+        print(green("Version 0.11.1 test discovery is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.11.1 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
