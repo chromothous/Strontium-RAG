@@ -5461,6 +5461,49 @@ def full_test():
         print(red(e))
         print(red("Version 0.9.6 failed"))
 
+    try:
+        tests += 1
+        isolated_conversation_a = Conversation(
+            logger,
+            session_id="isolated-session-a"
+        )
+        isolated_conversation_b = Conversation(
+            logger,
+            session_id="isolated-session-b"
+        )
+        isolated_conversation_a.add_user_message("Message from conversation A")
+        isolated_conversation_a.add_assistant_message("Response from conversation A")
+        isolated_conversation_b.add_user_message("Message from conversation B")
+        isolated_conversation_b.add_assistant_message("Response from conversation B")
+        history_a = isolated_conversation_a.get_history()
+        history_b = isolated_conversation_b.get_history()
+        assert len(history_a) == 2, "History isolation should preserve the complete history of conversation A"
+        assert len(history_b) == 2, "History isolation should preserve the complete history of conversation B"
+        assert history_a[0]["content"] == "Message from conversation A", "History isolation should preserve conversation A user messages"
+        assert history_a[1]["content"] == "Response from conversation A", "History isolation should preserve conversation A assistant responses"
+        assert history_b[0]["content"] == "Message from conversation B", "History isolation should preserve conversation B user messages"
+        assert history_b[1]["content"] == "Response from conversation B", "History isolation should preserve conversation B assistant responses"
+        assert all(message["content"] not in ["Message from conversation B", "Response from conversation B"] for message in history_a), "History isolation should prevent conversation B messages from entering conversation A"
+        assert all(message["content"] not in ["Message from conversation A", "Response from conversation A"] for message in history_b), "History isolation should prevent conversation A messages from entering conversation B"
+        isolated_conversation_a.add_user_message("Second message from conversation A")
+        assert len(isolated_conversation_a.get_history()) == 3, "History isolation should allow conversation A to grow independently"
+        assert len(isolated_conversation_b.get_history()) == 2, "History isolation should prevent changes to conversation A from affecting conversation B"
+        history_a.append({
+            "role": "user",
+            "content": "External modification"
+        })
+        history_b[0]["content"] = "External modification"
+        assert len(isolated_conversation_a.get_history()) == 3, "History isolation should protect conversation A from external history mutation"
+        assert isolated_conversation_b.get_history()[0]["content"] == "Message from conversation B", "History isolation should protect conversation B from external history mutation"
+        assert isolated_conversation_a.get_state()["session_id"] == "isolated-session-a", "History isolation should preserve conversation A session identity"
+        assert isolated_conversation_b.get_state()["session_id"] == "isolated-session-b", "History isolation should preserve conversation B session identity"
+        success += 1
+        print(green("Version 0.9.7 conversation history isolation is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.9.7 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

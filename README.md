@@ -429,3 +429,6 @@ Conversation citation integration is online.
 
 Version 0.9.6
 Conversation history is online.
+
+Version 0.9.7
+Conversation history isolation is online.
