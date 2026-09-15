@@ -6771,6 +6771,123 @@ def full_test():
         print(red(e))
         print(red("Version 0.11.2 failed"))
 
+    try:
+        tests += 1
+        from testing import TestRunner
+        runner = TestRunner()
+        def assertion_failure_test():
+            assert False, "Intentional assertion failure"
+        assertion_result = runner.run_test(
+            "assertion_failure_test",
+            assertion_failure_test
+        )
+        assert isinstance(assertion_result, dict), "Assertion capture should return a structured test result"
+        assert assertion_result["success"] is False, "Assertion capture should mark failed assertions as unsuccessful"
+        assert assertion_result["failure_type"] == "assertion", "Assertion capture should distinguish assertion failures from unexpected exceptions"
+        assert assertion_result["error"] == "Intentional assertion failure", "Assertion capture should preserve the assertion failure message"
+        assert "traceback" in assertion_result, "Assertion capture should preserve traceback information"
+        def exception_failure_test():
+            raise RuntimeError("Intentional runtime failure")
+        exception_result = runner.run_test(
+            "exception_failure_test",
+            exception_failure_test
+        )
+        assert exception_result["success"] is False, "Exception capture should mark unexpected exceptions as unsuccessful"
+        assert exception_result["failure_type"] == "exception", "Exception capture should distinguish unexpected exceptions from assertion failures"
+        assert exception_result["error"] == "Intentional runtime failure", "Exception capture should preserve the unexpected exception message"
+        assert "RuntimeError" in exception_result["traceback"], "Exception capture should preserve the exception type in diagnostic traceback information"
+        def successful_test():
+            assert True, "Successful test should execute without failure"
+        success_result = runner.run_test(
+            "successful_test",
+            successful_test
+        )
+        assert success_result["success"] is True, "Assertion and exception capture should preserve successful test execution"
+        assert success_result["failure_type"] is None, "Successful test results should not contain a failure type"
+        assert success_result["error"] is None, "Successful test results should not contain an error"
+        assert success_result["traceback"] is None, "Successful test results should not contain failure traceback information"
+        assert runner.tests == 3, "Assertion and exception capture should account for every executed test"
+        assert runner.success == 1, "Assertion and exception capture should preserve successful test accounting"
+        assert runner.failure == 2, "Assertion and exception capture should account for both assertion and exception failures"
+        assert len(runner.results) == 3, "Assertion and exception capture should preserve every individual test result"
+        assert runner.results[0]["failure_type"] == "assertion", "Stored assertion results should preserve their failure classification"
+        assert runner.results[1]["failure_type"] == "exception", "Stored exception results should preserve their failure classification"
+        assert runner.results[2]["success"] is True, "Stored successful results should preserve successful execution state"
+        success += 1
+        print(green("Version 0.11.3 assertion and exception capture is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.11.3 failed"))
+
+    try:
+        tests += 1
+        import os
+        import tempfile
+        from testing import TestRunner
+        runner = TestRunner()
+        with tempfile.TemporaryDirectory() as directory:
+            regression_path = os.path.join(
+                directory,
+                "regression_suite.py"
+            )
+            with open(regression_path, "w", encoding="utf-8") as file:
+                file.write(
+                    "def full_test():\n"
+                    "    assert True, 'Cumulative regression test should remain operational'\n"
+                )
+            regression_result = runner.run_regression_suite(
+                regression_path
+            )
+            assert isinstance(regression_result, dict), "Regression suite automation should return a structured test result"
+            assert regression_result["name"] == "cumulative_regression_suite", "Regression suite automation should identify the cumulative regression suite"
+            assert regression_result["success"] is True, "Regression suite automation should report a successful cumulative suite"
+            assert regression_result["failure_type"] is None, "Regression suite automation should not classify successful regression execution as a failure"
+            assert runner.tests == 1, "Regression suite automation should account for the cumulative suite execution"
+            assert runner.success == 1, "Regression suite automation should account for successful cumulative execution"
+            assert runner.failure == 0, "Regression suite automation should report zero failures for a successful cumulative suite"
+            with open(regression_path, "w", encoding="utf-8") as file:
+                file.write(
+                    "def full_test():\n"
+                    "    assert False, 'Regression failure'\n"
+                )
+            runner.reset()
+            regression_failure = runner.run_regression_suite(
+                regression_path
+            )
+            assert regression_failure["success"] is False, "Regression suite automation should detect a failing cumulative suite"
+            assert regression_failure["failure_type"] == "assertion", "Regression suite automation should classify an assertion failure from the cumulative suite"
+            assert regression_failure["error"] == "Regression failure", "Regression suite automation should preserve the cumulative regression failure message"
+            assert runner.tests == 1, "Regression suite automation should account for failed cumulative execution"
+            assert runner.success == 0, "Regression suite automation should report no successful execution when the cumulative suite fails"
+            assert runner.failure == 1, "Regression suite automation should account for cumulative regression failure"
+            with open(regression_path, "w", encoding="utf-8") as file:
+                file.write(
+                    "def invalid_suite():\n"
+                    "    return True\n"
+                )
+            try:
+                runner.run_regression_suite(regression_path)
+                assert False, "Regression suite automation should reject suites without a full_test function"
+            except ValueError:
+                pass
+        try:
+            runner.run_regression_suite("")
+            assert False, "Regression suite automation should reject an empty suite path"
+        except ValueError:
+            pass
+        try:
+            runner.run_regression_suite("missing_regression_suite.py")
+            assert False, "Regression suite automation should reject a missing regression suite file"
+        except ValueError:
+            pass
+        success += 1
+        print(green("Version 0.11.4 regression suite automation is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.11.4 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

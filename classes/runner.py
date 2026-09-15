@@ -37,13 +37,25 @@ class TestRunner:
             result = {
                 "name": name,
                 "success": True,
-                "error": None
+                "failure_type": None,
+                "error": None,
+                "traceback": None
+            }
+        except AssertionError as e:
+            self.failure += 1
+            result = {
+                "name": name,
+                "success": False,
+                "failure_type": "assertion",
+                "error": str(e),
+                "traceback": traceback.format_exc()
             }
         except Exception as e:
             self.failure += 1
             result = {
                 "name": name,
                 "success": False,
+                "failure_type": "exception",
                 "error": str(e),
                 "traceback": traceback.format_exc()
             }
@@ -60,9 +72,13 @@ class TestRunner:
 
     def discover(self, directory):
         if not isinstance(directory, str):
-            raise ValueError("Test discovery directory must be a string")
+            raise ValueError(
+                "Test discovery directory must be a string"
+            )
         if not directory.strip():
-            raise ValueError("Test discovery directory cannot be empty")
+            raise ValueError(
+                "Test discovery directory cannot be empty"
+            )
         if not os.path.isdir(directory):
             raise ValueError(
                 "Test discovery directory does not exist"
@@ -97,7 +113,8 @@ class TestRunner:
                         }
                     )
         self.logger_info(
-            f"Test discovery completed: {len(discovered)} tests discovered"
+            f"Test discovery completed: "
+            f"{len(discovered)} tests discovered"
         )
         return discovered
 
@@ -152,6 +169,46 @@ class TestRunner:
     def execute_discovered(self, directory):
         self.register_discovered(directory)
         return self.execute()
+
+    def run_regression_suite(self, suite_path):
+        if not isinstance(suite_path, str):
+            raise ValueError(
+                "Regression suite path must be a string"
+            )
+        if not suite_path.strip():
+            raise ValueError(
+                "Regression suite path cannot be empty"
+            )
+        if not os.path.isfile(suite_path):
+            raise ValueError(
+                "Regression suite file does not exist"
+            )
+        module_name = (
+            f"regression_{os.path.splitext(os.path.basename(suite_path))[0]}"
+        )
+        spec = importlib.util.spec_from_file_location(
+            module_name,
+            suite_path
+        )
+        if spec is None or spec.loader is None:
+            raise ValueError(
+                "Regression suite could not be loaded"
+            )
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        if not hasattr(module, "full_test"):
+            raise ValueError(
+                "Regression suite must provide a full_test function"
+            )
+        full_test = module.full_test
+        if not callable(full_test):
+            raise ValueError(
+                "Regression suite full_test must be callable"
+            )
+        return self.run_test(
+            "cumulative_regression_suite",
+            full_test
+        )
 
     def logger_info(self, message):
         return message
