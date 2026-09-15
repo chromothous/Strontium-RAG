@@ -16,6 +16,7 @@ class TestRunner:
         self.tests = 0
         self.success = 0
         self.failure = 0
+        self.skipped = 0
         self.results = []
         self._registered_tests = []
         self._test_state = {}
@@ -186,6 +187,7 @@ class TestRunner:
             result = {
                 "name": name,
                 "success": True,
+                "skipped": False,
                 "failure_type": None,
                 "error": None,
                 "traceback": None
@@ -198,6 +200,7 @@ class TestRunner:
             result = {
                 "name": name,
                 "success": False,
+                "skipped": False,
                 "failure_type": "assertion",
                 "error": str(e),
                 "traceback": traceback.format_exc()
@@ -210,6 +213,7 @@ class TestRunner:
             result = {
                 "name": name,
                 "success": False,
+                "skipped": False,
                 "failure_type": "exception",
                 "error": str(e),
                 "traceback": traceback.format_exc()
@@ -218,6 +222,33 @@ class TestRunner:
                 f"Test exception: {name} - {e}"
             )
         self.results.append(result)
+        return result
+
+    def record_skipped(self, name, reason=None):
+        if not isinstance(name, str):
+            self.logger.error("Skipped test name must be a string")
+            raise ValueError("Skipped test name must be a string")
+        if not name.strip():
+            self.logger.error("Skipped test name cannot be empty")
+            raise ValueError("Skipped test name cannot be empty")
+        if reason is not None and not isinstance(reason, str):
+            self.logger.error("Skipped test reason must be a string or None")
+            raise ValueError(
+                "Skipped test reason must be a string or None"
+            )
+        self.skipped += 1
+        result = {
+            "name": name,
+            "success": False,
+            "skipped": True,
+            "failure_type": None,
+            "error": reason,
+            "traceback": None
+        }
+        self.results.append(result)
+        self.logger.warning(
+            f"Test skipped: {name}"
+        )
         return result
 
     def run_isolated_test(self, name, test_function):
@@ -611,13 +642,68 @@ class TestRunner:
             "tests": self.tests,
             "success": self.success,
             "failure": self.failure,
+            "skipped": self.skipped,
             "results": list(self.results)
         }
+
+    def get_report(self):
+        failed_tests = []
+        assertion_failures = []
+        exception_failures = []
+        skipped_tests = []
+        isolated_failures = []
+        integration_failures = []
+        diagnostics = []
+
+        for result in self.results:
+            name = result["name"]
+            if result.get("skipped") is True:
+                skipped_tests.append(name)
+                continue
+            if result["success"] is False:
+                failed_tests.append(name)
+                failure_type = result.get("failure_type")
+                if failure_type == "assertion":
+                    assertion_failures.append(name)
+                elif failure_type == "exception":
+                    exception_failures.append(name)
+                if result.get("error") is not None:
+                    diagnostics.append(
+                        {
+                            "name": name,
+                            "type": failure_type,
+                            "error": result.get("error"),
+                            "traceback": result.get("traceback")
+                        }
+                    )
+                if name.startswith("isolated:"):
+                    isolated_failures.append(name)
+                if name.startswith("integration:"):
+                    integration_failures.append(name)
+
+        report = {
+            "tests": self.tests,
+            "success": self.success,
+            "failure": self.failure,
+            "skipped": self.skipped,
+            "failed_tests": failed_tests,
+            "assertion_failures": assertion_failures,
+            "exception_failures": exception_failures,
+            "isolated_failures": isolated_failures,
+            "integration_failures": integration_failures,
+            "diagnostics": diagnostics,
+            "results": list(self.results)
+        }
+        self.logger.info(
+            "Test report generated"
+        )
+        return report
 
     def reset(self):
         self.tests = 0
         self.success = 0
         self.failure = 0
+        self.skipped = 0
         self.results = []
         self._test_state = {}
         self.logger.info("Test runner state reset")

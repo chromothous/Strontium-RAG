@@ -498,3 +498,6 @@ Test fixtures and reusable test data are online.
 
 Version 0.11.7
 Integration test automation is online.
+
+Version 0.11.8
+Test reporting is online.

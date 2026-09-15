@@ -7153,6 +7153,70 @@ def full_test():
         print(red(e))
         print(red("Version 0.11.7 failed"))
 
+    try:
+        tests += 1
+        from classes.logger import Logger
+        from testing import TestRunner
+        logger = Logger()
+        runner = TestRunner(logger)
+        runner.register(
+            "successful_test",
+            lambda: None
+        )
+        runner.execute()
+        skipped_result = runner.record_skipped(
+            "skipped_test",
+            "Deferred for later execution"
+        )
+        assert skipped_result["skipped"] is True, "Test reporting should identify skipped tests"
+        assert skipped_result["success"] is False, "Skipped tests should not be reported as successful"
+        assert skipped_result["error"] == "Deferred for later execution", "Test reporting should preserve skipped test diagnostics"
+        runner.run_test(
+            "assertion_failure",
+            lambda: (_ for _ in ()).throw(
+                AssertionError("Expected assertion failure")
+            )
+        )
+        runner.run_integration_test(
+            "integration_failure",
+            lambda state: (_ for _ in ()).throw(
+                RuntimeError("Expected integration failure")
+            )
+        )
+        report = runner.get_report()
+        assert isinstance(report, dict), "Test reporting should return a structured report"
+        assert report["tests"] == 3, "Test reporting should account for every executed test"
+        assert report["success"] == 1, "Test reporting should account for successful tests"
+        assert report["failure"] == 2, "Test reporting should account for failed tests"
+        assert report["skipped"] == 1, "Test reporting should account for skipped tests"
+        assert "assertion_failure" in report["failed_tests"], "Test reporting should identify failed tests by name"
+        assert "integration:integration_failure" in report["failed_tests"], "Test reporting should identify integration failures by name"
+        assert "assertion_failure" in report["assertion_failures"], "Test reporting should distinguish assertion failures"
+        assert "integration:integration_failure" in report["exception_failures"], "Test reporting should distinguish exception failures"
+        assert "integration:integration_failure" in report["integration_failures"], "Test reporting should identify integration failures"
+        assert report["isolated_failures"] == [], "Test reporting should not misclassify non-isolated failures"
+        assert report["diagnostics"][0]["name"] == "assertion_failure" or report["diagnostics"][0]["name"] == "integration:integration_failure", "Test reporting should preserve failure diagnostics"
+        assert len(report["diagnostics"]) == 2, "Test reporting should preserve diagnostics for failed tests"
+        assert len(report["results"]) == 4, "Test reporting should preserve successful, skipped, and failed result records"
+        assert report["results"][0]["success"] is True, "Test reporting should preserve successful result details"
+        assert report["results"][1]["skipped"] is True or report["results"][3]["skipped"] is True, "Test reporting should preserve skipped result details"
+        assert runner.skipped == 1, "Test reporting should maintain skipped test accounting"
+        assert runner.logger is logger, "Test reporting should preserve the configured Logger instance"
+        runner.reset()
+        empty_report = runner.get_report()
+        assert empty_report["tests"] == 0, "Test reporting should reset total test accounting"
+        assert empty_report["success"] == 0, "Test reporting should reset success accounting"
+        assert empty_report["failure"] == 0, "Test reporting should reset failure accounting"
+        assert empty_report["skipped"] == 0, "Test reporting should reset skipped test accounting"
+        assert empty_report["failed_tests"] == [], "Test reporting should reset failed test reporting"
+        assert empty_report["diagnostics"] == [], "Test reporting should reset diagnostic reporting"
+        success += 1
+        print(green("Version 0.11.8 test reporting is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.11.8 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
