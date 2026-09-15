@@ -468,3 +468,6 @@ Evaluation metrics are online.
 
 Version 0.10.8
 Evaluation datasets are online.
+
+Version 0.10.9
+Evaluation failure handling is online.

@@ -497,6 +497,42 @@ class Evaluator:
         )
         return results
 
+    def evaluate_dataset_safe(self, dataset, evaluation_function):
+        self._validate_dataset(dataset)
+        if not callable(evaluation_function):
+            self.logger.error(
+                "Evaluator dataset evaluation function must be callable"
+            )
+            raise ValueError(
+                "Evaluator dataset evaluation function must be callable"
+            )
+        results = []
+        for index, case in enumerate(dataset):
+            try:
+                result = evaluation_function(case)
+                if not isinstance(result, dict):
+                    raise ValueError(
+                        f"Evaluator dataset case {index} result must be a dictionary"
+                    )
+                results.append({
+                    "index": index,
+                    "success": True,
+                    "result": result
+                })
+            except Exception as e:
+                self.logger.error(
+                    f"Evaluator dataset case {index} failed: {e}"
+                )
+                results.append({
+                    "index": index,
+                    "success": False,
+                    "error": str(e)
+                })
+        self.logger.info(
+            f"Safe evaluation dataset completed: {len(results)} cases"
+        )
+        return results
+
     def evaluate(self, question, context, response):
         self.logger.info("Evaluation request received")
         return None

@@ -6343,6 +6343,74 @@ def full_test():
         print(red(e))
         print(red("Version 0.10.8 failed"))
 
+    try:
+        tests += 1
+        evaluation_dataset = [
+            {
+                "id": "case-1",
+                "question": "What is Python?",
+                "context": "Python is a programming language.",
+                "response": "Python is a programming language.",
+                "expected_data": {
+                    "answer": "Python is a programming language."
+                }
+            },
+            {
+                "id": "case-2",
+                "question": "What is RAG?",
+                "context": "RAG combines retrieval with generation.",
+                "response": "RAG combines retrieval with generation.",
+                "expected_data": {
+                    "answer": "RAG combines retrieval with generation."
+                }
+            },
+            {
+                "id": "case-3",
+                "question": "What is retrieval?",
+                "context": "Retrieval finds relevant information.",
+                "response": "Retrieval finds relevant information.",
+                "expected_data": {
+                    "answer": "Retrieval finds relevant information."
+                }
+            }
+        ]
+        processed_cases = []
+        def process_evaluation_case(case):
+            if case["id"] == "case-2":
+                raise RuntimeError("Simulated evaluation failure")
+            processed_cases.append(case["id"])
+            return {
+                "question": case["question"],
+                "score": 1.0
+            }
+        safe_results = evaluator.evaluate_dataset_safe(
+            evaluation_dataset,
+            process_evaluation_case
+        )
+        assert isinstance(safe_results, list), "Safe dataset evaluation should return a structured result collection"
+        assert len(safe_results) == 3, "Safe dataset evaluation should continue processing all cases after a failure"
+        assert safe_results[0]["success"] is True, "Safe dataset evaluation should mark successful cases as successful"
+        assert safe_results[0]["result"]["score"] == 1.0, "Safe dataset evaluation should preserve successful case results"
+        assert safe_results[1]["success"] is False, "Safe dataset evaluation should mark failed cases as unsuccessful"
+        assert "Simulated evaluation failure" in safe_results[1]["error"], "Safe dataset evaluation should preserve the failure reason"
+        assert safe_results[2]["success"] is True, "Safe dataset evaluation should continue after a failed case"
+        assert safe_results[2]["result"]["score"] == 1.0, "Safe dataset evaluation should preserve cases processed after a failure"
+        assert processed_cases == ["case-1", "case-3"], "Safe dataset evaluation should skip only the failed case while continuing the dataset"
+        try:
+            evaluator.evaluate_dataset_safe(
+                evaluation_dataset,
+                "not callable"
+            )
+            assert False, "Safe dataset evaluation should reject non-callable evaluation functions"
+        except ValueError:
+            pass
+        success += 1
+        print(green("Version 0.10.9 evaluation failure handling is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.10.9 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
