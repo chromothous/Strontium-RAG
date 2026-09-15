@@ -6260,6 +6260,89 @@ def full_test():
         print(red(e))
         print(red("Version 0.10.7 failed"))
 
+    try:
+        tests += 1
+        evaluation_dataset = [
+            {
+                "id": "case-1",
+                "question": "What is Python?",
+                "context": "Python is a programming language.",
+                "response": "Python is a programming language.",
+                "expected_data": {
+                    "answer": "Python is a programming language."
+                }
+            },
+            {
+                "id": "case-2",
+                "question": "What is RAG?",
+                "context": "RAG combines retrieval with generation.",
+                "response": "RAG combines retrieval with generation.",
+                "expected_data": {
+                    "answer": "RAG combines retrieval with generation."
+                }
+            }
+        ]
+        assert evaluator.validate_dataset(evaluation_dataset) is True, "Evaluation dataset should validate a reusable collection of cases"
+        assert evaluator.validate_dataset(list(evaluation_dataset)) is True, "Evaluation dataset should support repeatable validation across runs"
+        processed_cases = []
+        def process_evaluation_case(case):
+            processed_cases.append(case["question"])
+            return {
+                "question": case["question"],
+                "score": 1.0
+            }
+        dataset_results = evaluator.evaluate_dataset(
+            evaluation_dataset,
+            process_evaluation_case
+        )
+        assert isinstance(dataset_results, list), "Evaluation dataset should return a collection of case results"
+        assert len(dataset_results) == 2, "Evaluation dataset should evaluate every case in the dataset"
+        assert dataset_results[0]["question"] == "What is Python?", "Evaluation dataset should preserve the first case during evaluation"
+        assert dataset_results[1]["question"] == "What is RAG?", "Evaluation dataset should preserve the second case during evaluation"
+        assert processed_cases == ["What is Python?", "What is RAG?"], "Evaluation dataset should process cases in dataset order"
+        second_run = evaluator.evaluate_dataset(
+            evaluation_dataset,
+            process_evaluation_case
+        )
+        assert len(second_run) == 2, "Evaluation dataset should support repeated evaluation runs"
+        try:
+            evaluator.validate_dataset([])
+            assert False, "Evaluation dataset should reject empty datasets"
+        except ValueError:
+            pass
+        try:
+            evaluator.validate_dataset([{"question": "Missing fields"}])
+            assert False, "Evaluation dataset should reject cases missing required fields"
+        except ValueError:
+            pass
+        try:
+            evaluator.validate_dataset(["invalid case"])
+            assert False, "Evaluation dataset should reject non-dictionary cases"
+        except ValueError:
+            pass
+        try:
+            evaluator.evaluate_dataset(
+                evaluation_dataset,
+                "not callable"
+            )
+            assert False, "Evaluation dataset should reject non-callable evaluation functions"
+        except ValueError:
+            pass
+        try:
+            evaluator.evaluate_dataset(
+                evaluation_dataset,
+                lambda case: "invalid result"
+            )
+            assert False, "Evaluation dataset should reject non-dictionary case results"
+        except ValueError:
+            pass
+        success += 1
+        print(green("Version 0.10.8 evaluation datasets are online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.10.8 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

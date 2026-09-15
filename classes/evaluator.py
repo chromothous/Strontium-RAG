@@ -420,6 +420,83 @@ class Evaluator:
             "overall": float(overall_score)
         }
 
+    def _validate_dataset(self, dataset):
+        if not isinstance(dataset, (list, tuple)):
+            self.logger.error(
+                "Evaluator dataset must be a list or tuple"
+            )
+            raise ValueError(
+                "Evaluator dataset must be a list or tuple"
+            )
+        if not dataset:
+            self.logger.error(
+                "Evaluator dataset cannot be empty"
+            )
+            raise ValueError(
+                "Evaluator dataset cannot be empty"
+            )
+        required_fields = {
+            "question",
+            "context",
+            "response",
+            "expected_data"
+        }
+        for index, case in enumerate(dataset):
+            if not isinstance(case, dict):
+                self.logger.error(
+                    f"Evaluator dataset case {index} must be a dictionary"
+                )
+                raise ValueError(
+                    f"Evaluator dataset case {index} must be a dictionary"
+                )
+            missing_fields = required_fields - set(case.keys())
+            if missing_fields:
+                self.logger.error(
+                    f"Evaluator dataset case {index} is missing required fields"
+                )
+                raise ValueError(
+                    f"Evaluator dataset case {index} is missing required fields"
+                )
+            self.validate_inputs(
+                case["question"],
+                case["context"],
+                case["response"],
+                case["expected_data"]
+            )
+        return True
+
+    def validate_dataset(self, dataset):
+        self._validate_dataset(dataset)
+        self.logger.info(
+            f"Evaluation dataset validated successfully: {len(dataset)} cases"
+        )
+        return True
+
+    def evaluate_dataset(self, dataset, evaluation_function):
+        self._validate_dataset(dataset)
+        if not callable(evaluation_function):
+            self.logger.error(
+                "Evaluator dataset evaluation function must be callable"
+            )
+            raise ValueError(
+                "Evaluator dataset evaluation function must be callable"
+            )
+        results = []
+        for index, case in enumerate(dataset):
+            result = evaluation_function(case)
+            if not isinstance(result, dict):
+                self.logger.error(
+                    f"Evaluator dataset case {index} result must be a dictionary"
+                )
+                raise ValueError(
+                    f"Evaluator dataset case {index} result must be a dictionary"
+                )
+            results.append(result)
+        self.logger.info(
+            f"Evaluation dataset completed successfully: {len(results)} cases"
+        )
+        return results
+
     def evaluate(self, question, context, response):
         self.logger.info("Evaluation request received")
         return None
