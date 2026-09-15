@@ -11,6 +11,7 @@ class TestRunner:
         self.failure = 0
         self.results = []
         self._registered_tests = []
+        self._test_state = {}
 
     def register(self, name, test_function):
         if not isinstance(name, str):
@@ -29,10 +30,33 @@ class TestRunner:
     def get_registered_tests(self):
         return list(self._registered_tests)
 
+    def get_test_state(self):
+        return dict(self._test_state)
+
+    def set_test_state(self, key, value):
+        if not isinstance(key, str):
+            raise ValueError("Test state key must be a string")
+        if not key.strip():
+            raise ValueError("Test state key cannot be empty")
+        self._test_state[key] = value
+
+    def clear_test_state(self):
+        self._test_state = {}
+
+    def _execute_function(self, test_function):
+        parameters = inspect.signature(test_function).parameters
+        if len(parameters) == 0:
+            return test_function()
+        if len(parameters) == 1:
+            return test_function(self.get_test_state())
+        raise ValueError(
+            "Test function must accept zero or one parameter"
+        )
+
     def run_test(self, name, test_function):
         self.tests += 1
         try:
-            test_function()
+            self._execute_function(test_function)
             self.success += 1
             result = {
                 "name": name,
@@ -60,6 +84,15 @@ class TestRunner:
                 "traceback": traceback.format_exc()
             }
         self.results.append(result)
+        return result
+
+    def run_isolated_test(self, name, test_function):
+        self.clear_test_state()
+        result = self.run_test(
+            name,
+            test_function
+        )
+        self.clear_test_state()
         return result
 
     def run_registered(self):
@@ -166,6 +199,45 @@ class TestRunner:
             )
         return execution_results
 
+    def execute_isolated(self, tests=None):
+        if tests is None:
+            tests = self._registered_tests
+        if not isinstance(tests, (list, tuple)):
+            raise ValueError(
+                "Isolated tests to execute must be a list or tuple"
+            )
+        execution_results = []
+        for test in tests:
+            if not isinstance(test, dict):
+                raise ValueError(
+                    "Each isolated test must be a dictionary"
+                )
+            if "name" not in test:
+                raise ValueError(
+                    "Isolated test is missing name"
+                )
+            if "function" not in test:
+                raise ValueError(
+                    "Isolated test is missing function"
+                )
+            name = test["name"]
+            test_function = test["function"]
+            if not isinstance(name, str):
+                raise ValueError(
+                    "Isolated test name must be a string"
+                )
+            if not callable(test_function):
+                raise ValueError(
+                    "Isolated test function must be callable"
+                )
+            execution_results.append(
+                self.run_isolated_test(
+                    name,
+                    test_function
+                )
+            )
+        return execution_results
+
     def execute_discovered(self, directory):
         self.register_discovered(directory)
         return self.execute()
@@ -226,3 +298,4 @@ class TestRunner:
         self.success = 0
         self.failure = 0
         self.results = []
+        self._test_state = {}

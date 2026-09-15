@@ -6888,6 +6888,80 @@ def full_test():
         print(red(e))
         print(red("Version 0.11.4 failed"))
 
+    try:
+        tests += 1
+        from testing import TestRunner
+        runner = TestRunner()
+        runner.set_test_state("existing", "value")
+        assert runner.get_test_state() == {"existing": "value"}, "Test state control should preserve explicitly assigned test state"
+        runner.clear_test_state()
+        assert runner.get_test_state() == {}, "Test state control should clear shared runner state"
+        observed_states = []
+        def isolated_first(state):
+            assert state == {}, "Isolated test execution should begin with fresh state"
+            state["temporary"] = "first"
+            observed_states.append(dict(state))
+        def isolated_second(state):
+            assert state == {}, "Isolated test execution should not inherit state from a previous test"
+            state["temporary"] = "second"
+            observed_states.append(dict(state))
+        first_result = runner.run_isolated_test(
+            "isolated_first",
+            isolated_first
+        )
+        second_result = runner.run_isolated_test(
+            "isolated_second",
+            isolated_second
+        )
+        assert first_result["success"] is True, "Test isolation should preserve successful execution of the first isolated test"
+        assert second_result["success"] is True, "Test isolation should preserve successful execution of the second isolated test"
+        assert observed_states == [
+            {"temporary": "first"},
+            {"temporary": "second"}
+        ], "Test isolation should provide independent state to each isolated test"
+        assert runner.get_test_state() == {}, "Test isolation should clear state after isolated test execution"
+        runner.reset()
+        isolated_tests = []
+        def isolated_test_one(state):
+            state["number"] = 1
+            isolated_tests.append(state["number"])
+        def isolated_test_two(state):
+            assert "number" not in state, "Isolated execution should prevent state leakage between tests"
+            isolated_tests.append(2)
+        isolated_results = runner.execute_isolated(
+            [
+                {
+                    "name": "isolated_test_one",
+                    "function": isolated_test_one
+                },
+                {
+                    "name": "isolated_test_two",
+                    "function": isolated_test_two
+                }
+            ]
+        )
+        assert len(isolated_results) == 2, "Isolated test execution should execute every supplied test"
+        assert isolated_results[0]["success"] is True, "Isolated test execution should preserve the first successful result"
+        assert isolated_results[1]["success"] is True, "Isolated test execution should preserve the second successful result"
+        assert isolated_tests == [1, 2], "Isolated test execution should preserve deterministic execution order"
+        assert runner.get_test_state() == {}, "Isolated test execution should leave the runner in a clean state"
+        try:
+            runner.set_test_state(123, "invalid")
+            assert False, "Test state control should reject non-string state keys"
+        except ValueError:
+            pass
+        try:
+            runner.execute_isolated("invalid tests")
+            assert False, "Isolated test execution should reject invalid test collections"
+        except ValueError:
+            pass
+        success += 1
+        print(green("Version 0.11.5 test isolation and state control are online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.11.5 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
