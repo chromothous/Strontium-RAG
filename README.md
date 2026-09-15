@@ -441,3 +441,6 @@ Conversation failure handling is online.
 
 Version 0.9.10
 Complete conversation pipeline is online.
+
+Version 0.10.0
+Evaluation foundation is online.

@@ -2,6 +2,7 @@ from classes.generator import Generator
 from classes.llm_provider import LLMProvider
 from classes.citation import Citation
 from classes.conversation import Conversation
+from classes.evaluator import Evaluator
 
 
 def green(text):
@@ -5768,6 +5769,24 @@ def full_test():
         failure += 1
         print(red(e))
         print(red("Version 0.9.10 failed"))
+
+    try:
+        tests += 1
+        evaluator = Evaluator(logger)
+        assert isinstance(evaluator, Evaluator), "Evaluation foundation should create a valid Evaluator instance"
+        assert evaluator.logger is logger, "Evaluation foundation should preserve the configured logger"
+        result = evaluator.evaluate(
+            "What is retrieval augmented generation?",
+            "Retrieval augmented generation combines retrieval with language model generation.",
+            "Retrieval augmented generation uses retrieved information to support a generated answer."
+        )
+        assert result is None, "Evaluation foundation should establish the evaluation interface without performing evaluation yet"
+        success += 1
+        print(green("Version 0.10.0 evaluation foundation is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.10.0 failed"))
 
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
