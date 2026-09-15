@@ -432,3 +432,6 @@ Conversation history is online.
 
 Version 0.9.7
 Conversation history isolation is online.
+
+Version 0.9.8
+Conversation invalid-input handling is online.

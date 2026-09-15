@@ -136,6 +136,59 @@ class Conversation:
     def get_history(self):
         return [message.copy() for message in self.history]
 
+    def validate_request(self, request):
+        if not isinstance(request, dict):
+            self.logger.error("Conversation request must be a dictionary")
+            raise ValueError("Conversation request must be a dictionary")
+        if "query" not in request:
+            self.logger.error("Conversation request is missing query")
+            raise ValueError("Conversation request is missing query")
+        self._validate_query(request["query"])
+        if "session_id" in request:
+            session_id = request["session_id"]
+            if not isinstance(session_id, str):
+                self.logger.error(
+                    "Conversation request session ID must be a string"
+                )
+                raise ValueError(
+                    "Conversation request session ID must be a string"
+                )
+            if not session_id.strip():
+                self.logger.error(
+                    "Conversation request session ID cannot be empty"
+                )
+                raise ValueError(
+                    "Conversation request session ID cannot be empty"
+                )
+        self.logger.info("Conversation request validated successfully")
+        return request.copy()
+
+    def validate_state(self, state):
+        if not isinstance(state, dict):
+            self.logger.error("Conversation state must be a dictionary")
+            raise ValueError("Conversation state must be a dictionary")
+        if "session_id" not in state:
+            self.logger.error("Conversation state is missing session ID")
+            raise ValueError("Conversation state is missing session ID")
+        session_id = state["session_id"]
+        if session_id is not None:
+            if not isinstance(session_id, str):
+                self.logger.error(
+                    "Conversation state session ID must be a string"
+                )
+                raise ValueError(
+                    "Conversation state session ID must be a string"
+                )
+            if not session_id.strip():
+                self.logger.error(
+                    "Conversation state session ID cannot be empty"
+                )
+                raise ValueError(
+                    "Conversation state session ID cannot be empty"
+                )
+        self.logger.info("Conversation state validated successfully")
+        return True
+
     def get_state(self):
         return self.state.copy()
 

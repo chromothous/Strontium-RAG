@@ -5504,6 +5504,89 @@ def full_test():
         print(red(e))
         print(red("Version 0.9.7 failed"))
 
+    try:
+        tests += 1
+        invalid_conversation = Conversation(
+            logger,
+            session_id="validation-session"
+        )
+        valid_request = {
+            "query": "What is retrieval augmented generation?",
+            "session_id": "validation-session"
+        }
+        validated_request = invalid_conversation.validate_request(
+            valid_request
+        )
+        assert validated_request == valid_request, "Conversation request validation should preserve a valid request"
+        assert validated_request is not valid_request, "Conversation request validation should return a copy instead of exposing the original request"
+        valid_state = {
+            "session_id": "validation-session"
+        }
+        assert invalid_conversation.validate_state(valid_state) is True, "Conversation state validation should accept a valid state structure"
+        try:
+            invalid_conversation.validate_request({})
+            assert False, "Conversation request validation should reject a request missing a query"
+        except ValueError:
+            pass
+        try:
+            invalid_conversation.validate_request({
+                "query": ""
+            })
+            assert False, "Conversation request validation should reject an empty query"
+        except ValueError:
+            pass
+        try:
+            invalid_conversation.validate_request({
+                "query": "Valid query",
+                "session_id": ""
+            })
+            assert False, "Conversation request validation should reject an empty session ID"
+        except ValueError:
+            pass
+        try:
+            invalid_conversation.validate_request({
+                "query": "Valid query",
+                "session_id": 123
+            })
+            assert False, "Conversation request validation should reject a non-string session ID"
+        except ValueError:
+            pass
+        try:
+            invalid_conversation.validate_request(None)
+            assert False, "Conversation request validation should reject a non-dictionary request"
+        except ValueError:
+            pass
+        try:
+            invalid_conversation.validate_state({})
+            assert False, "Conversation state validation should reject state missing a session ID"
+        except ValueError:
+            pass
+        try:
+            invalid_conversation.validate_state({
+                "session_id": 123
+            })
+            assert False, "Conversation state validation should reject a non-string session ID"
+        except ValueError:
+            pass
+        try:
+            invalid_conversation.validate_state({
+                "session_id": ""
+            })
+            assert False, "Conversation state validation should reject an empty session ID"
+        except ValueError:
+            pass
+        try:
+            invalid_conversation.validate_state(None)
+            assert False, "Conversation state validation should reject a non-dictionary state"
+        except ValueError:
+            pass
+        success += 1
+        print(green("Version 0.9.8 conversation invalid-input handling is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.9.8 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
