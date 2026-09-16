@@ -26,6 +26,7 @@ class TestRunner:
         self._coverage_results = {}
         self._repeatability_results = {}
         self._regression_results = {}
+        self._pipeline_results = {}
         self.logger.info("Test runner initialized")
 
     def register(self, name, test_function):
@@ -1139,6 +1140,129 @@ class TestRunner:
     def get_repeatability(self):
         return dict(self._repeatability_results)
 
+    def _validate_pipeline_tests(self, tests):
+        if not isinstance(tests, (list, tuple)):
+            self.logger.error(
+                "Pipeline tests must be a list or tuple"
+            )
+            raise ValueError(
+                "Pipeline tests must be a list or tuple"
+            )
+        for test in tests:
+            if not isinstance(test, dict):
+                self.logger.error(
+                    "Each pipeline test must be a dictionary"
+                )
+                raise ValueError(
+                    "Each pipeline test must be a dictionary"
+                )
+            if "name" not in test:
+                self.logger.error(
+                    "Pipeline test is missing name"
+                )
+                raise ValueError(
+                    "Pipeline test is missing name"
+                )
+            if "function" not in test:
+                self.logger.error(
+                    "Pipeline test is missing function"
+                )
+                raise ValueError(
+                    "Pipeline test is missing function"
+                )
+            if not isinstance(test["name"], str):
+                self.logger.error(
+                    "Pipeline test name must be a string"
+                )
+                raise ValueError(
+                    "Pipeline test name must be a string"
+                )
+            if not callable(test["function"]):
+                self.logger.error(
+                    "Pipeline test function must be callable"
+                )
+                raise ValueError(
+                    "Pipeline test function must be callable"
+                )
+
+    def execute_complete_pipeline(
+        self,
+        tests=None,
+        repetitions=2
+    ):
+        if tests is None:
+            tests = self._registered_tests
+        self._validate_pipeline_tests(tests)
+        if not isinstance(repetitions, int):
+            self.logger.error(
+                "Pipeline repetitions must be an integer"
+            )
+            raise ValueError(
+                "Pipeline repetitions must be an integer"
+            )
+        if repetitions < 2:
+            self.logger.error(
+                "Pipeline repetitions must be at least two"
+            )
+            raise ValueError(
+                "Pipeline repetitions must be at least two"
+            )
+
+        selected_tests = list(tests)
+
+        self.reset()
+        self.clear_test_state()
+
+        execution_results = self.execute(
+            selected_tests
+        )
+        execution_report = self.get_report()
+
+        self.reset()
+        coverage_report = self.analyze_coverage(
+            selected_tests
+        )
+
+        self.reset()
+        repeatability_report = self.analyze_repeatability(
+            selected_tests,
+            repetitions
+        )
+
+        self.reset()
+
+        pipeline_success = (
+            execution_report["failure"] == 0
+            and execution_report["skipped"] == 0
+            and len(execution_results) == len(selected_tests)
+            and coverage_report["files"] >= 1
+            and repeatability_report["deterministic"] is True
+            and repeatability_report["state_leakage_detected"] is False
+        )
+
+        self._pipeline_results = {
+            "complete": pipeline_success,
+            "discovery": {
+                "tests": len(selected_tests),
+                "test_names": [
+                    test["name"]
+                    for test in selected_tests
+                ]
+            },
+            "execution": execution_report,
+            "coverage": coverage_report,
+            "repeatability": repeatability_report
+        }
+
+        self.logger.info(
+            f"Complete automated testing pipeline finished: "
+            f"complete={pipeline_success}"
+        )
+        return dict(self._pipeline_results)
+
+    def get_pipeline_results(self):
+        return dict(self._pipeline_results)
+
     def reset(self):
         self.tests = 0
         self.success = 0
@@ -1149,4 +1273,5 @@ class TestRunner:
         self._coverage_results = {}
         self._repeatability_results = {}
         self._regression_results = {}
+        self._pipeline_results = {}
         self.logger.info("Test runner state reset")

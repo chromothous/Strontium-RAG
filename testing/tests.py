@@ -7564,6 +7564,93 @@ def full_test():
         print(red(e))
         print(red("Version 0.11.12 failed"))
 
+    try:
+        tests += 1
+        from classes.logger import Logger
+        from testing import TestRunner
+        logger = Logger()
+        runner = TestRunner(logger)
+        pipeline_events = []
+        def pipeline_first(state):
+            pipeline_events.append("first")
+            state["first"] = True
+            assert state["first"] is True, "Complete testing pipeline should execute the first test correctly"
+        def pipeline_second(state):
+            pipeline_events.append("second")
+            state["second"] = True
+            assert state["second"] is True, "Complete testing pipeline should execute the second test correctly"
+        pipeline_tests = [
+            {
+                "name": "pipeline_first",
+                "function": pipeline_first
+            },
+            {
+                "name": "pipeline_second",
+                "function": pipeline_second
+            }
+        ]
+        pipeline_report = runner.execute_complete_pipeline(
+            pipeline_tests,
+            repetitions=2
+        )
+        assert isinstance(pipeline_report, dict), "Complete automated testing pipeline should return a structured pipeline result"
+        assert pipeline_report["complete"] is True, "Complete automated testing pipeline should report a successful complete pipeline"
+        assert pipeline_report["discovery"]["tests"] == 2, "Complete automated testing pipeline should preserve the number of discovered tests"
+        assert pipeline_report["discovery"]["test_names"] == ["pipeline_first", "pipeline_second"], "Complete automated testing pipeline should preserve discovered test identities"
+        assert isinstance(pipeline_report["execution"], dict), "Complete automated testing pipeline should preserve execution reporting"
+        assert pipeline_report["execution"]["tests"] == 2, "Complete automated testing pipeline should execute every selected test"
+        assert pipeline_report["execution"]["success"] == 2, "Complete automated testing pipeline should preserve successful execution results"
+        assert pipeline_report["execution"]["failure"] == 0, "Complete automated testing pipeline should report zero execution failures"
+        assert pipeline_report["execution"]["skipped"] == 0, "Complete automated testing pipeline should report zero skipped executions"
+        assert isinstance(pipeline_report["coverage"], dict), "Complete automated testing pipeline should preserve coverage analysis"
+        assert pipeline_report["coverage"]["files"] >= 1, "Complete automated testing pipeline should measure executed Python coverage"
+        assert pipeline_report["coverage"]["tests"] == 2, "Complete automated testing pipeline should account for coverage test execution"
+        assert pipeline_report["coverage"]["success"] == 2, "Complete automated testing pipeline should preserve successful coverage execution"
+        assert pipeline_report["coverage"]["failure"] == 0, "Complete automated testing pipeline should report zero coverage execution failures"
+        assert isinstance(pipeline_report["repeatability"], dict), "Complete automated testing pipeline should preserve repeatability analysis"
+        assert pipeline_report["repeatability"]["repetitions"] == 2, "Complete automated testing pipeline should preserve the requested repetition count"
+        assert pipeline_report["repeatability"]["deterministic"] is True, "Complete automated testing pipeline should verify deterministic execution"
+        assert pipeline_report["repeatability"]["inconsistent_runs"] == [], "Complete automated testing pipeline should report no inconsistent repetitions"
+        assert pipeline_report["repeatability"]["state_leakage_detected"] is False, "Complete automated testing pipeline should verify runner state isolation"
+        assert len(pipeline_report["repeatability"]["runs"]) == 2, "Complete automated testing pipeline should preserve every repeatability run"
+        assert pipeline_events == [
+            "first",
+            "second",
+            "first",
+            "second",
+            "first",
+            "second",
+            "first",
+            "second"
+        ], "Complete automated testing pipeline should execute tests consistently across the repeatability runs"
+        stored_pipeline = runner.get_pipeline_results()
+        assert stored_pipeline == pipeline_report, "Complete automated testing pipeline should preserve the latest pipeline result"
+        runner.reset()
+        empty_pipeline = runner.get_pipeline_results()
+        assert empty_pipeline == {}, "Complete automated testing pipeline should clear stored pipeline results on reset"
+        try:
+            runner.execute_complete_pipeline(
+                "invalid pipeline tests"
+            )
+            assert False, "Complete automated testing pipeline should reject invalid test collections"
+        except ValueError:
+            pass
+        try:
+            runner.execute_complete_pipeline(
+                pipeline_tests,
+                repetitions=1
+            )
+            assert False, "Complete automated testing pipeline should reject fewer than two repeatability runs"
+        except ValueError:
+            pass
+        assert runner.logger is logger, "Complete automated testing pipeline should preserve the configured Logger instance"
+        success += 1
+        print(green("Version 0.11.13 complete automated testing pipeline is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.11.13 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

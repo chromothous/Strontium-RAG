@@ -513,3 +513,6 @@ Selective test execution is online.
 
 Version 0.11.12
 Automated regression execution is online.
+
+Version 0.11.13
+Complete automated testing pipeline is online.
