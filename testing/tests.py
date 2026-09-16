@@ -7476,6 +7476,94 @@ def full_test():
         print(red(e))
         print(red("Version 0.11.11 failed"))
 
+    try:
+        tests += 1
+        import os
+        import tempfile
+        from classes.logger import Logger
+        from testing import TestRunner
+        logger = Logger()
+        runner = TestRunner(logger)
+        with tempfile.TemporaryDirectory() as temp_directory:
+            suite_path = os.path.join(
+                temp_directory,
+                "regression_suite.py"
+            )
+            with open(
+                suite_path,
+                "w",
+                encoding="utf-8"
+            ) as suite_file:
+                suite_file.write(
+                    "def full_test():\n"
+                    "    value = 10\n"
+                    "    value += 5\n"
+                    "    assert value == 15, 'Regression suite should execute cumulative test logic'\n"
+                )
+            regression_result = runner.run_regression_suite(
+                suite_path
+            )
+            assert isinstance(regression_result, dict), "Full regression execution should return a structured regression result"
+            assert regression_result["name"] == "cumulative_regression_suite", "Full regression execution should identify the cumulative regression suite"
+            assert regression_result["success"] is True, "Full regression execution should report a successful cumulative regression suite"
+            assert runner.tests == 1, "Full regression execution should account for the cumulative suite execution"
+            assert runner.success == 1, "Full regression execution should account for a successful cumulative suite"
+            assert runner.failure == 0, "Full regression execution should report zero failures for a successful cumulative suite"
+            full_report = runner.execute_full_regression(
+                suite_path
+            )
+            assert isinstance(full_report, dict), "Full automated regression should return a structured regression report"
+            assert full_report["suite_path"] == suite_path, "Full automated regression should preserve the executed suite path"
+            assert full_report["complete"] is True, "Full automated regression should identify a fully successful regression checkpoint"
+            assert isinstance(full_report["regression_result"], dict), "Full automated regression should preserve the regression execution result"
+            assert full_report["regression_result"]["name"] == "cumulative_regression_suite", "Full automated regression should preserve the cumulative suite identity"
+            assert full_report["regression_result"]["success"] is True, "Full automated regression should preserve successful regression execution"
+            assert isinstance(full_report["report"], dict), "Full automated regression should include the structured test report"
+            assert full_report["report"]["tests"] == 1, "Full automated regression should report the executed regression suite"
+            assert full_report["report"]["success"] == 1, "Full automated regression should report successful regression execution"
+            assert full_report["report"]["failure"] == 0, "Full automated regression should report zero regression failures"
+            assert full_report["report"]["skipped"] == 0, "Full automated regression should report zero skipped regression tests"
+            stored_report = runner.get_full_regression()
+            assert stored_report == full_report, "Full automated regression should preserve the latest regression report"
+            runner.reset()
+            try:
+                runner.execute_full_regression(
+                    os.path.join(
+                        temp_directory,
+                        "missing_suite.py"
+                    )
+                )
+                assert False, "Full automated regression should reject missing regression suite files"
+            except ValueError:
+                pass
+            invalid_suite_path = os.path.join(
+                temp_directory,
+                "invalid_suite.py"
+            )
+            with open(
+                invalid_suite_path,
+                "w",
+                encoding="utf-8"
+            ) as suite_file:
+                suite_file.write(
+                    "def not_full_test():\n"
+                    "    pass\n"
+                )
+            try:
+                runner.execute_full_regression(
+                    invalid_suite_path
+                )
+                assert False, "Full automated regression should reject suites without full_test"
+            except ValueError:
+                pass
+            assert runner.logger is logger, "Full automated regression should preserve the configured Logger instance"
+        success += 1
+        print(green("Version 0.11.12 full automated regression execution is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.11.12 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

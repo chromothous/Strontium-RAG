@@ -510,3 +510,6 @@ Repeatability and determinism are online.
 
 Version 0.11.11
 Selective test execution is online.
+
+Version 0.11.12
+Automated regression execution is online.

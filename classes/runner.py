@@ -25,6 +25,7 @@ class TestRunner:
         self._integration_tests = {}
         self._coverage_results = {}
         self._repeatability_results = {}
+        self._regression_results = {}
         self.logger.info("Test runner initialized")
 
     def register(self, name, test_function):
@@ -767,6 +768,59 @@ class TestRunner:
             full_test
         )
 
+    def execute_full_regression(self, suite_path):
+        if not isinstance(suite_path, str):
+            self.logger.error(
+                "Full regression suite path must be a string"
+            )
+            raise ValueError(
+                "Full regression suite path must be a string"
+            )
+        if not suite_path.strip():
+            self.logger.error(
+                "Full regression suite path cannot be empty"
+            )
+            raise ValueError(
+                "Full regression suite path cannot be empty"
+            )
+        if not os.path.isfile(suite_path):
+            self.logger.error(
+                "Full regression suite file does not exist"
+            )
+            raise ValueError(
+                "Full regression suite file does not exist"
+            )
+
+        self.reset()
+        self.clear_test_state()
+
+        regression_result = self.run_regression_suite(
+            suite_path
+        )
+        report = self.get_report()
+
+        complete = (
+            regression_result["success"] is True
+            and report["failure"] == 0
+            and report["skipped"] == 0
+        )
+
+        self._regression_results = {
+            "suite_path": suite_path,
+            "complete": complete,
+            "regression_result": regression_result,
+            "report": report
+        }
+
+        self.logger.info(
+            f"Full automated regression execution completed: "
+            f"complete={complete}"
+        )
+        return dict(self._regression_results)
+
+    def get_full_regression(self):
+        return dict(self._regression_results)
+
     def get_results(self):
         return {
             "tests": self.tests,
@@ -1094,4 +1148,5 @@ class TestRunner:
         self._test_state = {}
         self._coverage_results = {}
         self._repeatability_results = {}
+        self._regression_results = {}
         self.logger.info("Test runner state reset")
