@@ -528,3 +528,6 @@ Error validation is online.
 
 Version 0.12.3
 Component error propagation is online.
+
+Version 0.12.4
+Error isolation is online.

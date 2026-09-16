@@ -8196,6 +8196,180 @@ def full_test():
         print(red(e))
         print(red("Version 0.12.3 failed"))
 
+    try:
+        tests += 1
+        from classes.error_handler import ErrorHandler, StrontiumError
+        error_handler = ErrorHandler()
+        initial_state = {
+            "retrieved": ["document_a", "document_b"],
+            "context": "constructed context",
+            "answer": None
+        }
+        isolated_state = error_handler.begin_isolation(
+            "generation",
+            initial_state
+        )
+        assert isolated_state == initial_state, "Error isolation should establish a working copy of the original state"
+        error_handler.update_isolated_state(
+            "generation",
+            "answer",
+            "generated answer"
+        )
+        working_state = error_handler.get_isolated_state(
+            "generation"
+        )
+        assert working_state["answer"] == "generated answer", "Error isolation should allow changes inside the isolated operation"
+        assert initial_state["answer"] is None, "Error isolation should prevent working changes from mutating original state"
+        rolled_back_state = error_handler.rollback_isolation(
+            "generation",
+            initial_state
+        )
+        assert rolled_back_state == {
+            "retrieved": ["document_a", "document_b"],
+            "context": "constructed context",
+            "answer": None
+        }, "Error isolation should restore the original state after rollback"
+        assert error_handler.get_isolation_boundaries() == {}, "Error isolation should remove completed isolation boundaries"
+        successful_state = {
+            "retrieved": ["document_a"],
+            "context": "valid context",
+            "answer": None
+        }
+        successful_result = error_handler.isolate_operation(
+            "generation",
+            successful_state,
+            lambda working: working.update(
+                {
+                    "answer": "successful answer"
+                }
+            )
+        )
+        assert successful_result["success"] is True, "Error isolation should commit successful operation changes"
+        assert successful_result["error"] is None, "Error isolation should not produce an error for successful operations"
+        assert successful_state["retrieved"] == ["document_a"], "Error isolation should preserve successfully completed earlier work"
+        assert successful_state["context"] == "valid context", "Error isolation should preserve unrelated state during successful operations"
+        assert successful_state["answer"] == "successful answer", "Error isolation should commit successful operation changes"
+        failure_state = {
+            "retrieved": ["document_a"],
+            "context": "valid context",
+            "answer": "previous answer"
+        }
+        generation_failure = error_handler.handle_expected(
+            "Generation failed",
+            category="generation",
+            component="generator",
+            operation="generate"
+        )
+        failure_result = error_handler.isolate_operation(
+            "generation_failure",
+            failure_state,
+            lambda working: (_ for _ in ()).throw(
+                generation_failure
+            )
+        )
+        assert failure_result["success"] is False, "Error isolation should report failed isolated operations"
+        assert failure_result["error"] is generation_failure, "Error isolation should preserve the originating StrontiumError"
+        assert failure_state == {
+            "retrieved": ["document_a"],
+            "context": "valid context",
+            "answer": "previous answer"
+        }, "Error isolation should restore all original state after a failed operation"
+        assert len(generation_failure.get_propagation()) == 1, "Error isolation should preserve the failure boundary when an error crosses the isolation boundary"
+        assert generation_failure.get_propagation()[0]["component"] == "generator", "Error isolation should preserve the originating error component"
+        assert generation_failure.get_propagation()[0]["operation"] == "generate", "Error isolation should preserve the originating error operation"
+        unexpected_state = {
+            "retrieved": ["document_a"],
+            "context": "valid context",
+            "answer": "previous answer"
+        }
+        unexpected_result = error_handler.isolate_operation(
+            "unexpected_failure",
+            unexpected_state,
+            lambda working: (_ for _ in ()).throw(
+                RuntimeError("Unexpected generation failure")
+            )
+        )
+        assert unexpected_result["success"] is False, "Error isolation should contain unexpected exceptions"
+        assert isinstance(unexpected_result["error"], StrontiumError), "Error isolation should convert unexpected exceptions into structured errors"
+        assert unexpected_result["error"].category == "unexpected", "Error isolation should preserve unexpected error classification"
+        assert unexpected_result["error"].cause is not None, "Error isolation should preserve the original unexpected exception"
+        assert unexpected_state == {
+            "retrieved": ["document_a"],
+            "context": "valid context",
+            "answer": "previous answer"
+        }, "Error isolation should protect state from unexpected exceptions"
+        commit_state = {
+            "retrieved": ["document_a"],
+            "context": "valid context",
+            "answer": None
+        }
+        commit_result = error_handler.isolate_operation(
+            "commit_test",
+            commit_state,
+            lambda working: working.update(
+                {
+                    "answer": "final answer"
+                }
+            )
+        )
+        assert commit_result["state"] == commit_state, "Error isolation should return the committed state"
+        manual_state = {
+            "retrieved": ["document_a"],
+            "context": "valid context",
+            "answer": None
+        }
+        error_handler.begin_isolation(
+            "manual_rollback",
+            manual_state
+        )
+        error_handler.update_isolated_state(
+            "manual_rollback",
+            "answer",
+            "temporary answer"
+        )
+        assert error_handler.get_isolated_state(
+            "manual_rollback"
+        )["answer"] == "temporary answer", "Error isolation should preserve temporary isolated state before rollback"
+        restored_state = error_handler.rollback_isolation(
+            "manual_rollback",
+            manual_state
+        )
+        assert restored_state["answer"] is None, "Error isolation should restore the original target state during rollback"
+        assert manual_state["answer"] is None, "Error isolation should prevent temporary changes from surviving rollback"
+        try:
+            error_handler.begin_isolation(
+                "invalid_state",
+                []
+            )
+            assert False, "Error isolation should reject non-dictionary states"
+        except ValueError:
+            pass
+        try:
+            error_handler.update_isolated_state(
+                "missing_boundary",
+                "key",
+                "value"
+            )
+            assert False, "Error isolation should reject updates to missing isolation boundaries"
+        except ValueError:
+            pass
+        try:
+            error_handler.isolate_operation(
+                "invalid_operation",
+                {},
+                "not callable"
+            )
+            assert False, "Error isolation should reject non-callable operations"
+        except ValueError:
+            pass
+        assert error_handler.get_isolation_boundaries() == {}, "Error isolation should leave no dangling boundaries after operations complete"
+        success += 1
+        print(green("Version 0.12.4 error isolation is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.12.4 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

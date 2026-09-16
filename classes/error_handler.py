@@ -1,4 +1,4 @@
-class StrontiumError:
+class StrontiumError(Exception):
     STANDARD_CATEGORIES = (
         "validation",
         "retrieval",
@@ -37,6 +37,7 @@ class StrontiumError:
             else []
         )
         self.validate()
+        super().__init__(self.message)
 
     @classmethod
     def get_standard_categories(cls):
@@ -233,6 +234,7 @@ class StrontiumError:
 class ErrorHandler:
     def __init__(self):
         self.errors = []
+        self._isolated_states = {}
 
     def validate_category(self, category):
         if not isinstance(category, str):
@@ -370,6 +372,158 @@ class ErrorHandler:
         self.validate_error(error)
         return error
 
+    def begin_isolation(self, name, state):
+        if not isinstance(name, str):
+            raise ValueError(
+                "Isolation name must be a string"
+            )
+        if not name.strip():
+            raise ValueError(
+                "Isolation name cannot be empty"
+            )
+        if not isinstance(state, dict):
+            raise ValueError(
+                "Isolated state must be a dictionary"
+            )
+        if name in self._isolated_states:
+            raise ValueError(
+                f"Isolation boundary already exists: {name}"
+            )
+        self._isolated_states[name] = {
+            "original": dict(state),
+            "working": dict(state)
+        }
+        return dict(
+            self._isolated_states[name]["working"]
+        )
+
+    def get_isolated_state(self, name):
+        if name not in self._isolated_states:
+            raise ValueError(
+                f"Isolation boundary not found: {name}"
+            )
+        return dict(
+            self._isolated_states[name]["working"]
+        )
+
+    def update_isolated_state(self, name, key, value):
+        if name not in self._isolated_states:
+            raise ValueError(
+                f"Isolation boundary not found: {name}"
+            )
+        if not isinstance(key, str):
+            raise ValueError(
+                "Isolated state key must be a string"
+            )
+        if not key.strip():
+            raise ValueError(
+                "Isolated state key cannot be empty"
+            )
+        self._isolated_states[name]["working"][key] = value
+        return self.get_isolated_state(name)
+
+    def commit_isolation(self, name, target_state):
+        if name not in self._isolated_states:
+            raise ValueError(
+                f"Isolation boundary not found: {name}"
+            )
+        if not isinstance(target_state, dict):
+            raise ValueError(
+                "Isolation target state must be a dictionary"
+            )
+        working_state = self._isolated_states[name]["working"]
+        target_state.clear()
+        target_state.update(working_state)
+        committed_state = dict(target_state)
+        del self._isolated_states[name]
+        return committed_state
+
+    def rollback_isolation(self, name, target_state):
+        if name not in self._isolated_states:
+            raise ValueError(
+                f"Isolation boundary not found: {name}"
+            )
+        if not isinstance(target_state, dict):
+            raise ValueError(
+                "Isolation target state must be a dictionary"
+            )
+        original_state = self._isolated_states[name]["original"]
+        target_state.clear()
+        target_state.update(original_state)
+        restored_state = dict(target_state)
+        del self._isolated_states[name]
+        return restored_state
+
+    def isolate_operation(
+        self,
+        name,
+        state,
+        operation
+    ):
+        if not callable(operation):
+            raise ValueError(
+                "Isolated operation must be callable"
+            )
+        self.begin_isolation(
+            name,
+            state
+        )
+        try:
+            working_state = self._isolated_states[name]["working"]
+            result = operation(
+                working_state
+            )
+            committed_state = self.commit_isolation(
+                name,
+                state
+            )
+            return {
+                "success": True,
+                "result": result,
+                "state": committed_state,
+                "error": None
+            }
+        except StrontiumError as error:
+            self.rollback_isolation(
+                name,
+                state
+            )
+            self.propagate(
+                error,
+                error.component or "unknown",
+                error.operation or name
+            )
+            return {
+                "success": False,
+                "result": None,
+                "state": dict(state),
+                "error": error
+            }
+        except Exception as exception:
+            self.rollback_isolation(
+                name,
+                state
+            )
+            error = self.handle_unexpected(
+                exception,
+                component=name
+            )
+            return {
+                "success": False,
+                "result": None,
+                "state": dict(state),
+                "error": error
+            }
+
+    def get_isolation_boundaries(self):
+        return {
+            name: {
+                "original": dict(data["original"]),
+                "working": dict(data["working"])
+            }
+            for name, data in self._isolated_states.items()
+        }
+
     def classify(self, category):
         return self.validate_category(category)
 
@@ -400,3 +554,4 @@ class ErrorHandler:
 
     def clear(self):
         self.errors = []
+        self._isolated_states = {}
