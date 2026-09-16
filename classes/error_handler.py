@@ -1,4 +1,18 @@
 class StrontiumError:
+    STANDARD_CATEGORIES = (
+        "validation",
+        "retrieval",
+        "context",
+        "generation",
+        "citation",
+        "evaluation",
+        "system"
+    )
+    SPECIAL_CATEGORIES = (
+        "unexpected",
+    )
+    VALID_CATEGORIES = STANDARD_CATEGORIES + SPECIAL_CATEGORIES
+
     def __init__(
         self,
         message,
@@ -17,6 +31,10 @@ class StrontiumError:
             raise ValueError("Error category must be a string")
         if not category.strip():
             raise ValueError("Error category cannot be empty")
+        if category not in self.VALID_CATEGORIES:
+            raise ValueError(
+                f"Invalid error category: {category}"
+            )
         if component is not None and not isinstance(component, str):
             raise ValueError("Error component must be a string or None")
         if operation is not None and not isinstance(operation, str):
@@ -35,6 +53,28 @@ class StrontiumError:
         self.details = dict(details) if details is not None else {}
         self.cause = cause
         self.expected = expected
+
+    @classmethod
+    def get_standard_categories(cls):
+        return tuple(cls.STANDARD_CATEGORIES)
+
+    @classmethod
+    def get_valid_categories(cls):
+        return tuple(cls.VALID_CATEGORIES)
+
+    @classmethod
+    def is_valid_category(cls, category):
+        return (
+            isinstance(category, str)
+            and category in cls.VALID_CATEGORIES
+        )
+
+    @classmethod
+    def is_standard_category(cls, category):
+        return (
+            isinstance(category, str)
+            and category in cls.STANDARD_CATEGORIES
+        )
 
     def is_expected(self):
         return self.expected
@@ -61,6 +101,17 @@ class ErrorHandler:
     def __init__(self):
         self.errors = []
 
+    def validate_category(self, category):
+        if not isinstance(category, str):
+            raise ValueError("Error category must be a string")
+        if not category.strip():
+            raise ValueError("Error category cannot be empty")
+        if not StrontiumError.is_valid_category(category):
+            raise ValueError(
+                f"Invalid error category: {category}"
+            )
+        return category
+
     def create_error(
         self,
         message,
@@ -71,6 +122,7 @@ class ErrorHandler:
         cause=None,
         expected=True
     ):
+        self.validate_category(category)
         error = StrontiumError(
             message=message,
             category=category,
@@ -124,6 +176,9 @@ class ErrorHandler:
             expected=False
         )
 
+    def classify(self, category):
+        return self.validate_category(category)
+
     def get_errors(self):
         return list(self.errors)
 
@@ -139,6 +194,14 @@ class ErrorHandler:
             error
             for error in self.errors
             if error.is_unexpected()
+        ]
+
+    def get_errors_by_category(self, category):
+        self.validate_category(category)
+        return [
+            error
+            for error in self.errors
+            if error.category == category
         ]
 
     def clear(self):

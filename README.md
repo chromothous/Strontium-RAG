@@ -519,3 +519,6 @@ Complete automated testing pipeline is online.
 
 Version 0.12.0
 Error handling foundation is online.
+
+Version 0.12.1
+Error classification is online.

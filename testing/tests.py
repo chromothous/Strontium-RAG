@@ -7777,6 +7777,140 @@ def full_test():
         print(red(e))
         print(red("Version 0.12.0 failed"))
 
+    try:
+        tests += 1
+        from classes.error_handler import ErrorHandler, StrontiumError
+        handler = ErrorHandler()
+        standard_categories = StrontiumError.get_standard_categories()
+        assert isinstance(standard_categories, tuple), "Error classification should expose standardized categories as a tuple"
+        assert standard_categories == (
+            "validation",
+            "retrieval",
+            "context",
+            "generation",
+            "citation",
+            "evaluation",
+            "system"
+        ), "Error classification should preserve the complete standardized category set"
+        valid_categories = StrontiumError.get_valid_categories()
+        assert "validation" in valid_categories, "Error classification should support validation failures"
+        assert "retrieval" in valid_categories, "Error classification should support retrieval failures"
+        assert "context" in valid_categories, "Error classification should support context failures"
+        assert "generation" in valid_categories, "Error classification should support generation failures"
+        assert "citation" in valid_categories, "Error classification should support citation failures"
+        assert "evaluation" in valid_categories, "Error classification should support evaluation failures"
+        assert "system" in valid_categories, "Error classification should support system failures"
+        assert "unexpected" in valid_categories, "Error classification should preserve the unexpected-exception boundary"
+        for category in standard_categories:
+            assert StrontiumError.is_valid_category(category) is True, "Error classification should recognize every standardized category"
+            assert StrontiumError.is_standard_category(category) is True, "Error classification should identify every standardized category"
+            assert handler.validate_category(category) == category, "Error classification should preserve valid category identities"
+            classified_category = handler.classify(category)
+            assert classified_category == category, "Error classification should return the validated category"
+        assert StrontiumError.is_valid_category("invalid") is False, "Error classification should reject unknown categories"
+        assert StrontiumError.is_standard_category("unexpected") is False, "Error classification should distinguish special categories from standardized subsystem categories"
+        validation_error = handler.create_error(
+            message="Invalid query",
+            category="validation",
+            component="conversation",
+            operation="validate_query"
+        )
+        retrieval_error = handler.create_error(
+            message="No matching documents",
+            category="retrieval",
+            component="retriever",
+            operation="search"
+        )
+        context_error = handler.create_error(
+            message="Context construction failed",
+            category="context",
+            component="context_builder",
+            operation="build"
+        )
+        generation_error = handler.create_error(
+            message="Generation failed",
+            category="generation",
+            component="generator",
+            operation="generate"
+        )
+        citation_error = handler.create_error(
+            message="Citation failed",
+            category="citation",
+            component="citation",
+            operation="cite"
+        )
+        evaluation_error = handler.create_error(
+            message="Evaluation failed",
+            category="evaluation",
+            component="evaluator",
+            operation="evaluate"
+        )
+        system_error = handler.create_error(
+            message="System failure",
+            category="system",
+            component="runtime",
+            operation="execute"
+        )
+        assert validation_error.category == "validation", "Error classification should preserve validation classification"
+        assert retrieval_error.category == "retrieval", "Error classification should preserve retrieval classification"
+        assert context_error.category == "context", "Error classification should preserve context classification"
+        assert generation_error.category == "generation", "Error classification should preserve generation classification"
+        assert citation_error.category == "citation", "Error classification should preserve citation classification"
+        assert evaluation_error.category == "evaluation", "Error classification should preserve evaluation classification"
+        assert system_error.category == "system", "Error classification should preserve system classification"
+        assert len(handler.get_errors_by_category("validation")) == 1, "Error classification should retrieve validation errors by category"
+        assert handler.get_errors_by_category("validation")[0] is validation_error, "Error classification should preserve the identified validation error"
+        assert len(handler.get_errors_by_category("retrieval")) == 1, "Error classification should retrieve retrieval errors by category"
+        assert len(handler.get_errors_by_category("context")) == 1, "Error classification should retrieve context errors by category"
+        assert len(handler.get_errors_by_category("generation")) == 1, "Error classification should retrieve generation errors by category"
+        assert len(handler.get_errors_by_category("citation")) == 1, "Error classification should retrieve citation errors by category"
+        assert len(handler.get_errors_by_category("evaluation")) == 1, "Error classification should retrieve evaluation errors by category"
+        assert len(handler.get_errors_by_category("system")) == 1, "Error classification should retrieve system errors by category"
+        unexpected_error = handler.handle_unexpected(
+            RuntimeError("Unexpected provider failure"),
+            component="generator",
+            operation="generate"
+        )
+        assert unexpected_error.category == "unexpected", "Error classification should preserve the special unexpected-exception category"
+        assert unexpected_error.is_unexpected() is True, "Error classification should preserve the unexpected failure boundary"
+        assert len(handler.get_errors_by_category("unexpected")) == 1, "Error classification should retrieve unexpected failures by category"
+        assert len(handler.get_errors()) == 8, "Error classification should preserve every classified error"
+        try:
+            handler.validate_category(
+                "unsupported"
+            )
+            assert False, "Error classification should reject unsupported categories"
+        except ValueError:
+            pass
+        try:
+            handler.validate_category(
+                ""
+            )
+            assert False, "Error classification should reject empty categories"
+        except ValueError:
+            pass
+        try:
+            handler.validate_category(
+                123
+            )
+            assert False, "Error classification should reject non-string categories"
+        except ValueError:
+            pass
+        try:
+            handler.create_error(
+                message="Invalid category",
+                category="unsupported"
+            )
+            assert False, "Error classification should prevent creation of errors with unsupported categories"
+        except ValueError:
+            pass
+        success += 1
+        print(green("Version 0.12.1 error classification is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.12.1 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
