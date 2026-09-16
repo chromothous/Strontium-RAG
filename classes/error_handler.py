@@ -267,6 +267,7 @@ class ErrorHandler:
         self.errors = []
         self._isolated_states = {}
         self._recovery_history = []
+        self._retry_history = []
 
     def validate_category(self, category):
         if not isinstance(category, str):
@@ -580,6 +581,204 @@ class ErrorHandler:
             if not recovery["success"]
         ]
 
+    def retry(
+        self,
+        operation,
+        max_attempts,
+        error_handler=None
+    ):
+        if not callable(operation):
+            raise ValueError(
+                "Retry operation must be callable"
+            )
+        if not isinstance(max_attempts, int):
+            raise ValueError(
+                "Maximum retry attempts must be an integer"
+            )
+        if max_attempts < 1:
+            raise ValueError(
+                "Maximum retry attempts must be at least 1"
+            )
+        if error_handler is not None:
+            if not callable(error_handler):
+                raise ValueError(
+                    "Retry error handler must be callable"
+                )
+        retry_record = {
+            "attempts": [],
+            "success": False,
+            "result": None,
+            "error": None
+        }
+        for attempt in range(1, max_attempts + 1):
+            attempt_record = {
+                "attempt": attempt,
+                "success": False,
+                "result": None,
+                "error": None
+            }
+            try:
+                result = operation()
+                attempt_record["success"] = True
+                attempt_record["result"] = result
+                retry_record["attempts"].append(
+                    attempt_record
+                )
+                retry_record["success"] = True
+                retry_record["result"] = result
+                self._retry_history.append(
+                    retry_record
+                )
+                return {
+                    "success": True,
+                    "attempts": attempt,
+                    "result": result,
+                    "error": None
+                }
+            except StrontiumError as error:
+                self.validate_error(error)
+                attempt_record["error"] = error
+                retry_record["attempts"].append(
+                    attempt_record
+                )
+                retry_record["error"] = error
+                if not error.is_recoverable():
+                    break
+                if error_handler is not None:
+                    error_handler(
+                        error,
+                        attempt
+                    )
+            except Exception as exception:
+                error = self.handle_unexpected(
+                    exception,
+                    component="retry",
+                    operation="attempt"
+                )
+                attempt_record["error"] = error
+                retry_record["attempts"].append(
+                    attempt_record
+                )
+                retry_record["error"] = error
+                break
+        self._retry_history.append(
+            retry_record
+        )
+        final_error = retry_record["error"]
+        return {
+            "success": False,
+            "attempts": len(
+                retry_record["attempts"]
+            ),
+            "result": None,
+            "error": final_error
+        }
+
+    def retry_recoverable(
+        self,
+        error,
+        operation,
+        max_attempts
+    ):
+        self.validate_error(error)
+        if not error.is_recoverable():
+            raise ValueError(
+                "Only recoverable errors can be retried"
+            )
+        if not callable(operation):
+            raise ValueError(
+                "Retry operation must be callable"
+            )
+        if not isinstance(max_attempts, int):
+            raise ValueError(
+                "Maximum retry attempts must be an integer"
+            )
+        if max_attempts < 1:
+            raise ValueError(
+                "Maximum retry attempts must be at least 1"
+            )
+        retry_record = {
+            "attempts": [],
+            "success": False,
+            "result": None,
+            "error": error
+        }
+        for attempt in range(1, max_attempts + 1):
+            attempt_record = {
+                "attempt": attempt,
+                "success": False,
+                "result": None,
+                "error": None
+            }
+            try:
+                result = operation()
+                attempt_record["success"] = True
+                attempt_record["result"] = result
+                retry_record["attempts"].append(
+                    attempt_record
+                )
+                retry_record["success"] = True
+                retry_record["result"] = result
+                retry_record["error"] = None
+                self._retry_history.append(
+                    retry_record
+                )
+                return {
+                    "success": True,
+                    "attempts": attempt,
+                    "result": result,
+                    "error": None
+                }
+            except StrontiumError as retry_error:
+                self.validate_error(retry_error)
+                attempt_record["error"] = retry_error
+                retry_record["attempts"].append(
+                    attempt_record
+                )
+                retry_record["error"] = retry_error
+                if not retry_error.is_recoverable():
+                    break
+            except Exception as exception:
+                retry_error = self.handle_unexpected(
+                    exception,
+                    component=error.component or "retry",
+                    operation=error.operation or "attempt"
+                )
+                attempt_record["error"] = retry_error
+                retry_record["attempts"].append(
+                    attempt_record
+                )
+                retry_record["error"] = retry_error
+                break
+        self._retry_history.append(
+            retry_record
+        )
+        return {
+            "success": False,
+            "attempts": len(
+                retry_record["attempts"]
+            ),
+            "result": None,
+            "error": retry_record["error"]
+        }
+
+    def get_retry_history(self):
+        return list(self._retry_history)
+
+    def get_successful_retries(self):
+        return [
+            retry
+            for retry in self._retry_history
+            if retry["success"]
+        ]
+
+    def get_failed_retries(self):
+        return [
+            retry
+            for retry in self._retry_history
+            if not retry["success"]
+        ]
+
     def begin_isolation(self, name, state):
         if not isinstance(name, str):
             raise ValueError(
@@ -764,3 +963,4 @@ class ErrorHandler:
         self.errors = []
         self._isolated_states = {}
         self._recovery_history = []
+        self._retry_history = []

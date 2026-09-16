@@ -534,3 +534,6 @@ Error isolation is online.
 
 Version 0.12.5
 Error recovery is online.
+
+Version 0.12.6
+Retry handling is online.

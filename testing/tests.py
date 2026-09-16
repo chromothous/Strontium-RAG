@@ -8537,6 +8537,203 @@ def full_test():
         print(red(e))
         print(red("Version 0.12.5 failed"))
 
+    try:
+        tests += 1
+        from classes.error_handler import ErrorHandler, StrontiumError
+        error_handler = ErrorHandler()
+        attempt_counter = {
+            "count": 0
+        }
+        def transient_operation():
+            attempt_counter["count"] += 1
+            if attempt_counter["count"] < 3:
+                raise StrontiumError(
+                    "Temporary failure",
+                    category="retrieval",
+                    component="retriever",
+                    operation="retrieve",
+                    recoverable=True
+                )
+            return "retrieval succeeded"
+        retry_result = error_handler.retry_recoverable(
+            error_handler.handle_expected(
+                "Initial retrieval failure",
+                category="retrieval",
+                component="retriever",
+                operation="retrieve",
+                recoverable=True
+            ),
+            transient_operation,
+            3
+        )
+        assert retry_result["success"] is True, "Retry handling should succeed when a recoverable operation eventually succeeds"
+        assert retry_result["attempts"] == 3, "Retry handling should report the exact number of attempts used"
+        assert retry_result["result"] == "retrieval succeeded", "Retry handling should preserve the successful operation result"
+        assert attempt_counter["count"] == 3, "Retry handling should execute the operation once per attempt"
+        assert len(error_handler.get_successful_retries()) == 1, "Successful retries should be recorded"
+        assert len(error_handler.get_failed_retries()) == 0, "A successful retry sequence should not be recorded as failed"
+        history = error_handler.get_retry_history()
+        assert len(history) == 1, "Retry history should contain the completed retry sequence"
+        assert len(history[0]["attempts"]) == 3, "Retry history should preserve every attempt"
+        assert history[0]["attempts"][0]["attempt"] == 1, "Retry history should preserve attempt numbering"
+        assert history[0]["attempts"][0]["success"] is False, "Failed retry attempts should be recorded as unsuccessful"
+        assert history[0]["attempts"][1]["attempt"] == 2, "Retry history should preserve sequential attempt numbers"
+        assert history[0]["attempts"][2]["attempt"] == 3, "Retry history should record the successful final attempt"
+        assert history[0]["attempts"][2]["success"] is True, "Successful retry attempts should be marked successful"
+        non_recoverable = error_handler.handle_expected(
+            "Permanent retrieval failure",
+            category="retrieval",
+            component="retriever",
+            operation="retrieve"
+        )
+        try:
+            error_handler.retry_recoverable(
+                non_recoverable,
+                lambda: "should not run",
+                3
+            )
+            assert False, "Non-recoverable errors should reject retry attempts"
+        except ValueError:
+            pass
+        invalid_attempt_error = error_handler.handle_expected(
+            "Invalid retry attempt",
+            category="context",
+            component="context_builder",
+            operation="build",
+            recoverable=True
+        )
+        try:
+            error_handler.retry_recoverable(
+                invalid_attempt_error,
+                lambda: "invalid",
+                0
+            )
+            assert False, "Retry handling should reject a retry count below one"
+        except ValueError:
+            pass
+        try:
+            error_handler.retry(
+                "not callable",
+                2
+            )
+            assert False, "Retry handling should reject non-callable operations"
+        except ValueError:
+            pass
+        limited_counter = {
+            "count": 0
+        }
+        def always_failing_operation():
+            limited_counter["count"] += 1
+            raise StrontiumError(
+                "Temporary failure remains",
+                category="generation",
+                component="generator",
+                operation="generate",
+                recoverable=True
+            )
+        limited_result = error_handler.retry_recoverable(
+            error_handler.handle_expected(
+                "Generation initially failed",
+                category="generation",
+                component="generator",
+                operation="generate",
+                recoverable=True
+            ),
+            always_failing_operation,
+            2
+        )
+        assert limited_result["success"] is False, "Retry handling should fail after the configured maximum attempts"
+        assert limited_result["attempts"] == 2, "Retry handling should never exceed the configured maximum attempts"
+        assert limited_counter["count"] == 2, "Retry handling should stop after the configured maximum attempts"
+        assert len(error_handler.get_failed_retries()) == 1, "Exhausted retries should be recorded as failed"
+        unexpected_counter = {
+            "count": 0
+        }
+        def unexpected_operation():
+            unexpected_counter["count"] += 1
+            raise RuntimeError(
+                "Unexpected retry failure"
+            )
+        unexpected_result = error_handler.retry(
+            unexpected_operation,
+            5
+        )
+        assert unexpected_result["success"] is False, "Unexpected retry failures should report failure"
+        assert unexpected_result["attempts"] == 1, "Unexpected failures should not be retried automatically"
+        assert unexpected_counter["count"] == 1, "Unexpected failures should stop retry processing immediately"
+        assert isinstance(
+            unexpected_result["error"],
+            StrontiumError
+        ), "Unexpected retry failures should be converted into structured errors"
+        assert unexpected_result["error"].category == "unexpected", "Unexpected retry failures should retain unexpected classification"
+        assert unexpected_result["error"].cause is not None, "Unexpected retry failures should preserve the original exception"
+        state = {
+            "retrieved": ["document_a"],
+            "context": "valid context",
+            "answer": None
+        }
+        state_counter = {
+            "count": 0
+        }
+        def isolated_retry_operation(working):
+            state_counter["count"] += 1
+            if state_counter["count"] < 2:
+                raise StrontiumError(
+                    "Temporary generation failure",
+                    category="generation",
+                    component="generator",
+                    operation="generate",
+                    recoverable=True
+                )
+            working["answer"] = "generated answer"
+            return "generated answer"
+        isolated_state = error_handler.isolate_operation(
+            "generation_retry",
+            state,
+            isolated_retry_operation
+        )
+        assert isolated_state["success"] is False, "The isolation layer should not silently retry operations before retry handling is invoked"
+        retry_state = {
+            "retrieved": ["document_a"],
+            "context": "valid context",
+            "answer": None
+        }
+        retry_error = error_handler.handle_expected(
+            "Temporary generation failure",
+            category="generation",
+            component="generator",
+            operation="generate",
+            recoverable=True
+        )
+        retry_state_counter = {
+            "count": 0
+        }
+        def recovered_generation():
+            retry_state_counter["count"] += 1
+            if retry_state_counter["count"] < 2:
+                raise retry_error
+            retry_state["answer"] = "generated answer"
+            return "generated answer"
+        recovered_generation_result = error_handler.retry_recoverable(
+            retry_error,
+            recovered_generation,
+            3
+        )
+        assert recovered_generation_result["success"] is True, "Retry handling should recover a transient failure"
+        assert retry_state["retrieved"] == ["document_a"], "Retry handling should preserve completed retrieval work"
+        assert retry_state["context"] == "valid context", "Retry handling should preserve completed context work"
+        assert retry_state["answer"] == "generated answer", "Retry handling should preserve successfully generated work"
+        assert len(error_handler.get_retry_history()) == 4, "Retry history should preserve all completed retry sequences"
+        error_handler.clear()
+        assert error_handler.get_retry_history() == [], "Clearing the error handler should remove retry history"
+        assert error_handler.get_errors() == [], "Clearing the error handler should remove stored errors"
+        success += 1
+        print(green("Version 0.12.6 retry handling is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.12.6 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
