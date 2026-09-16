@@ -21,7 +21,8 @@ class StrontiumError:
         operation=None,
         details=None,
         cause=None,
-        expected=True
+        expected=True,
+        propagation=None
     ):
         self.message = message
         self.category = category
@@ -30,6 +31,11 @@ class StrontiumError:
         self.details = details if details is not None else {}
         self.cause = cause
         self.expected = expected
+        self.propagation = (
+            list(propagation)
+            if propagation is not None
+            else []
+        )
         self.validate()
 
     @classmethod
@@ -98,6 +104,45 @@ class StrontiumError:
             raise ValueError(
                 "Error expected flag must be a boolean"
             )
+        if not isinstance(self.propagation, list):
+            raise ValueError(
+                "Error propagation must be a list"
+            )
+        for propagation_step in self.propagation:
+            if not isinstance(propagation_step, dict):
+                raise ValueError(
+                    "Each propagation step must be a dictionary"
+                )
+            if "component" not in propagation_step:
+                raise ValueError(
+                    "Propagation step is missing component"
+                )
+            if "operation" not in propagation_step:
+                raise ValueError(
+                    "Propagation step is missing operation"
+                )
+            if not isinstance(
+                propagation_step["component"],
+                str
+            ):
+                raise ValueError(
+                    "Propagation component must be a string"
+                )
+            if not propagation_step["component"].strip():
+                raise ValueError(
+                    "Propagation component cannot be empty"
+                )
+            if not isinstance(
+                propagation_step["operation"],
+                str
+            ):
+                raise ValueError(
+                    "Propagation operation must be a string"
+                )
+            if not propagation_step["operation"].strip():
+                raise ValueError(
+                    "Propagation operation cannot be empty"
+                )
         if self.category == "unexpected":
             if self.expected is True:
                 raise ValueError(
@@ -122,6 +167,53 @@ class StrontiumError:
     def is_unexpected(self):
         return not self.expected
 
+    def add_propagation(self, component, operation):
+        if not isinstance(component, str):
+            raise ValueError(
+                "Propagation component must be a string"
+            )
+        if not component.strip():
+            raise ValueError(
+                "Propagation component cannot be empty"
+            )
+        if not isinstance(operation, str):
+            raise ValueError(
+                "Propagation operation must be a string"
+            )
+        if not operation.strip():
+            raise ValueError(
+                "Propagation operation cannot be empty"
+            )
+        propagation_step = {
+            "component": component,
+            "operation": operation
+        }
+        self.propagation.append(
+            propagation_step
+        )
+        self.validate()
+        return propagation_step
+
+    def get_propagation(self):
+        return [
+            dict(step)
+            for step in self.propagation
+        ]
+
+    def get_error_path(self):
+        path = []
+        if self.component is not None:
+            path.append(
+                {
+                    "component": self.component,
+                    "operation": self.operation
+                }
+            )
+        path.extend(
+            self.get_propagation()
+        )
+        return path
+
     def to_dict(self):
         return {
             "message": self.message,
@@ -130,7 +222,8 @@ class StrontiumError:
             "operation": self.operation,
             "details": dict(self.details),
             "cause": str(self.cause) if self.cause is not None else None,
-            "expected": self.expected
+            "expected": self.expected,
+            "propagation": self.get_propagation()
         }
 
     def __str__(self):
@@ -170,7 +263,9 @@ class ErrorHandler:
             "category",
             "expected"
         }
-        missing_fields = required_fields - set(definition.keys())
+        missing_fields = required_fields - set(
+            definition.keys()
+        )
         if missing_fields:
             raise ValueError(
                 f"Error definition is missing required fields: {missing_fields}"
@@ -186,7 +281,8 @@ class ErrorHandler:
             operation=definition.get("operation"),
             details=definition.get("details"),
             cause=definition.get("cause"),
-            expected=definition["expected"]
+            expected=definition["expected"],
+            propagation=definition.get("propagation")
         )
 
     def create_error(
@@ -197,7 +293,8 @@ class ErrorHandler:
         operation=None,
         details=None,
         cause=None,
-        expected=True
+        expected=True,
+        propagation=None
     ):
         self.validate_category(category)
         error = StrontiumError(
@@ -207,7 +304,8 @@ class ErrorHandler:
             operation=operation,
             details=details,
             cause=cause,
-            expected=expected
+            expected=expected,
+            propagation=propagation
         )
         self.validate_error(error)
         self.errors.append(error)
@@ -252,6 +350,25 @@ class ErrorHandler:
             cause=exception,
             expected=False
         )
+
+    def propagate(
+        self,
+        error,
+        component,
+        operation
+    ):
+        self.validate_error(error)
+        error.add_propagation(
+            component,
+            operation
+        )
+        if not any(
+            stored_error is error
+            for stored_error in self.errors
+        ):
+            self.errors.append(error)
+        self.validate_error(error)
+        return error
 
     def classify(self, category):
         return self.validate_category(category)

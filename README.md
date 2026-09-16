@@ -525,3 +525,6 @@ Error classification is online.
 
 Version 0.12.2
 Error validation is online.
+
+Version 0.12.3
+Component error propagation is online.

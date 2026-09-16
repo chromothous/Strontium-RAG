@@ -8065,6 +8065,137 @@ def full_test():
         print(red(e))
         print(red("Version 0.12.2 failed"))
 
+    try:
+        tests += 1
+        from classes.error_handler import ErrorHandler, StrontiumError
+        handler = ErrorHandler()
+        original_error = handler.create_error(
+            message="Document retrieval failed",
+            category="retrieval",
+            component="retriever",
+            operation="search",
+            details={
+                "query": "test query"
+            },
+            expected=True
+        )
+        propagated_error = handler.propagate(
+            original_error,
+            component="conversation",
+            operation="process"
+        )
+        assert propagated_error is original_error, "Error propagation should preserve the original StrontiumError object"
+        assert propagated_error.message == "Document retrieval failed", "Error propagation should preserve the original error message"
+        assert propagated_error.category == "retrieval", "Error propagation should preserve the original error category"
+        assert propagated_error.component == "retriever", "Error propagation should preserve the original originating component"
+        assert propagated_error.operation == "search", "Error propagation should preserve the original originating operation"
+        assert propagated_error.details == {
+            "query": "test query"
+        }, "Error propagation should preserve the original diagnostic details"
+        assert propagated_error.cause is None, "Error propagation should preserve the original error cause"
+        assert propagated_error.expected is True, "Error propagation should preserve the original expected failure boundary"
+        propagation = propagated_error.get_propagation()
+        assert isinstance(propagation, list), "Error propagation should expose a structured propagation history"
+        assert len(propagation) == 1, "Error propagation should record each propagation boundary"
+        assert propagation[0]["component"] == "conversation", "Error propagation should preserve the receiving component"
+        assert propagation[0]["operation"] == "process", "Error propagation should preserve the receiving operation"
+        propagated_error = handler.propagate(
+            propagated_error,
+            component="evaluator",
+            operation="evaluate"
+        )
+        assert len(propagated_error.get_propagation()) == 2, "Error propagation should preserve multiple propagation boundaries"
+        assert propagated_error.get_propagation()[1]["component"] == "evaluator", "Error propagation should preserve later component boundaries"
+        assert propagated_error.get_propagation()[1]["operation"] == "evaluate", "Error propagation should preserve later operation boundaries"
+        error_path = propagated_error.get_error_path()
+        assert isinstance(error_path, list), "Error propagation should expose a complete error path"
+        assert len(error_path) == 3, "Error propagation should include the original component and every propagation boundary"
+        assert error_path[0]["component"] == "retriever", "Error propagation should preserve the original component in the complete error path"
+        assert error_path[0]["operation"] == "search", "Error propagation should preserve the original operation in the complete error path"
+        assert error_path[1]["component"] == "conversation", "Error propagation should preserve the first propagation boundary in the complete error path"
+        assert error_path[2]["component"] == "evaluator", "Error propagation should preserve the second propagation boundary in the complete error path"
+        error_data = propagated_error.to_dict()
+        assert "propagation" in error_data, "Error propagation should include propagation data in structured error output"
+        assert len(error_data["propagation"]) == 2, "Structured error output should preserve every propagation boundary"
+        assert error_data["message"] == "Document retrieval failed", "Structured propagated errors should preserve the original message"
+        assert error_data["category"] == "retrieval", "Structured propagated errors should preserve the original category"
+        assert error_data["component"] == "retriever", "Structured propagated errors should preserve the original source component"
+        assert error_data["details"]["query"] == "test query", "Structured propagated errors should preserve the original diagnostic data"
+        assert len(handler.get_errors()) == 1, "Error propagation should not duplicate an already stored error"
+        external_error = StrontiumError(
+            message="Generation failed",
+            category="generation",
+            component="generator",
+            operation="generate"
+        )
+        returned_error = handler.propagate(
+            external_error,
+            component="conversation",
+            operation="process"
+        )
+        assert returned_error is external_error, "Error propagation should preserve externally created StrontiumError objects"
+        assert len(handler.get_errors()) == 2, "Error propagation should register externally created errors when they enter the handler"
+        assert len(external_error.get_propagation()) == 1, "Error propagation should record propagation for externally created errors"
+        original_exception = RuntimeError(
+            "Provider unavailable"
+        )
+        unexpected_error = handler.handle_unexpected(
+            original_exception,
+            component="generator",
+            operation="generate"
+        )
+        handler.propagate(
+            unexpected_error,
+            component="conversation",
+            operation="process"
+        )
+        assert unexpected_error.cause is original_exception, "Error propagation should preserve the original unexpected exception"
+        assert unexpected_error.category == "unexpected", "Error propagation should preserve the unexpected error classification"
+        assert unexpected_error.expected is False, "Error propagation should preserve the unexpected failure boundary"
+        assert unexpected_error.get_propagation()[0]["component"] == "conversation", "Error propagation should preserve unexpected error propagation boundaries"
+        assert len(handler.get_errors()) == 3, "Error propagation should preserve each distinct error without silent loss"
+        try:
+            handler.propagate(
+                "not a StrontiumError",
+                "conversation",
+                "process"
+            )
+            assert False, "Error propagation should reject non-StrontiumError values"
+        except ValueError:
+            pass
+        try:
+            handler.propagate(
+                original_error,
+                "",
+                "process"
+            )
+            assert False, "Error propagation should reject empty propagation components"
+        except ValueError:
+            pass
+        try:
+            handler.propagate(
+                original_error,
+                "conversation",
+                ""
+            )
+            assert False, "Error propagation should reject empty propagation operations"
+        except ValueError:
+            pass
+        try:
+            original_error.add_propagation(
+                "conversation",
+                ""
+            )
+            assert False, "Error propagation should reject invalid propagation steps"
+        except ValueError:
+            pass
+        success += 1
+        print(green("Version 0.12.3 component error propagation is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.12.3 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
