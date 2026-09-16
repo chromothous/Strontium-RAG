@@ -7372,6 +7372,110 @@ def full_test():
         print(red(e))
         print(red("Version 0.11.10 failed"))
 
+    try:
+        tests += 1
+        from classes.logger import Logger
+        from testing import TestRunner
+        logger = Logger()
+        runner = TestRunner(logger)
+        executed = []
+        def first_test():
+            executed.append("first")
+        def second_test():
+            executed.append("second")
+        def third_test():
+            executed.append("third")
+        runner.register(
+            "first_test",
+            first_test
+        )
+        runner.register(
+            "second_test",
+            second_test
+        )
+        runner.register(
+            "third_test",
+            third_test
+        )
+        selected_results = runner.execute_selected(
+            [
+                "first_test",
+                "third_test"
+            ]
+        )
+        assert isinstance(selected_results, list), "Selective test execution should return a list of execution results"
+        assert len(selected_results) == 2, "Selective test execution should execute only the requested tests"
+        assert selected_results[0]["name"] == "first_test", "Selective test execution should preserve the first selected test"
+        assert selected_results[1]["name"] == "third_test", "Selective test execution should preserve the second selected test"
+        assert selected_results[0]["success"] is True, "Selective test execution should report successful selected tests"
+        assert selected_results[1]["success"] is True, "Selective test execution should report successful selected tests"
+        assert executed == ["first", "third"], "Selective test execution should not execute unselected tests"
+        assert runner.tests == 2, "Selective test execution should account only for selected tests"
+        assert runner.success == 2, "Selective test execution should account successful selected tests"
+        assert runner.failure == 0, "Selective test execution should report no failures for successful selected tests"
+        runner.reset()
+        executed.clear()
+        isolated_results = runner.execute_selected_isolated(
+            [
+                "second_test"
+            ]
+        )
+        assert isinstance(isolated_results, list), "Selective isolated execution should return a list of execution results"
+        assert len(isolated_results) == 1, "Selective isolated execution should execute only the requested isolated test"
+        assert isolated_results[0]["name"] == "second_test", "Selective isolated execution should preserve the selected test name"
+        assert isolated_results[0]["success"] is True, "Selective isolated execution should report successful isolated tests"
+        assert executed == ["second"], "Selective isolated execution should not execute unselected tests"
+        assert runner.get_test_state() == {}, "Selective isolated execution should preserve state isolation"
+        runner.reset()
+        executed.clear()
+        runner.execute_selected(
+            [
+                "third_test"
+            ]
+        )
+        assert executed == ["third"], "Selective execution should support single-test execution"
+        assert runner.tests == 1, "Selective execution should account for a single selected test"
+        runner.reset()
+        try:
+            runner.execute_selected(
+                []
+            )
+            assert False, "Selective test execution should reject empty test selections"
+        except ValueError:
+            pass
+        try:
+            runner.execute_selected(
+                [
+                    "missing_test"
+                ]
+            )
+            assert False, "Selective test execution should reject unregistered test names"
+        except ValueError:
+            pass
+        try:
+            runner.execute_selected(
+                "invalid selection"
+            )
+            assert False, "Selective test execution should reject invalid selection collections"
+        except ValueError:
+            pass
+        try:
+            runner.execute_selected(
+                [
+                    123
+                ]
+            )
+            assert False, "Selective test execution should reject non-string test names"
+        except ValueError:
+            pass
+        assert runner.logger is logger, "Selective test execution should preserve the configured Logger instance"
+        success += 1
+        print(green("Version 0.11.11 selective test execution is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.11.11 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

@@ -579,6 +579,133 @@ class TestRunner:
         self.register_discovered(directory)
         return self.execute()
 
+    def execute_selected(self, names):
+        if not isinstance(names, (list, tuple, set)):
+            self.logger.error(
+                "Selected test names must be a list, tuple, or set"
+            )
+            raise ValueError(
+                "Selected test names must be a list, tuple, or set"
+            )
+        if len(names) == 0:
+            self.logger.error(
+                "Selected test names cannot be empty"
+            )
+            raise ValueError(
+                "Selected test names cannot be empty"
+            )
+        normalized_names = []
+        for name in names:
+            if not isinstance(name, str):
+                self.logger.error(
+                    "Selected test name must be a string"
+                )
+                raise ValueError(
+                    "Selected test name must be a string"
+                )
+            if not name.strip():
+                self.logger.error(
+                    "Selected test name cannot be empty"
+                )
+                raise ValueError(
+                    "Selected test name cannot be empty"
+                )
+            normalized_names.append(name)
+
+        registered_by_name = {
+            test["name"]: test
+            for test in self._registered_tests
+        }
+        missing_names = [
+            name
+            for name in normalized_names
+            if name not in registered_by_name
+        ]
+        if missing_names:
+            self.logger.error(
+                f"Selected tests were not registered: {missing_names}"
+            )
+            raise ValueError(
+                f"Selected tests were not registered: {missing_names}"
+            )
+
+        selected_tests = [
+            registered_by_name[name]
+            for name in normalized_names
+        ]
+        self.logger.info(
+            f"Selective test execution requested: "
+            f"{len(selected_tests)} tests"
+        )
+        return self.execute(selected_tests)
+
+    def execute_selected_isolated(self, names):
+        if not isinstance(names, (list, tuple, set)):
+            self.logger.error(
+                "Selected isolated test names must be a list, tuple, or set"
+            )
+            raise ValueError(
+                "Selected isolated test names must be a list, tuple, or set"
+            )
+        if len(names) == 0:
+            self.logger.error(
+                "Selected isolated test names cannot be empty"
+            )
+            raise ValueError(
+                "Selected isolated test names cannot be empty"
+            )
+        normalized_names = []
+        for name in names:
+            if not isinstance(name, str):
+                self.logger.error(
+                    "Selected isolated test name must be a string"
+                )
+                raise ValueError(
+                    "Selected isolated test name must be a string"
+                )
+            if not name.strip():
+                self.logger.error(
+                    "Selected isolated test name cannot be empty"
+                )
+                raise ValueError(
+                    "Selected isolated test name cannot be empty"
+                )
+            normalized_names.append(name)
+
+        registered_by_name = {
+            test["name"]: test
+            for test in self._registered_tests
+        }
+        missing_names = [
+            name
+            for name in normalized_names
+            if name not in registered_by_name
+        ]
+        if missing_names:
+            self.logger.error(
+                f"Selected isolated tests were not registered: {missing_names}"
+            )
+            raise ValueError(
+                f"Selected isolated tests were not registered: {missing_names}"
+            )
+
+        selected_tests = [
+            registered_by_name[name]
+            for name in normalized_names
+        ]
+        self.logger.info(
+            f"Selective isolated test execution requested: "
+            f"{len(selected_tests)} tests"
+        )
+        return self.execute_isolated(selected_tests)
+
+    def execute_discovered_selected(self, directory, names):
+        self.logger.info(
+            f"Selective discovered test execution requested: {directory}"
+        )
+        self.register_discovered(directory)
+        return self.execute_selected(names)
+
     def run_regression_suite(self, suite_path):
         if not isinstance(suite_path, str):
             self.logger.error(
