@@ -16,6 +16,17 @@ class StrontiumError(Exception):
     )
     VALID_CATEGORIES = STANDARD_CATEGORIES + SPECIAL_CATEGORIES
 
+    DEFAULT_USER_MESSAGES = {
+        "validation": "The request could not be processed because some input was invalid.",
+        "retrieval": "The requested information could not be retrieved.",
+        "context": "The requested information could not be prepared for processing.",
+        "generation": "The response could not be generated.",
+        "citation": "The response sources could not be prepared.",
+        "evaluation": "The response could not be evaluated.",
+        "system": "The system could not complete the requested operation.",
+        "unexpected": "An unexpected system error occurred."
+    }
+
     def __init__(
         self,
         message,
@@ -26,7 +37,8 @@ class StrontiumError(Exception):
         cause=None,
         expected=True,
         propagation=None,
-        recoverable=False
+        recoverable=False,
+        user_message=None
     ):
         self.message = message
         self.category = category
@@ -41,6 +53,7 @@ class StrontiumError(Exception):
             else []
         )
         self.recoverable = recoverable
+        self.user_message = user_message
         self.validate()
         super().__init__(self.message)
 
@@ -51,6 +64,18 @@ class StrontiumError(Exception):
     @classmethod
     def get_valid_categories(cls):
         return tuple(cls.VALID_CATEGORIES)
+
+    @classmethod
+    def get_default_user_messages(cls):
+        return dict(cls.DEFAULT_USER_MESSAGES)
+
+    @classmethod
+    def get_default_user_message(cls, category):
+        if not cls.is_valid_category(category):
+            raise ValueError(
+                f"Invalid error category: {category}"
+            )
+        return cls.DEFAULT_USER_MESSAGES[category]
 
     @classmethod
     def is_valid_category(cls, category):
@@ -118,6 +143,15 @@ class StrontiumError(Exception):
             raise ValueError(
                 "Error recoverable flag must be a boolean"
             )
+        if self.user_message is not None:
+            if not isinstance(self.user_message, str):
+                raise ValueError(
+                    "User-facing error message must be a string or None"
+                )
+            if not self.user_message.strip():
+                raise ValueError(
+                    "User-facing error message cannot be empty"
+                )
         for propagation_step in self.propagation:
             if not isinstance(propagation_step, dict):
                 raise ValueError(
@@ -186,6 +220,31 @@ class StrontiumError(Exception):
 
     def is_non_recoverable(self):
         return not self.recoverable
+
+    def get_user_message(self):
+        if self.user_message is not None:
+            return self.user_message
+        return self.get_default_user_message(
+            self.category
+        )
+
+    def set_user_message(self, user_message):
+        if not isinstance(user_message, str):
+            raise ValueError(
+                "User-facing error message must be a string"
+            )
+        if not user_message.strip():
+            raise ValueError(
+                "User-facing error message cannot be empty"
+            )
+        self.user_message = user_message
+        self.validate()
+        return self.user_message
+
+    def clear_user_message(self):
+        self.user_message = None
+        self.validate()
+        return self.get_user_message()
 
     def mark_recoverable(self):
         if self.category == "unexpected":
@@ -258,7 +317,14 @@ class StrontiumError(Exception):
             "cause": str(self.cause) if self.cause is not None else None,
             "expected": self.expected,
             "propagation": self.get_propagation(),
-            "recoverable": self.recoverable
+            "recoverable": self.recoverable,
+            "user_message": self.user_message
+        }
+
+    def to_user_dict(self):
+        return {
+            "message": self.get_user_message(),
+            "category": self.category
         }
 
     def __str__(self):
@@ -402,6 +468,9 @@ class ErrorHandler:
             recoverable=definition.get(
                 "recoverable",
                 False
+            ),
+            user_message=definition.get(
+                "user_message"
             )
         )
 
@@ -415,7 +484,8 @@ class ErrorHandler:
         cause=None,
         expected=True,
         propagation=None,
-        recoverable=False
+        recoverable=False,
+        user_message=None
     ):
         self.validate_category(category)
         error = StrontiumError(
@@ -427,7 +497,8 @@ class ErrorHandler:
             cause=cause,
             expected=expected,
             propagation=propagation,
-            recoverable=recoverable
+            recoverable=recoverable,
+            user_message=user_message
         )
         self.validate_error(error)
         self.errors.append(error)
@@ -448,7 +519,8 @@ class ErrorHandler:
         operation=None,
         details=None,
         cause=None,
-        recoverable=False
+        recoverable=False,
+        user_message=None
     ):
         return self.create_error(
             message=message,
@@ -458,7 +530,8 @@ class ErrorHandler:
             details=details,
             cause=cause,
             expected=True,
-            recoverable=recoverable
+            recoverable=recoverable,
+            user_message=user_message
         )
 
     def handle_unexpected(
@@ -508,6 +581,20 @@ class ErrorHandler:
         )
         self.validate_error(error)
         return error
+
+    def get_user_message(self, error):
+        self.validate_error(error)
+        return error.get_user_message()
+
+    def get_user_response(self, error):
+        self.validate_error(error)
+        return error.to_user_dict()
+
+    def set_user_message(self, error, user_message):
+        self.validate_error(error)
+        return error.set_user_message(
+            user_message
+        )
 
     def recover(
         self,

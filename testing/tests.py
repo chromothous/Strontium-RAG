@@ -9080,6 +9080,125 @@ def full_test():
         print(red(e))
         print(red("Version 0.12.8 failed"))
 
+    try:
+        tests += 1
+        from classes.error_handler import ErrorHandler, StrontiumError
+        from classes.logger import Logger
+        logger = Logger()
+        error_handler = ErrorHandler(logger)
+        generation_error = error_handler.handle_expected(
+            "Mistral provider returned malformed response",
+            category="generation",
+            component="generator",
+            operation="generate",
+            details={
+                "provider": "mistral",
+                "status_code": 502
+            }
+        )
+        assert generation_error.message == "Mistral provider returned malformed response", "Internal errors should preserve the detailed diagnostic message"
+        assert generation_error.get_user_message() == "The response could not be generated.", "User-facing errors should default to a safe category-specific message"
+        user_response = error_handler.get_user_response(
+            generation_error
+        )
+        assert user_response == {
+            "message": "The response could not be generated.",
+            "category": "generation"
+        }, "User-facing responses should contain only safe user-facing information"
+        assert "component" not in user_response, "User-facing responses should not expose internal component names"
+        assert "operation" not in user_response, "User-facing responses should not expose internal operation names"
+        assert "cause" not in user_response, "User-facing responses should not expose internal exception causes"
+        assert "details" not in user_response, "User-facing responses should not expose internal diagnostic details"
+        assert "provider" not in user_response, "User-facing responses should not expose provider implementation details"
+        error_handler.set_user_message(
+            generation_error,
+            "We could not generate a response right now."
+        )
+        assert generation_error.get_user_message() == "We could not generate a response right now.", "User-facing messages should support controlled custom messaging"
+        assert error_handler.get_user_message(
+            generation_error
+        ) == "We could not generate a response right now.", "ErrorHandler should expose the configured user-facing message"
+        custom_response = error_handler.get_user_response(
+            generation_error
+        )
+        assert custom_response["message"] == "We could not generate a response right now.", "User-facing responses should use the configured safe message"
+        generation_error.clear_user_message()
+        assert generation_error.get_user_message() == "The response could not be generated.", "Clearing a custom user message should restore the category default"
+        category_messages = StrontiumError.get_default_user_messages()
+        assert isinstance(category_messages, dict), "Default user-facing messages should be exposed as a dictionary"
+        assert set(
+            category_messages.keys()
+        ) == set(
+            StrontiumError.get_valid_categories()
+        ), "Every valid error category should have a user-facing default message"
+        for category in StrontiumError.get_valid_categories():
+            category_error = error_handler.handle_expected(
+                "Internal category failure",
+                category=category
+            ) if category != "unexpected" else None
+            if category_error is not None:
+                assert category_error.get_user_message() == category_messages[category], "Each standard error category should produce its corresponding safe user-facing message"
+        unexpected_exception = RuntimeError(
+            "PostgreSQL connection string and credentials were invalid"
+        )
+        unexpected_error = error_handler.handle_unexpected(
+            unexpected_exception,
+            component="vector_store",
+            operation="connect"
+        )
+        unexpected_response = error_handler.get_user_response(
+            unexpected_error
+        )
+        assert unexpected_response["message"] == "An unexpected system error occurred.", "Unexpected internal failures should receive a generic user-facing message"
+        assert "PostgreSQL" not in unexpected_response["message"], "User-facing messages should not expose infrastructure details"
+        assert "credentials" not in unexpected_response["message"], "User-facing messages should not expose sensitive implementation information"
+        unexpected_diagnostics = error_handler.get_error_diagnostics(
+            unexpected_error
+        )
+        assert len(unexpected_diagnostics) >= 1, "Internal diagnostics should still preserve unexpected failure information"
+        assert unexpected_diagnostics[0]["cause"] == "PostgreSQL connection string and credentials were invalid", "Internal diagnostics should retain the original cause"
+        serialized_error = generation_error.to_dict()
+        assert serialized_error["message"] == "Mistral provider returned malformed response", "Internal serialization should preserve the internal error message"
+        assert serialized_error["user_message"] is None, "Internal serialization should distinguish an unset custom user message"
+        generation_error.set_user_message(
+            "Response generation is temporarily unavailable."
+        )
+        serialized_with_user_message = generation_error.to_dict()
+        assert serialized_with_user_message["user_message"] == "Response generation is temporarily unavailable.", "Internal serialization should preserve configured user-facing messaging"
+        user_only = generation_error.to_user_dict()
+        assert user_only == {
+            "message": "Response generation is temporarily unavailable.",
+            "category": "generation"
+        }, "User serialization should remain separate from internal serialization"
+        try:
+            generation_error.set_user_message("")
+            assert False, "User-facing error messages should reject empty strings"
+        except ValueError:
+            pass
+        try:
+            generation_error.set_user_message(123)
+            assert False, "User-facing error messages should reject non-string values"
+        except ValueError:
+            pass
+        try:
+            StrontiumError(
+                "Invalid user message",
+                category="generation",
+                user_message=""
+            )
+            assert False, "Error construction should reject empty user-facing messages"
+        except ValueError:
+            pass
+        error_handler.clear()
+        assert error_handler.get_diagnostics() == [], "Clearing the error handler should remove internal diagnostics"
+        assert error_handler.get_errors() == [], "Clearing the error handler should remove stored errors"
+        success += 1
+        print(green("Version 0.12.9 user-facing error handling is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.12.9 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

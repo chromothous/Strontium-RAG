@@ -543,3 +543,6 @@ Fallback handling is online.
 
 Version 0.12.8
 Error logging and diagnostics are online.
+
+Version 0.12.9
+User-facing error handling is online.
