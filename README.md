@@ -537,3 +537,6 @@ Error recovery is online.
 
 Version 0.12.6
 Retry handling is online.
+
+Version 0.12.7
+Fallback handling is online.

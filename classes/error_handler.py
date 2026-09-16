@@ -268,6 +268,7 @@ class ErrorHandler:
         self._isolated_states = {}
         self._recovery_history = []
         self._retry_history = []
+        self._fallback_history = []
 
     def validate_category(self, category):
         if not isinstance(category, str):
@@ -779,6 +780,136 @@ class ErrorHandler:
             if not retry["success"]
         ]
 
+    def fallback(
+        self,
+        primary_operation,
+        fallback_operation
+    ):
+        if not callable(primary_operation):
+            raise ValueError(
+                "Primary operation must be callable"
+            )
+        if not callable(fallback_operation):
+            raise ValueError(
+                "Fallback operation must be callable"
+            )
+        fallback_record = {
+            "primary_success": False,
+            "fallback_used": False,
+            "success": False,
+            "primary_error": None,
+            "fallback_error": None,
+            "result": None
+        }
+        try:
+            result = primary_operation()
+            fallback_record["primary_success"] = True
+            fallback_record["success"] = True
+            fallback_record["result"] = result
+            self._fallback_history.append(
+                fallback_record
+            )
+            return {
+                "success": True,
+                "fallback_used": False,
+                "result": result,
+                "error": None
+            }
+        except StrontiumError as primary_error:
+            self.validate_error(primary_error)
+            fallback_record["primary_error"] = primary_error
+            if not primary_error.is_recoverable():
+                self._fallback_history.append(
+                    fallback_record
+                )
+                return {
+                    "success": False,
+                    "fallback_used": False,
+                    "result": None,
+                    "error": primary_error
+                }
+        except Exception as exception:
+            primary_error = self.handle_unexpected(
+                exception,
+                component="fallback",
+                operation="primary"
+            )
+            fallback_record["primary_error"] = primary_error
+            self._fallback_history.append(
+                fallback_record
+            )
+            return {
+                "success": False,
+                "fallback_used": False,
+                "result": None,
+                "error": primary_error
+            }
+        fallback_record["fallback_used"] = True
+        try:
+            result = fallback_operation()
+            fallback_record["success"] = True
+            fallback_record["result"] = result
+            self._fallback_history.append(
+                fallback_record
+            )
+            return {
+                "success": True,
+                "fallback_used": True,
+                "result": result,
+                "error": fallback_record["primary_error"]
+            }
+        except StrontiumError as fallback_error:
+            self.validate_error(fallback_error)
+            fallback_record["fallback_error"] = fallback_error
+            self._fallback_history.append(
+                fallback_record
+            )
+            self.propagate(
+                fallback_error,
+                fallback_error.component or "fallback",
+                fallback_error.operation or "alternate"
+            )
+            return {
+                "success": False,
+                "fallback_used": True,
+                "result": None,
+                "error": fallback_error
+            }
+        except Exception as exception:
+            fallback_error = self.handle_unexpected(
+                exception,
+                component="fallback",
+                operation="alternate"
+            )
+            fallback_record["fallback_error"] = fallback_error
+            self._fallback_history.append(
+                fallback_record
+            )
+            return {
+                "success": False,
+                "fallback_used": True,
+                "result": None,
+                "error": fallback_error
+            }
+
+    def get_fallback_history(self):
+        return list(self._fallback_history)
+
+    def get_successful_fallbacks(self):
+        return [
+            fallback
+            for fallback in self._fallback_history
+            if fallback["success"]
+            and fallback["fallback_used"]
+        ]
+
+    def get_failed_fallbacks(self):
+        return [
+            fallback
+            for fallback in self._fallback_history
+            if not fallback["success"]
+        ]
+
     def begin_isolation(self, name, state):
         if not isinstance(name, str):
             raise ValueError(
@@ -964,3 +1095,4 @@ class ErrorHandler:
         self._isolated_states = {}
         self._recovery_history = []
         self._retry_history = []
+        self._fallback_history = []

@@ -8734,6 +8734,173 @@ def full_test():
         print(red(e))
         print(red("Version 0.12.6 failed"))
 
+    try:
+        tests += 1
+        from classes.error_handler import ErrorHandler, StrontiumError
+        error_handler = ErrorHandler()
+        primary_result = error_handler.fallback(
+            lambda: "primary result",
+            lambda: "fallback result"
+        )
+        assert primary_result["success"] is True, "Fallback handling should return a successful primary result when the preferred operation succeeds"
+        assert primary_result["fallback_used"] is False, "Fallback handling should not use the fallback when the primary operation succeeds"
+        assert primary_result["result"] == "primary result", "Fallback handling should preserve the primary operation result"
+        assert len(error_handler.get_fallback_history()) == 1, "Fallback handling should record successful primary execution"
+        recoverable_primary = error_handler.handle_expected(
+            "Primary retrieval unavailable",
+            category="retrieval",
+            component="retriever",
+            operation="primary_retrieve",
+            recoverable=True
+        )
+        fallback_result = error_handler.fallback(
+            lambda: (_ for _ in ()).throw(
+                recoverable_primary
+            ),
+            lambda: "fallback retrieval"
+        )
+        assert fallback_result["success"] is True, "Fallback handling should recover from a recoverable primary failure"
+        assert fallback_result["fallback_used"] is True, "Fallback handling should report when the fallback path is used"
+        assert fallback_result["result"] == "fallback retrieval", "Fallback handling should return the fallback result"
+        assert fallback_result["error"] is recoverable_primary, "Fallback handling should preserve the original primary error after successful fallback"
+        assert len(error_handler.get_successful_fallbacks()) == 1, "Successful fallback usage should be recorded"
+        failed_primary = error_handler.handle_expected(
+            "Permanent retrieval failure",
+            category="retrieval",
+            component="retriever",
+            operation="primary_retrieve"
+        )
+        failed_primary_result = error_handler.fallback(
+            lambda: (_ for _ in ()).throw(
+                failed_primary
+            ),
+            lambda: "should not run"
+        )
+        assert failed_primary_result["success"] is False, "Fallback handling should reject fallback execution for non-recoverable primary failures"
+        assert failed_primary_result["fallback_used"] is False, "Non-recoverable primary failures should not trigger fallback execution"
+        assert failed_primary_result["error"] is failed_primary, "Fallback handling should preserve a non-recoverable primary error"
+        fallback_counter = {
+            "count": 0
+        }
+        def counted_fallback():
+            fallback_counter["count"] += 1
+            return "fallback value"
+        fallback_handler = ErrorHandler()
+        fallback_trigger_error = fallback_handler.handle_expected(
+            "Temporary generation failure",
+            category="generation",
+            component="generator",
+            operation="generate",
+            recoverable=True
+        )
+        fallback_execution = fallback_handler.fallback(
+            lambda: (_ for _ in ()).throw(
+                fallback_trigger_error
+            ),
+            counted_fallback
+        )
+        assert fallback_execution["success"] is True, "Fallback handling should execute the alternate path for recoverable primary failures"
+        assert fallback_counter["count"] == 1, "Fallback handling should execute the fallback exactly once"
+        failed_fallback_error_handler = ErrorHandler()
+        failed_fallback_primary = failed_fallback_error_handler.handle_expected(
+            "Temporary context failure",
+            category="context",
+            component="context_builder",
+            operation="build",
+            recoverable=True
+        )
+        failed_fallback_result = failed_fallback_error_handler.fallback(
+            lambda: (_ for _ in ()).throw(
+                failed_fallback_primary
+            ),
+            lambda: (_ for _ in ()).throw(
+                StrontiumError(
+                    "Fallback context failure",
+                    category="context",
+                    component="fallback_context",
+                    operation="build_fallback",
+                    recoverable=False
+                )
+            )
+        )
+        assert failed_fallback_result["success"] is False, "Fallback handling should report failure when both primary and fallback paths fail"
+        assert failed_fallback_result["fallback_used"] is True, "Fallback handling should report that the fallback path was attempted"
+        assert isinstance(
+            failed_fallback_result["error"],
+            StrontiumError
+        ), "Fallback failure should remain a structured StrontiumError"
+        assert failed_fallback_result["error"].message == "Fallback context failure", "Fallback failure should preserve the fallback error"
+        assert len(
+            failed_fallback_error_handler.get_failed_fallbacks()
+        ) == 1, "Failed fallback sequences should be recorded"
+        unexpected_fallback_handler = ErrorHandler()
+        unexpected_result = unexpected_fallback_handler.fallback(
+            lambda: (_ for _ in ()).throw(
+                RuntimeError("Unexpected primary failure")
+            ),
+            lambda: "should not execute"
+        )
+        assert unexpected_result["success"] is False, "Unexpected primary failures should not silently trigger fallback"
+        assert unexpected_result["fallback_used"] is False, "Unexpected primary failures should not enter the fallback path"
+        assert unexpected_result["error"].category == "unexpected", "Unexpected primary failures should retain unexpected classification"
+        assert unexpected_result["error"].cause is not None, "Unexpected primary failures should preserve their original exception"
+        invalid_fallback_handler = ErrorHandler()
+        try:
+            invalid_fallback_handler.fallback(
+                "not callable",
+                lambda: "fallback"
+            )
+            assert False, "Fallback handling should reject a non-callable primary operation"
+        except ValueError:
+            pass
+        try:
+            invalid_fallback_handler.fallback(
+                lambda: "primary",
+                "not callable"
+            )
+            assert False, "Fallback handling should reject a non-callable fallback operation"
+        except ValueError:
+            pass
+        state = {
+            "retrieved": ["document_a", "document_b"],
+            "context": None,
+            "answer": None
+        }
+        state_error_handler = ErrorHandler()
+        primary_context_error = state_error_handler.handle_expected(
+            "Primary context construction failed",
+            category="context",
+            component="context_builder",
+            operation="build",
+            recoverable=True
+        )
+        fallback_state_result = state_error_handler.fallback(
+            lambda: (_ for _ in ()).throw(
+                primary_context_error
+            ),
+            lambda: {
+                "context": "fallback context"
+            }
+        )
+        assert fallback_state_result["success"] is True, "Fallback handling should support alternate context construction"
+        assert state["retrieved"] == ["document_a", "document_b"], "Fallback handling should not corrupt previously completed retrieval state"
+        assert state["context"] is None, "Fallback handling should not mutate external state implicitly"
+        fallback_serialized = primary_context_error.to_dict()
+        assert fallback_serialized["recoverable"] is True, "Primary recoverable failure information should remain intact after fallback"
+        assert len(
+            state_error_handler.get_errors()
+        ) >= 1, "Fallback handling should retain the originating error in error history"
+        error_handler.clear()
+        assert error_handler.get_fallback_history() == [], "Clearing the error handler should remove fallback history"
+        assert error_handler.get_retry_history() == [], "Clearing the error handler should preserve retry cleanup behavior"
+        assert error_handler.get_recovery_history() == [], "Clearing the error handler should preserve recovery cleanup behavior"
+        success += 1
+        print(green("Version 0.12.7 fallback handling is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.12.7 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
