@@ -7651,6 +7651,132 @@ def full_test():
         print(red(e))
         print(red("Version 0.11.13 failed"))
 
+    try:
+        tests += 1
+        from classes.error_handler import ErrorHandler, StrontiumError
+        handler = ErrorHandler()
+        expected_error = handler.handle_expected(
+            message="Invalid document input",
+            category="system",
+            component="document_processor",
+            operation="validate",
+            details={
+                "field": "content",
+                "reason": "empty"
+            }
+        )
+        assert isinstance(expected_error, StrontiumError), "Error handling should create StrontiumError objects for expected failures"
+        assert expected_error.message == "Invalid document input", "Error handling should preserve the expected error message"
+        assert expected_error.category == "system", "Error handling should preserve the assigned error category"
+        assert expected_error.component == "document_processor", "Error handling should preserve the originating component"
+        assert expected_error.operation == "validate", "Error handling should preserve the originating operation"
+        assert expected_error.details == {
+            "field": "content",
+            "reason": "empty"
+        }, "Error handling should preserve diagnostic details"
+        assert expected_error.cause is None, "Expected errors should preserve a missing cause when no exception caused the failure"
+        assert expected_error.expected is True, "Expected failures should be explicitly marked as expected"
+        assert expected_error.is_expected() is True, "Error handling should identify expected failures"
+        assert expected_error.is_unexpected() is False, "Expected failures should not be identified as unexpected"
+        expected_data = expected_error.to_dict()
+        assert isinstance(expected_data, dict), "Error handling should expose structured error data"
+        assert expected_data["message"] == "Invalid document input", "Structured error data should preserve the error message"
+        assert expected_data["category"] == "system", "Structured error data should preserve the error category"
+        assert expected_data["component"] == "document_processor", "Structured error data should preserve the component"
+        assert expected_data["operation"] == "validate", "Structured error data should preserve the operation"
+        assert expected_data["details"] == {
+            "field": "content",
+            "reason": "empty"
+        }, "Structured error data should preserve diagnostic details"
+        assert expected_data["cause"] is None, "Structured error data should preserve a missing expected error cause"
+        assert expected_data["expected"] is True, "Structured error data should preserve the expected failure boundary"
+        original_exception = RuntimeError("Connection lost")
+        unexpected_error = handler.handle_unexpected(
+            original_exception,
+            component="vector_store",
+            operation="connect",
+            details={
+                "provider": "test_store"
+            }
+        )
+        assert isinstance(unexpected_error, StrontiumError), "Error handling should convert unexpected exceptions into StrontiumError objects"
+        assert unexpected_error.message == "Connection lost", "Unexpected errors should preserve the original exception message"
+        assert unexpected_error.category == "unexpected", "Unexpected errors should receive the unexpected category"
+        assert unexpected_error.component == "vector_store", "Unexpected errors should preserve the originating component"
+        assert unexpected_error.operation == "connect", "Unexpected errors should preserve the originating operation"
+        assert unexpected_error.details == {
+            "provider": "test_store"
+        }, "Unexpected errors should preserve diagnostic details"
+        assert unexpected_error.cause is original_exception, "Unexpected errors should preserve the original exception object"
+        assert unexpected_error.expected is False, "Unexpected exceptions should be explicitly marked as unexpected"
+        assert unexpected_error.is_expected() is False, "Unexpected exceptions should not be identified as expected failures"
+        assert unexpected_error.is_unexpected() is True, "Error handling should identify unexpected exceptions"
+        unexpected_data = unexpected_error.to_dict()
+        assert unexpected_data["cause"] == "Connection lost", "Structured unexpected error data should preserve the original exception message"
+        assert unexpected_data["expected"] is False, "Structured unexpected error data should preserve the unexpected failure boundary"
+        stored_errors = handler.get_errors()
+        assert isinstance(stored_errors, list), "Error handling should maintain a structured error history"
+        assert len(stored_errors) == 2, "Error handling should preserve every created error"
+        assert stored_errors[0] is expected_error, "Error handling should preserve expected error ordering"
+        assert stored_errors[1] is unexpected_error, "Error handling should preserve unexpected error ordering"
+        expected_errors = handler.get_expected_errors()
+        assert len(expected_errors) == 1, "Error handling should expose expected failures separately"
+        assert expected_errors[0] is expected_error, "Error handling should identify the stored expected failure"
+        unexpected_errors = handler.get_unexpected_errors()
+        assert len(unexpected_errors) == 1, "Error handling should expose unexpected failures separately"
+        assert unexpected_errors[0] is unexpected_error, "Error handling should identify the stored unexpected failure"
+        returned_errors = handler.get_errors()
+        returned_errors.clear()
+        assert len(handler.get_errors()) == 2, "Error handling should protect its internal error history from external list mutation"
+        try:
+            StrontiumError(
+                message=""
+            )
+            assert False, "Error handling should reject empty error messages"
+        except ValueError:
+            pass
+        try:
+            StrontiumError(
+                message="Invalid category",
+                category=""
+            )
+            assert False, "Error handling should reject empty error categories"
+        except ValueError:
+            pass
+        try:
+            StrontiumError(
+                message="Invalid details",
+                details=[]
+            )
+            assert False, "Error handling should reject non-dictionary diagnostic details"
+        except ValueError:
+            pass
+        try:
+            StrontiumError(
+                message="Invalid expected flag",
+                expected="yes"
+            )
+            assert False, "Error handling should reject non-boolean expected flags"
+        except ValueError:
+            pass
+        try:
+            handler.handle_unexpected(
+                "not an exception"
+            )
+            assert False, "Error handling should reject non-exception unexpected failures"
+        except ValueError:
+            pass
+        handler.clear()
+        assert handler.get_errors() == [], "Error handling should clear all stored errors"
+        assert handler.get_expected_errors() == [], "Error handling should clear stored expected failures"
+        assert handler.get_unexpected_errors() == [], "Error handling should clear stored unexpected failures"
+        success += 1
+        print(green("Version 0.12.0 error handling foundation is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.12.0 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

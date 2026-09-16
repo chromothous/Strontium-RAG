@@ -516,3 +516,6 @@ Automated regression execution is online.
 
 Version 0.11.13
 Complete automated testing pipeline is online.
+
+Version 0.12.0
+Error handling foundation is online.
