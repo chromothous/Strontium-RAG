@@ -23,36 +23,14 @@ class StrontiumError:
         cause=None,
         expected=True
     ):
-        if not isinstance(message, str):
-            raise ValueError("Error message must be a string")
-        if not message.strip():
-            raise ValueError("Error message cannot be empty")
-        if not isinstance(category, str):
-            raise ValueError("Error category must be a string")
-        if not category.strip():
-            raise ValueError("Error category cannot be empty")
-        if category not in self.VALID_CATEGORIES:
-            raise ValueError(
-                f"Invalid error category: {category}"
-            )
-        if component is not None and not isinstance(component, str):
-            raise ValueError("Error component must be a string or None")
-        if operation is not None and not isinstance(operation, str):
-            raise ValueError("Error operation must be a string or None")
-        if details is not None and not isinstance(details, dict):
-            raise ValueError("Error details must be a dictionary or None")
-        if cause is not None and not isinstance(cause, Exception):
-            raise ValueError("Error cause must be an exception or None")
-        if not isinstance(expected, bool):
-            raise ValueError("Error expected flag must be a boolean")
-
         self.message = message
         self.category = category
         self.component = component
         self.operation = operation
-        self.details = dict(details) if details is not None else {}
+        self.details = details if details is not None else {}
         self.cause = cause
         self.expected = expected
+        self.validate()
 
     @classmethod
     def get_standard_categories(cls):
@@ -75,6 +53,68 @@ class StrontiumError:
             isinstance(category, str)
             and category in cls.STANDARD_CATEGORIES
         )
+
+    def validate(self):
+        if not isinstance(self.message, str):
+            raise ValueError("Error message must be a string")
+        if not self.message.strip():
+            raise ValueError("Error message cannot be empty")
+        if not isinstance(self.category, str):
+            raise ValueError("Error category must be a string")
+        if not self.category.strip():
+            raise ValueError("Error category cannot be empty")
+        if not self.is_valid_category(self.category):
+            raise ValueError(
+                f"Invalid error category: {self.category}"
+            )
+        if self.component is not None:
+            if not isinstance(self.component, str):
+                raise ValueError(
+                    "Error component must be a string or None"
+                )
+            if not self.component.strip():
+                raise ValueError(
+                    "Error component cannot be empty"
+                )
+        if self.operation is not None:
+            if not isinstance(self.operation, str):
+                raise ValueError(
+                    "Error operation must be a string or None"
+                )
+            if not self.operation.strip():
+                raise ValueError(
+                    "Error operation cannot be empty"
+                )
+        if not isinstance(self.details, dict):
+            raise ValueError(
+                "Error details must be a dictionary"
+            )
+        if self.cause is not None:
+            if not isinstance(self.cause, Exception):
+                raise ValueError(
+                    "Error cause must be an exception or None"
+                )
+        if not isinstance(self.expected, bool):
+            raise ValueError(
+                "Error expected flag must be a boolean"
+            )
+        if self.category == "unexpected":
+            if self.expected is True:
+                raise ValueError(
+                    "Unexpected errors must be marked as unexpected"
+                )
+            if self.cause is None:
+                raise ValueError(
+                    "Unexpected errors must preserve their original exception"
+                )
+        return True
+
+    def is_valid(self):
+        try:
+            self.validate()
+            return True
+        except ValueError:
+            return False
 
     def is_expected(self):
         return self.expected
@@ -112,6 +152,43 @@ class ErrorHandler:
             )
         return category
 
+    def validate_error(self, error):
+        if not isinstance(error, StrontiumError):
+            raise ValueError(
+                "Error must be a StrontiumError"
+            )
+        error.validate()
+        return True
+
+    def validate_definition(self, definition):
+        if not isinstance(definition, dict):
+            raise ValueError(
+                "Error definition must be a dictionary"
+            )
+        required_fields = {
+            "message",
+            "category",
+            "expected"
+        }
+        missing_fields = required_fields - set(definition.keys())
+        if missing_fields:
+            raise ValueError(
+                f"Error definition is missing required fields: {missing_fields}"
+            )
+        return True
+
+    def create_from_definition(self, definition):
+        self.validate_definition(definition)
+        return self.create_error(
+            message=definition["message"],
+            category=definition["category"],
+            component=definition.get("component"),
+            operation=definition.get("operation"),
+            details=definition.get("details"),
+            cause=definition.get("cause"),
+            expected=definition["expected"]
+        )
+
     def create_error(
         self,
         message,
@@ -132,6 +209,7 @@ class ErrorHandler:
             cause=cause,
             expected=expected
         )
+        self.validate_error(error)
         self.errors.append(error)
         return error
 
@@ -165,7 +243,6 @@ class ErrorHandler:
             raise ValueError(
                 "Unexpected error must be an exception"
             )
-
         return self.create_error(
             message=str(exception),
             category="unexpected",

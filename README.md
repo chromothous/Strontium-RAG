@@ -522,3 +522,6 @@ Error handling foundation is online.
 
 Version 0.12.1
 Error classification is online.
+
+Version 0.12.2
+Error validation is online.

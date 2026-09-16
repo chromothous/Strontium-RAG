@@ -7911,6 +7911,160 @@ def full_test():
         print(red(e))
         print(red("Version 0.12.1 failed"))
 
+    try:
+        tests += 1
+        from classes.error_handler import ErrorHandler, StrontiumError
+        handler = ErrorHandler()
+        valid_error = StrontiumError(
+            message="Retrieval failed",
+            category="retrieval",
+            component="retriever",
+            operation="search",
+            details={
+                "query": "test"
+            },
+            expected=True
+        )
+        assert valid_error.validate() is True, "Error validation should accept a complete valid StrontiumError"
+        assert valid_error.is_valid() is True, "Error validation should identify a valid StrontiumError"
+        assert handler.validate_error(valid_error) is True, "Error validation should accept valid StrontiumError objects"
+        definition = {
+            "message": "Generation failed",
+            "category": "generation",
+            "component": "generator",
+            "operation": "generate",
+            "details": {
+                "provider": "test"
+            },
+            "expected": True
+        }
+        assert handler.validate_definition(definition) is True, "Error validation should accept complete error definitions"
+        created_error = handler.create_from_definition(
+            definition
+        )
+        assert isinstance(created_error, StrontiumError), "Error validation should create StrontiumError objects from valid definitions"
+        assert created_error.message == "Generation failed", "Error validation should preserve definition messages"
+        assert created_error.category == "generation", "Error validation should preserve definition categories"
+        assert created_error.component == "generator", "Error validation should preserve definition components"
+        assert created_error.operation == "generate", "Error validation should preserve definition operations"
+        assert created_error.details == {
+            "provider": "test"
+        }, "Error validation should preserve definition diagnostics"
+        assert created_error.expected is True, "Error validation should preserve the expected failure boundary"
+        unexpected_exception = RuntimeError(
+            "Provider unavailable"
+        )
+        unexpected_error = handler.handle_unexpected(
+            unexpected_exception,
+            component="generator",
+            operation="generate"
+        )
+        assert unexpected_error.validate() is True, "Error validation should accept a correctly structured unexpected error"
+        assert unexpected_error.is_valid() is True, "Error validation should identify correctly structured unexpected errors as valid"
+        assert unexpected_error.cause is unexpected_exception, "Error validation should preserve the original unexpected exception"
+        try:
+            StrontiumError(
+                message="Invalid component",
+                component=""
+            )
+            assert False, "Error validation should reject empty component values"
+        except ValueError:
+            pass
+        try:
+            StrontiumError(
+                message="Invalid operation",
+                operation=""
+            )
+            assert False, "Error validation should reject empty operation values"
+        except ValueError:
+            pass
+        try:
+            StrontiumError(
+                message="Invalid details",
+                details=[]
+            )
+            assert False, "Error validation should reject non-dictionary diagnostic details"
+        except ValueError:
+            pass
+        try:
+            StrontiumError(
+                message="Invalid category",
+                category="unsupported"
+            )
+            assert False, "Error validation should reject unsupported categories"
+        except ValueError:
+            pass
+        try:
+            StrontiumError(
+                message="Invalid unexpected error",
+                category="unexpected",
+                expected=True,
+                cause=RuntimeError("Failure")
+            )
+            assert False, "Error validation should reject unexpected errors marked as expected"
+        except ValueError:
+            pass
+        try:
+            StrontiumError(
+                message="Missing unexpected cause",
+                category="unexpected",
+                expected=False
+            )
+            assert False, "Error validation should reject unexpected errors without their original exception"
+        except ValueError:
+            pass
+        try:
+            handler.validate_error(
+                "not an error"
+            )
+            assert False, "Error validation should reject non-StrontiumError objects"
+        except ValueError:
+            pass
+        try:
+            handler.validate_definition(
+                "not a definition"
+            )
+            assert False, "Error validation should reject non-dictionary error definitions"
+        except ValueError:
+            pass
+        try:
+            handler.validate_definition(
+                {
+                    "category": "system",
+                    "expected": True
+                }
+            )
+            assert False, "Error validation should reject definitions missing required message information"
+        except ValueError:
+            pass
+        try:
+            handler.validate_definition(
+                {
+                    "message": "Missing category",
+                    "expected": True
+                }
+            )
+            assert False, "Error validation should reject definitions missing required category information"
+        except ValueError:
+            pass
+        try:
+            handler.validate_definition(
+                {
+                    "message": "Missing expected",
+                    "category": "system"
+                }
+            )
+            assert False, "Error validation should reject definitions missing required expected-state information"
+        except ValueError:
+            pass
+        assert len(handler.get_errors()) == 2, "Error validation should preserve only successfully created errors"
+        success += 1
+        print(green("Version 0.12.2 error validation is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.12.2 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
