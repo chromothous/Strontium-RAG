@@ -8901,6 +8901,185 @@ def full_test():
         print(red(e))
         print(red("Version 0.12.7 failed"))
 
+    try:
+        tests += 1
+        from classes.error_handler import ErrorHandler, StrontiumError
+        from classes.logger import Logger
+        logger = Logger()
+        error_handler = ErrorHandler(logger)
+        assert error_handler.logger is logger, "Error handler should retain the supplied Logger instance"
+        assert isinstance(error_handler.logger, Logger), "Error handler should use the real Strontium Logger"
+        expected_error = error_handler.handle_expected(
+            "Generation failed",
+            category="generation",
+            component="generator",
+            operation="generate",
+            details={
+                "model": "test-model"
+            },
+            recoverable=True
+        )
+        diagnostics = error_handler.get_diagnostics()
+        assert len(diagnostics) == 1, "Error handling should record a diagnostic when an error is created"
+        assert diagnostics[0]["level"] == "error", "Created errors should be logged at error level"
+        assert diagnostics[0]["category"] == "generation", "Diagnostics should preserve the error category"
+        assert diagnostics[0]["component"] == "generator", "Diagnostics should preserve the component"
+        assert diagnostics[0]["operation"] == "generate", "Diagnostics should preserve the operation"
+        assert diagnostics[0]["message"] == "Generation failed", "Diagnostics should preserve the error message"
+        recovery_result = error_handler.recover(
+            expected_error,
+            lambda: "recovered generation"
+        )
+        assert recovery_result["success"] is True, "Recovery should continue to work after Logger integration"
+        diagnostics = error_handler.get_error_diagnostics(
+            expected_error
+        )
+        assert len(diagnostics) >= 3, "Error diagnostics should preserve the original error and recovery lifecycle"
+        assert any(
+            diagnostic["level"] == "warning"
+            and diagnostic["message"] == "Starting recovery operation"
+            for diagnostic in diagnostics
+        ), "Recovery diagnostics should record the recovery start"
+        assert any(
+            diagnostic["level"] == "info"
+            and diagnostic["message"] == "Recovery operation succeeded"
+            for diagnostic in diagnostics
+        ), "Recovery diagnostics should record successful recovery"
+        original_exception = RuntimeError(
+            "Database connection lost"
+        )
+        unexpected_error = error_handler.handle_unexpected(
+            original_exception,
+            component="vector_store",
+            operation="query"
+        )
+        assert unexpected_error.cause is original_exception, "Unexpected errors should preserve their original exception"
+        unexpected_diagnostics = error_handler.get_error_diagnostics(
+            unexpected_error
+        )
+        assert len(unexpected_diagnostics) >= 1, "Unexpected errors should produce diagnostics"
+        assert unexpected_diagnostics[0]["category"] == "unexpected", "Unexpected diagnostics should preserve unexpected classification"
+        assert unexpected_diagnostics[0]["component"] == "vector_store", "Unexpected diagnostics should preserve the source component"
+        assert unexpected_diagnostics[0]["operation"] == "query", "Unexpected diagnostics should preserve the source operation"
+        assert unexpected_diagnostics[0]["cause"] == "Database connection lost", "Diagnostics should preserve the original exception cause"
+        propagated_error = error_handler.handle_expected(
+            "Citation failure",
+            category="citation",
+            component="citation",
+            operation="cite"
+        )
+        error_handler.propagate(
+            propagated_error,
+            "conversation",
+            "process_complete"
+        )
+        propagation_diagnostics = error_handler.get_error_diagnostics(
+            propagated_error
+        )
+        assert any(
+            diagnostic["component"] == "conversation"
+            and diagnostic["operation"] == "process_complete"
+            for diagnostic in propagation_diagnostics
+        ), "Propagation diagnostics should preserve the boundary where the error was propagated"
+        retry_error = error_handler.handle_expected(
+            "Temporary retrieval failure",
+            category="retrieval",
+            component="retriever",
+            operation="retrieve",
+            recoverable=True
+        )
+        retry_counter = {
+            "count": 0
+        }
+        def retry_operation():
+            retry_counter["count"] += 1
+            if retry_counter["count"] == 1:
+                raise retry_error
+            return "retrieved"
+        retry_result = error_handler.retry_recoverable(
+            retry_error,
+            retry_operation,
+            2
+        )
+        assert retry_result["success"] is True, "Retry handling should continue to work after Logger integration"
+        retry_diagnostics = error_handler.get_error_diagnostics(
+            retry_error
+        )
+        assert any(
+            diagnostic["message"] == "Starting recoverable retry attempt 1"
+            for diagnostic in retry_diagnostics
+        ), "Retry diagnostics should record the first attempt"
+        assert any(
+            diagnostic["message"] == "Recoverable retry attempt 1 failed"
+            for diagnostic in retry_diagnostics
+        ), "Retry diagnostics should record failed attempts"
+        assert any(
+            diagnostic["message"] == "Recoverable retry attempt 2 succeeded"
+            for diagnostic in retry_diagnostics
+        ), "Retry diagnostics should record successful attempts"
+        fallback_error = error_handler.handle_expected(
+            "Primary model unavailable",
+            category="generation",
+            component="primary_generator",
+            operation="generate",
+            recoverable=True
+        )
+        fallback_result = error_handler.fallback(
+            lambda: (_ for _ in ()).throw(
+                fallback_error
+            ),
+            lambda: "fallback answer"
+        )
+        assert fallback_result["success"] is True, "Fallback handling should continue to work after Logger integration"
+        fallback_diagnostics = error_handler.get_error_diagnostics(
+            fallback_error
+        )
+        assert any(
+            diagnostic["message"] == "Primary operation failed"
+            for diagnostic in fallback_diagnostics
+        ), "Fallback diagnostics should record the primary failure"
+        assert any(
+            diagnostic["message"] == "Executing fallback operation"
+            for diagnostic in fallback_diagnostics
+        ), "Fallback diagnostics should record fallback activation"
+        assert any(
+            diagnostic["message"] == "Fallback operation succeeded"
+            for diagnostic in fallback_diagnostics
+        ), "Fallback diagnostics should record successful fallback"
+        state = {
+            "retrieved": ["document_a"],
+            "context": "valid context",
+            "answer": None
+        }
+        isolated_result = error_handler.isolate_operation(
+            "generation",
+            state,
+            lambda working: working.update(
+                {
+                    "answer": "generated answer"
+                }
+            )
+        )
+        assert isolated_result["success"] is True, "Isolated operations should continue to work after Logger integration"
+        isolated_diagnostics = error_handler.get_diagnostics()
+        assert any(
+            diagnostic["component"] == "generation"
+            and diagnostic["operation"] == "isolate"
+            for diagnostic in isolated_diagnostics
+        ), "Isolated operation diagnostics should preserve operation context"
+        error_handler.clear()
+        assert error_handler.get_diagnostics() == [], "Clearing the error handler should remove diagnostics"
+        assert error_handler.get_errors() == [], "Clearing the error handler should remove stored errors"
+        assert error_handler.get_retry_history() == [], "Clearing the error handler should remove retry history"
+        assert error_handler.get_recovery_history() == [], "Clearing the error handler should remove recovery history"
+        assert error_handler.get_fallback_history() == [], "Clearing the error handler should remove fallback history"
+        success += 1
+        print(green("Version 0.12.8 error logging and diagnostics are online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.12.8 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

@@ -1,3 +1,6 @@
+from classes.logger import Logger
+
+
 class StrontiumError(Exception):
     STANDARD_CATEGORIES = (
         "validation",
@@ -263,12 +266,89 @@ class StrontiumError(Exception):
 
 
 class ErrorHandler:
-    def __init__(self):
+    def __init__(self, logger=None):
+        if logger is None:
+            logger = Logger()
+        if not isinstance(logger, Logger):
+            raise ValueError(
+                "Error handler logger must be a Logger"
+            )
+        self.logger = logger
         self.errors = []
         self._isolated_states = {}
         self._recovery_history = []
         self._retry_history = []
         self._fallback_history = []
+        self._diagnostics = []
+
+    def _build_diagnostic(
+        self,
+        level,
+        message,
+        error=None,
+        component=None,
+        operation=None
+    ):
+        diagnostic = {
+            "error_id": (
+                id(error)
+                if error is not None
+                else None
+            ),
+            "level": level,
+            "message": message,
+            "category": error.category if error is not None else None,
+            "component": (
+                component
+                if component is not None
+                else error.component if error is not None
+                else None
+            ),
+            "operation": (
+                operation
+                if operation is not None
+                else error.operation if error is not None
+                else None
+            ),
+            "cause": (
+                str(error.cause)
+                if error is not None and error.cause is not None
+                else None
+            )
+        }
+        self._diagnostics.append(diagnostic)
+        return diagnostic
+
+    def _log_diagnostic(
+        self,
+        level,
+        message,
+        error=None,
+        component=None,
+        operation=None
+    ):
+        diagnostic = self._build_diagnostic(
+            level,
+            message,
+            error,
+            component,
+            operation
+        )
+        formatted_message = (
+            f"[{diagnostic['level'].upper()}]"
+            f" category={diagnostic['category']}"
+            f" component={diagnostic['component']}"
+            f" operation={diagnostic['operation']}"
+            f" message={diagnostic['message']}"
+            f" cause={diagnostic['cause']}"
+        )
+        if level == "warning":
+            self.logger.warning(formatted_message)
+        elif level == "info":
+            self.logger.info(formatted_message)
+        else:
+            self.logger.error(formatted_message)
+        return diagnostic
 
     def validate_category(self, category):
         if not isinstance(category, str):
@@ -351,6 +431,13 @@ class ErrorHandler:
         )
         self.validate_error(error)
         self.errors.append(error)
+        self._log_diagnostic(
+            "error",
+            message,
+            error,
+            component,
+            operation
+        )
         return error
 
     def handle_expected(
@@ -412,6 +499,13 @@ class ErrorHandler:
             for stored_error in self.errors
         ):
             self.errors.append(error)
+        self._log_diagnostic(
+            "error",
+            error.message,
+            error,
+            component,
+            operation
+        )
         self.validate_error(error)
         return error
 
@@ -434,12 +528,26 @@ class ErrorHandler:
             "success": False,
             "result": None
         }
+        self._log_diagnostic(
+            "warning",
+            "Starting recovery operation",
+            error,
+            error.component,
+            error.operation
+        )
         try:
             result = recovery_operation()
             recovery_record["success"] = True
             recovery_record["result"] = result
             self._recovery_history.append(
                 recovery_record
+            )
+            self._log_diagnostic(
+                "info",
+                "Recovery operation succeeded",
+                error,
+                error.component,
+                error.operation
             )
             return {
                 "success": True,
@@ -495,6 +603,13 @@ class ErrorHandler:
             name,
             state
         )
+        self._log_diagnostic(
+            "warning",
+            "Starting isolated recovery operation",
+            error,
+            error.component,
+            error.operation
+        )
         try:
             working_state = self._isolated_states[name]["working"]
             result = recovery_operation(
@@ -511,6 +626,13 @@ class ErrorHandler:
             }
             self._recovery_history.append(
                 recovery_record
+            )
+            self._log_diagnostic(
+                "info",
+                "Isolated recovery operation succeeded",
+                error,
+                error.component,
+                error.operation
             )
             return {
                 "success": True,
@@ -618,6 +740,13 @@ class ErrorHandler:
                 "result": None,
                 "error": None
             }
+            self._log_diagnostic(
+                "warning",
+                f"Starting retry attempt {attempt}",
+                retry_record["error"],
+                None,
+                "retry"
+            )
             try:
                 result = operation()
                 attempt_record["success"] = True
@@ -629,6 +758,13 @@ class ErrorHandler:
                 retry_record["result"] = result
                 self._retry_history.append(
                     retry_record
+                )
+                self._log_diagnostic(
+                    "info",
+                    f"Retry attempt {attempt} succeeded",
+                    None,
+                    None,
+                    "retry"
                 )
                 return {
                     "success": True,
@@ -643,6 +779,13 @@ class ErrorHandler:
                     attempt_record
                 )
                 retry_record["error"] = error
+                self._log_diagnostic(
+                    "warning",
+                    f"Retry attempt {attempt} failed",
+                    error,
+                    error.component,
+                    error.operation
+                )
                 if not error.is_recoverable():
                     break
                 if error_handler is not None:
@@ -711,6 +854,13 @@ class ErrorHandler:
                 "result": None,
                 "error": None
             }
+            self._log_diagnostic(
+                "warning",
+                f"Starting recoverable retry attempt {attempt}",
+                error,
+                error.component,
+                error.operation
+            )
             try:
                 result = operation()
                 attempt_record["success"] = True
@@ -723,6 +873,13 @@ class ErrorHandler:
                 retry_record["error"] = None
                 self._retry_history.append(
                     retry_record
+                )
+                self._log_diagnostic(
+                    "info",
+                    f"Recoverable retry attempt {attempt} succeeded",
+                    error,
+                    error.component,
+                    error.operation
                 )
                 return {
                     "success": True,
@@ -737,6 +894,13 @@ class ErrorHandler:
                     attempt_record
                 )
                 retry_record["error"] = retry_error
+                self._log_diagnostic(
+                    "warning",
+                    f"Recoverable retry attempt {attempt} failed",
+                    retry_error,
+                    retry_error.component,
+                    retry_error.operation
+                )
                 if not retry_error.is_recoverable():
                     break
             except Exception as exception:
@@ -806,6 +970,13 @@ class ErrorHandler:
             fallback_record["primary_success"] = True
             fallback_record["success"] = True
             fallback_record["result"] = result
+            self._log_diagnostic(
+                "info",
+                "Primary operation succeeded without fallback",
+                None,
+                None,
+                "primary"
+            )
             self._fallback_history.append(
                 fallback_record
             )
@@ -818,6 +989,13 @@ class ErrorHandler:
         except StrontiumError as primary_error:
             self.validate_error(primary_error)
             fallback_record["primary_error"] = primary_error
+            self._log_diagnostic(
+                "warning",
+                "Primary operation failed",
+                primary_error,
+                primary_error.component,
+                primary_error.operation
+            )
             if not primary_error.is_recoverable():
                 self._fallback_history.append(
                     fallback_record
@@ -845,12 +1023,30 @@ class ErrorHandler:
                 "error": primary_error
             }
         fallback_record["fallback_used"] = True
+        self._log_diagnostic(
+            "warning",
+            "Executing fallback operation",
+            fallback_record["primary_error"],
+            (
+                fallback_record["primary_error"].component
+                if fallback_record["primary_error"] is not None
+                else "fallback"
+            ),
+            "fallback"
+        )
         try:
             result = fallback_operation()
             fallback_record["success"] = True
             fallback_record["result"] = result
             self._fallback_history.append(
                 fallback_record
+            )
+            self._log_diagnostic(
+                "info",
+                "Fallback operation succeeded",
+                fallback_record["primary_error"],
+                "fallback",
+                "alternate"
             )
             return {
                 "success": True,
@@ -908,6 +1104,21 @@ class ErrorHandler:
             fallback
             for fallback in self._fallback_history
             if not fallback["success"]
+        ]
+
+    def get_diagnostics(self):
+        return [
+            dict(diagnostic)
+            for diagnostic in self._diagnostics
+        ]
+
+    def get_error_diagnostics(self, error):
+        self.validate_error(error)
+        error_id = id(error)
+        return [
+            dict(diagnostic)
+            for diagnostic in self._diagnostics
+            if diagnostic["error_id"] == error_id
         ]
 
     def begin_isolation(self, name, state):
@@ -1015,6 +1226,13 @@ class ErrorHandler:
                 name,
                 state
             )
+            self._log_diagnostic(
+                "info",
+                "Isolated operation succeeded",
+                None,
+                name,
+                "isolate"
+            )
             return {
                 "success": True,
                 "result": result,
@@ -1096,3 +1314,4 @@ class ErrorHandler:
         self._recovery_history = []
         self._retry_history = []
         self._fallback_history = []
+        self._diagnostics = []
