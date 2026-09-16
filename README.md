@@ -531,3 +531,6 @@ Component error propagation is online.
 
 Version 0.12.4
 Error isolation is online.
+
+Version 0.12.5
+Error recovery is online.

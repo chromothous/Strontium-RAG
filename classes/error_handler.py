@@ -22,7 +22,8 @@ class StrontiumError(Exception):
         details=None,
         cause=None,
         expected=True,
-        propagation=None
+        propagation=None,
+        recoverable=False
     ):
         self.message = message
         self.category = category
@@ -36,6 +37,7 @@ class StrontiumError(Exception):
             if propagation is not None
             else []
         )
+        self.recoverable = recoverable
         self.validate()
         super().__init__(self.message)
 
@@ -109,6 +111,10 @@ class StrontiumError(Exception):
             raise ValueError(
                 "Error propagation must be a list"
             )
+        if not isinstance(self.recoverable, bool):
+            raise ValueError(
+                "Error recoverable flag must be a boolean"
+            )
         for propagation_step in self.propagation:
             if not isinstance(propagation_step, dict):
                 raise ValueError(
@@ -153,6 +159,10 @@ class StrontiumError(Exception):
                 raise ValueError(
                     "Unexpected errors must preserve their original exception"
                 )
+            if self.recoverable is True:
+                raise ValueError(
+                    "Unexpected errors cannot be marked as recoverable"
+                )
         return True
 
     def is_valid(self):
@@ -167,6 +177,26 @@ class StrontiumError(Exception):
 
     def is_unexpected(self):
         return not self.expected
+
+    def is_recoverable(self):
+        return self.recoverable
+
+    def is_non_recoverable(self):
+        return not self.recoverable
+
+    def mark_recoverable(self):
+        if self.category == "unexpected":
+            raise ValueError(
+                "Unexpected errors cannot be marked as recoverable"
+            )
+        self.recoverable = True
+        self.validate()
+        return self.recoverable
+
+    def mark_non_recoverable(self):
+        self.recoverable = False
+        self.validate()
+        return self.recoverable
 
     def add_propagation(self, component, operation):
         if not isinstance(component, str):
@@ -224,7 +254,8 @@ class StrontiumError(Exception):
             "details": dict(self.details),
             "cause": str(self.cause) if self.cause is not None else None,
             "expected": self.expected,
-            "propagation": self.get_propagation()
+            "propagation": self.get_propagation(),
+            "recoverable": self.recoverable
         }
 
     def __str__(self):
@@ -235,6 +266,7 @@ class ErrorHandler:
     def __init__(self):
         self.errors = []
         self._isolated_states = {}
+        self._recovery_history = []
 
     def validate_category(self, category):
         if not isinstance(category, str):
@@ -284,7 +316,11 @@ class ErrorHandler:
             details=definition.get("details"),
             cause=definition.get("cause"),
             expected=definition["expected"],
-            propagation=definition.get("propagation")
+            propagation=definition.get("propagation"),
+            recoverable=definition.get(
+                "recoverable",
+                False
+            )
         )
 
     def create_error(
@@ -296,7 +332,8 @@ class ErrorHandler:
         details=None,
         cause=None,
         expected=True,
-        propagation=None
+        propagation=None,
+        recoverable=False
     ):
         self.validate_category(category)
         error = StrontiumError(
@@ -307,7 +344,8 @@ class ErrorHandler:
             details=details,
             cause=cause,
             expected=expected,
-            propagation=propagation
+            propagation=propagation,
+            recoverable=recoverable
         )
         self.validate_error(error)
         self.errors.append(error)
@@ -320,7 +358,8 @@ class ErrorHandler:
         component=None,
         operation=None,
         details=None,
-        cause=None
+        cause=None,
+        recoverable=False
     ):
         return self.create_error(
             message=message,
@@ -329,7 +368,8 @@ class ErrorHandler:
             operation=operation,
             details=details,
             cause=cause,
-            expected=True
+            expected=True,
+            recoverable=recoverable
         )
 
     def handle_unexpected(
@@ -350,7 +390,8 @@ class ErrorHandler:
             operation=operation,
             details=details,
             cause=exception,
-            expected=False
+            expected=False,
+            recoverable=False
         )
 
     def propagate(
@@ -371,6 +412,173 @@ class ErrorHandler:
             self.errors.append(error)
         self.validate_error(error)
         return error
+
+    def recover(
+        self,
+        error,
+        recovery_operation
+    ):
+        self.validate_error(error)
+        if not error.is_recoverable():
+            raise ValueError(
+                "Non-recoverable errors cannot be recovered"
+            )
+        if not callable(recovery_operation):
+            raise ValueError(
+                "Recovery operation must be callable"
+            )
+        recovery_record = {
+            "error": error,
+            "success": False,
+            "result": None
+        }
+        try:
+            result = recovery_operation()
+            recovery_record["success"] = True
+            recovery_record["result"] = result
+            self._recovery_history.append(
+                recovery_record
+            )
+            return {
+                "success": True,
+                "result": result,
+                "error": error
+            }
+        except StrontiumError as recovery_error:
+            self._recovery_history.append(
+                recovery_record
+            )
+            self.propagate(
+                recovery_error,
+                recovery_error.component or "recovery",
+                recovery_error.operation or "recover"
+            )
+            return {
+                "success": False,
+                "result": None,
+                "error": recovery_error
+            }
+        except Exception as exception:
+            recovery_error = self.handle_unexpected(
+                exception,
+                component="recovery",
+                operation="recover"
+            )
+            self._recovery_history.append(
+                recovery_record
+            )
+            return {
+                "success": False,
+                "result": None,
+                "error": recovery_error
+            }
+
+    def recover_isolated_operation(
+        self,
+        name,
+        state,
+        error,
+        recovery_operation
+    ):
+        self.validate_error(error)
+        if not error.is_recoverable():
+            raise ValueError(
+                "Non-recoverable errors cannot be recovered"
+            )
+        if not callable(recovery_operation):
+            raise ValueError(
+                "Recovery operation must be callable"
+            )
+        self.begin_isolation(
+            name,
+            state
+        )
+        try:
+            working_state = self._isolated_states[name]["working"]
+            result = recovery_operation(
+                working_state
+            )
+            recovered_state = self.commit_isolation(
+                name,
+                state
+            )
+            recovery_record = {
+                "error": error,
+                "success": True,
+                "result": result
+            }
+            self._recovery_history.append(
+                recovery_record
+            )
+            return {
+                "success": True,
+                "result": result,
+                "state": recovered_state,
+                "error": error
+            }
+        except StrontiumError as recovery_error:
+            self.rollback_isolation(
+                name,
+                state
+            )
+            self._recovery_history.append(
+                {
+                    "error": error,
+                    "success": False,
+                    "result": None
+                }
+            )
+            self.propagate(
+                recovery_error,
+                recovery_error.component or "recovery",
+                recovery_error.operation or "recover"
+            )
+            return {
+                "success": False,
+                "result": None,
+                "state": dict(state),
+                "error": recovery_error
+            }
+        except Exception as exception:
+            self.rollback_isolation(
+                name,
+                state
+            )
+            recovery_error = self.handle_unexpected(
+                exception,
+                component="recovery",
+                operation="recover"
+            )
+            self._recovery_history.append(
+                {
+                    "error": error,
+                    "success": False,
+                    "result": None
+                }
+            )
+            return {
+                "success": False,
+                "result": None,
+                "state": dict(state),
+                "error": recovery_error
+            }
+
+    def get_recovery_history(self):
+        return list(self._recovery_history)
+
+    def get_successful_recoveries(self):
+        return [
+            recovery
+            for recovery in self._recovery_history
+            if recovery["success"]
+        ]
+
+    def get_failed_recoveries(self):
+        return [
+            recovery
+            for recovery in self._recovery_history
+            if not recovery["success"]
+        ]
 
     def begin_isolation(self, name, state):
         if not isinstance(name, str):
@@ -555,3 +763,4 @@ class ErrorHandler:
     def clear(self):
         self.errors = []
         self._isolated_states = {}
+        self._recovery_history = []

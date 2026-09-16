@@ -8370,6 +8370,173 @@ def full_test():
         print(red(e))
         print(red("Version 0.12.4 failed"))
 
+    try:
+        tests += 1
+        from classes.error_handler import ErrorHandler, StrontiumError
+        error_handler = ErrorHandler()
+        recoverable_error = error_handler.handle_expected(
+            "Temporary generation failure",
+            category="generation",
+            component="generator",
+            operation="generate",
+            recoverable=True
+        )
+        assert recoverable_error.is_recoverable() is True, "Recoverable errors should be explicitly marked as recoverable"
+        assert recoverable_error.is_non_recoverable() is False, "Recoverable errors should not be classified as non-recoverable"
+        assert recoverable_error.recoverable is True, "Recoverable error state should be stored on the error"
+        non_recoverable_error = error_handler.handle_expected(
+            "Permanent generation failure",
+            category="generation",
+            component="generator",
+            operation="generate"
+        )
+        assert non_recoverable_error.is_recoverable() is False, "Errors should be non-recoverable by default"
+        assert non_recoverable_error.is_non_recoverable() is True, "Non-recoverable errors should be identifiable"
+        marked_error = error_handler.handle_expected(
+            "Temporarily unavailable",
+            category="retrieval",
+            component="retriever",
+            operation="retrieve"
+        )
+        marked_error.mark_recoverable()
+        assert marked_error.is_recoverable() is True, "Expected errors should be able to transition into a recoverable state"
+        marked_error.mark_non_recoverable()
+        assert marked_error.is_non_recoverable() is True, "Recoverable errors should be able to transition back to non-recoverable"
+        try:
+            unexpected_error = error_handler.handle_unexpected(
+                RuntimeError("Unexpected failure")
+            )
+            unexpected_error.mark_recoverable()
+            assert False, "Unexpected errors should never be marked as recoverable"
+        except ValueError:
+            pass
+        recovery_error = error_handler.handle_expected(
+            "Temporary context failure",
+            category="context",
+            component="context_builder",
+            operation="build",
+            recoverable=True
+        )
+        recovery_result = error_handler.recover(
+            recovery_error,
+            lambda: "recovered context"
+        )
+        assert recovery_result["success"] is True, "Recoverable errors should support successful recovery"
+        assert recovery_result["result"] == "recovered context", "Successful recovery should preserve the recovery result"
+        assert recovery_result["error"] is recovery_error, "Recovery should preserve the originating error"
+        assert len(error_handler.get_successful_recoveries()) == 1, "Successful recoveries should be recorded"
+        assert len(error_handler.get_failed_recoveries()) == 0, "Failed recovery history should remain empty after successful recovery"
+        non_recoverable_recovery = error_handler.handle_expected(
+            "Permanent citation failure",
+            category="citation",
+            component="citation",
+            operation="cite"
+        )
+        try:
+            error_handler.recover(
+                non_recoverable_recovery,
+                lambda: "invalid recovery"
+            )
+            assert False, "Non-recoverable errors should reject recovery attempts"
+        except ValueError:
+            pass
+        try:
+            error_handler.recover(
+                recovery_error,
+                "not callable"
+            )
+            assert False, "Recovery should reject non-callable recovery operations"
+        except ValueError:
+            pass
+        failed_recovery_error = error_handler.handle_expected(
+            "Temporary retrieval failure",
+            category="retrieval",
+            component="retriever",
+            operation="retrieve",
+            recoverable=True
+        )
+        failed_recovery_result = error_handler.recover(
+            failed_recovery_error,
+            lambda: (_ for _ in ()).throw(
+                RuntimeError("Recovery failed")
+            )
+        )
+        assert failed_recovery_result["success"] is False, "Failed recovery operations should report failure"
+        assert isinstance(failed_recovery_result["error"], StrontiumError), "Failed recovery should produce a structured StrontiumError"
+        assert failed_recovery_result["error"].category == "unexpected", "Unexpected recovery failures should be classified as unexpected"
+        assert failed_recovery_result["error"].cause is not None, "Unexpected recovery failures should preserve their original exception"
+        assert len(error_handler.get_failed_recoveries()) == 1, "Failed recoveries should be recorded"
+        isolated_state = {
+            "retrieved": ["document_a", "document_b"],
+            "context": "old context",
+            "answer": None,
+            "citations": ["source_a"]
+        }
+        isolated_error = error_handler.handle_expected(
+            "Context construction temporarily failed",
+            category="context",
+            component="context_builder",
+            operation="build",
+            recoverable=True
+        )
+        isolated_recovery = error_handler.recover_isolated_operation(
+            "context_recovery",
+            isolated_state,
+            isolated_error,
+            lambda working: working.update(
+                {
+                    "context": "recovered context"
+                }
+            )
+        )
+        assert isolated_recovery["success"] is True, "Isolated recovery should successfully recover a recoverable failure"
+        assert isolated_state["retrieved"] == ["document_a", "document_b"], "Recovery should preserve successfully completed retrieval work"
+        assert isolated_state["context"] == "recovered context", "Successful recovery should update the failed stage"
+        assert isolated_state["citations"] == ["source_a"], "Recovery should preserve unrelated completed state"
+        assert isolated_recovery["state"] == isolated_state, "Isolated recovery should return the recovered state"
+        failed_isolated_state = {
+            "retrieved": ["document_a"],
+            "context": "old context",
+            "answer": "previous answer",
+            "citations": ["source_a"]
+        }
+        failed_isolated_error = error_handler.handle_expected(
+            "Generation temporarily failed",
+            category="generation",
+            component="generator",
+            operation="generate",
+            recoverable=True
+        )
+        failed_isolated_recovery = error_handler.recover_isolated_operation(
+            "generation_recovery",
+            failed_isolated_state,
+            failed_isolated_error,
+            lambda working: (_ for _ in ()).throw(
+                RuntimeError("Recovery attempt failed")
+            )
+        )
+        assert failed_isolated_recovery["success"] is False, "Failed isolated recovery should report failure"
+        assert failed_isolated_state == {
+            "retrieved": ["document_a"],
+            "context": "old context",
+            "answer": "previous answer",
+            "citations": ["source_a"]
+        }, "Failed recovery should preserve the original state"
+        assert failed_isolated_recovery["error"].category == "unexpected", "Unexpected isolated recovery failures should be classified as unexpected"
+        assert failed_isolated_recovery["error"].cause is not None, "Unexpected isolated recovery failures should preserve the original exception"
+        assert error_handler.get_isolation_boundaries() == {}, "Recovery should leave no dangling isolation boundaries"
+        serialized_error = recovery_error.to_dict()
+        assert serialized_error["recoverable"] is True, "Error serialization should preserve recoverable state"
+        error_handler.clear()
+        assert error_handler.get_recovery_history() == [], "Clearing the error handler should remove recovery history"
+        assert error_handler.get_errors() == [], "Clearing the error handler should remove stored errors"
+        success += 1
+        print(green("Version 0.12.5 error recovery is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.12.5 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
