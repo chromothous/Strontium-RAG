@@ -546,3 +546,6 @@ Error logging and diagnostics are online.
 
 Version 0.12.9
 User-facing error handling is online.
+
+Version 0.12.10
+Pipeline error handling is online.

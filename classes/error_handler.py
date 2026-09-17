@@ -346,6 +346,7 @@ class ErrorHandler:
         self._retry_history = []
         self._fallback_history = []
         self._diagnostics = []
+        self._pipeline_history = []
 
     def _build_diagnostic(
         self,
@@ -363,22 +364,29 @@ class ErrorHandler:
             ),
             "level": level,
             "message": message,
-            "category": error.category if error is not None else None,
+            "category": (
+                error.category
+                if error is not None
+                else None
+            ),
             "component": (
                 component
                 if component is not None
-                else error.component if error is not None
+                else error.component
+                if error is not None
                 else None
             ),
             "operation": (
                 operation
                 if operation is not None
-                else error.operation if error is not None
+                else error.operation
+                if error is not None
                 else None
             ),
             "cause": (
                 str(error.cause)
-                if error is not None and error.cause is not None
+                if error is not None
+                and error.cause is not None
                 else None
             )
         }
@@ -820,7 +828,10 @@ class ErrorHandler:
             "result": None,
             "error": None
         }
-        for attempt in range(1, max_attempts + 1):
+        for attempt in range(
+            1,
+            max_attempts + 1
+        ):
             attempt_record = {
                 "attempt": attempt,
                 "success": False,
@@ -895,14 +906,13 @@ class ErrorHandler:
         self._retry_history.append(
             retry_record
         )
-        final_error = retry_record["error"]
         return {
             "success": False,
             "attempts": len(
                 retry_record["attempts"]
             ),
             "result": None,
-            "error": final_error
+            "error": retry_record["error"]
         }
 
     def retry_recoverable(
@@ -934,7 +944,10 @@ class ErrorHandler:
             "result": None,
             "error": error
         }
-        for attempt in range(1, max_attempts + 1):
+        for attempt in range(
+            1,
+            max_attempts + 1
+        ):
             attempt_record = {
                 "attempt": attempt,
                 "success": False,
@@ -1208,6 +1221,120 @@ class ErrorHandler:
             if diagnostic["error_id"] == error_id
         ]
 
+    def execute_pipeline(
+        self,
+        stages,
+        state
+    ):
+        if not isinstance(stages, list):
+            raise ValueError(
+                "Pipeline stages must be a list"
+            )
+        if not stages:
+            raise ValueError(
+                "Pipeline stages cannot be empty"
+            )
+        if not isinstance(state, dict):
+            raise ValueError(
+                "Pipeline state must be a dictionary"
+            )
+        pipeline_record = {
+            "success": False,
+            "completed_stages": [],
+            "failed_stage": None,
+            "error": None,
+            "state": dict(state)
+        }
+        for stage in stages:
+            if not isinstance(stage, tuple):
+                raise ValueError(
+                    "Each pipeline stage must be a tuple"
+                )
+            if len(stage) != 2:
+                raise ValueError(
+                    "Each pipeline stage must contain a name and operation"
+                )
+            stage_name, operation = stage
+            if not isinstance(stage_name, str):
+                raise ValueError(
+                    "Pipeline stage name must be a string"
+                )
+            if not stage_name.strip():
+                raise ValueError(
+                    "Pipeline stage name cannot be empty"
+                )
+            if not callable(operation):
+                raise ValueError(
+                    f"Pipeline stage operation must be callable: {stage_name}"
+                )
+            self._log_diagnostic(
+                "info",
+                f"Starting pipeline stage: {stage_name}",
+                None,
+                stage_name,
+                "execute"
+            )
+            stage_result = self.isolate_operation(
+                stage_name,
+                state,
+                operation
+            )
+            if not stage_result["success"]:
+                pipeline_record["failed_stage"] = stage_name
+                pipeline_record["error"] = stage_result["error"]
+                pipeline_record["state"] = dict(state)
+                self._log_diagnostic(
+                    "error",
+                    f"Pipeline stopped at stage: {stage_name}",
+                    stage_result["error"],
+                    stage_name,
+                    "execute"
+                )
+                self._pipeline_history.append(
+                    pipeline_record
+                )
+                return pipeline_record
+            pipeline_record["completed_stages"].append(
+                stage_name
+            )
+            self._log_diagnostic(
+                "info",
+                f"Completed pipeline stage: {stage_name}",
+                None,
+                stage_name,
+                "execute"
+            )
+        pipeline_record["success"] = True
+        pipeline_record["state"] = dict(state)
+        self._pipeline_history.append(
+            pipeline_record
+        )
+        self._log_diagnostic(
+            "info",
+            "RAG pipeline completed successfully",
+            None,
+            "pipeline",
+            "execute"
+        )
+        return pipeline_record
+
+    def get_pipeline_history(self):
+        return list(self._pipeline_history)
+
+    def get_successful_pipelines(self):
+        return [
+            pipeline
+            for pipeline in self._pipeline_history
+            if pipeline["success"]
+        ]
+
+    def get_failed_pipelines(self):
+        return [
+            pipeline
+            for pipeline in self._pipeline_history
+            if not pipeline["success"]
+        ]
+
     def begin_isolation(self, name, state):
         if not isinstance(name, str):
             raise ValueError(
@@ -1402,3 +1529,4 @@ class ErrorHandler:
         self._retry_history = []
         self._fallback_history = []
         self._diagnostics = []
+        self._pipeline_history = []

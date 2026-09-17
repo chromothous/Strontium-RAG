@@ -9199,6 +9199,265 @@ def full_test():
         print(red(e))
         print(red("Version 0.12.9 failed"))
 
+    try:
+        tests += 1
+        from classes.error_handler import ErrorHandler, StrontiumError
+        from classes.logger import Logger
+        logger = Logger()
+        error_handler = ErrorHandler(logger)
+        execution_log = []
+        pipeline_state = {
+            "retrieved": None,
+            "context": None,
+            "answer": None,
+            "citations": None,
+            "evaluation": None
+        }
+        def retrieval_stage(working):
+            execution_log.append("retrieval")
+            working["retrieved"] = [
+                "document_a",
+                "document_b"
+            ]
+        def context_stage(working):
+            execution_log.append("context")
+            assert working["retrieved"] == [
+                "document_a",
+                "document_b"
+            ], "Context stage should receive successful retrieval state"
+            working["context"] = "constructed context"
+        def generation_stage(working):
+            execution_log.append("generation")
+            assert working["context"] == "constructed context", "Generation stage should receive successful context state"
+            working["answer"] = "generated answer"
+        def citation_stage(working):
+            execution_log.append("citation")
+            assert working["answer"] == "generated answer", "Citation stage should receive successful generation state"
+            working["citations"] = ["source_a"]
+        def evaluation_stage(working):
+            execution_log.append("evaluation")
+            assert working["citations"] == ["source_a"], "Evaluation stage should receive successful citation state"
+            working["evaluation"] = {
+                "score": 1.0
+            }
+        successful_pipeline = error_handler.execute_pipeline(
+            [
+                ("retrieval", retrieval_stage),
+                ("context", context_stage),
+                ("generation", generation_stage),
+                ("citation", citation_stage),
+                ("evaluation", evaluation_stage)
+            ],
+            pipeline_state
+        )
+        assert successful_pipeline["success"] is True, "Pipeline error handling should support a completely successful RAG pipeline"
+        assert successful_pipeline["completed_stages"] == [
+            "retrieval",
+            "context",
+            "generation",
+            "citation",
+            "evaluation"
+        ], "Successful pipeline execution should preserve every completed stage in order"
+        assert successful_pipeline["failed_stage"] is None, "Successful pipeline execution should not report a failed stage"
+        assert successful_pipeline["error"] is None, "Successful pipeline execution should not report an error"
+        assert execution_log == [
+            "retrieval",
+            "context",
+            "generation",
+            "citation",
+            "evaluation"
+        ], "Successful pipeline execution should execute every stage exactly once and in order"
+        assert pipeline_state == {
+            "retrieved": ["document_a", "document_b"],
+            "context": "constructed context",
+            "answer": "generated answer",
+            "citations": ["source_a"],
+            "evaluation": {
+                "score": 1.0
+            }
+        }, "Successful pipeline execution should preserve the complete final state"
+        assert len(
+            error_handler.get_successful_pipelines()
+        ) == 1, "Successful pipelines should be recorded"
+        failure_handler = ErrorHandler(Logger())
+        failure_log = []
+        failure_state = {
+            "retrieved": None,
+            "context": None,
+            "answer": None,
+            "citations": None,
+            "evaluation": None
+        }
+        generation_error = failure_handler.handle_expected(
+            "Generation provider temporarily unavailable",
+            category="generation",
+            component="generator",
+            operation="generate",
+            recoverable=False
+        )
+        def failed_retrieval(working):
+            failure_log.append("retrieval")
+            working["retrieved"] = [
+                "document_a",
+                "document_b"
+            ]
+        def failed_context(working):
+            failure_log.append("context")
+            working["context"] = "constructed context"
+        def failed_generation(working):
+            failure_log.append("generation")
+            raise generation_error
+        def should_not_execute_citation(working):
+            failure_log.append("citation")
+            working["citations"] = ["should not exist"]
+        def should_not_execute_evaluation(working):
+            failure_log.append("evaluation")
+            working["evaluation"] = {
+                "score": 0.0
+            }
+        failed_pipeline = failure_handler.execute_pipeline(
+            [
+                ("retrieval", failed_retrieval),
+                ("context", failed_context),
+                ("generation", failed_generation),
+                ("citation", should_not_execute_citation),
+                ("evaluation", should_not_execute_evaluation)
+            ],
+            failure_state
+        )
+        assert failed_pipeline["success"] is False, "Pipeline error handling should report failed pipelines"
+        assert failed_pipeline["completed_stages"] == [
+            "retrieval",
+            "context"
+        ], "Pipeline failure should preserve every stage completed before the failure"
+        assert failed_pipeline["failed_stage"] == "generation", "Pipeline failure should identify the exact failed stage"
+        assert failed_pipeline["error"] is generation_error, "Pipeline failure should preserve the originating StrontiumError"
+        assert failure_log == [
+            "retrieval",
+            "context",
+            "generation"
+        ], "Pipeline execution should stop subsequent stages after a non-recoverable failure"
+        assert failure_state["retrieved"] == [
+            "document_a",
+            "document_b"
+        ], "Pipeline failure should preserve successful retrieval state"
+        assert failure_state["context"] == "constructed context", "Pipeline failure should preserve successful context state"
+        assert failure_state["answer"] is None, "Pipeline failure should prevent failed generation from producing an answer"
+        assert failure_state["citations"] is None, "Pipeline failure should prevent later citation processing"
+        assert failure_state["evaluation"] is None, "Pipeline failure should prevent later evaluation processing"
+        assert len(
+            failure_handler.get_failed_pipelines()
+        ) == 1, "Failed pipelines should be recorded"
+        pipeline_history = failure_handler.get_pipeline_history()
+        assert len(pipeline_history) == 1, "Pipeline history should retain the failed pipeline execution"
+        assert pipeline_history[0]["failed_stage"] == "generation", "Pipeline history should preserve the failed stage"
+        assert pipeline_history[0]["state"]["retrieved"] == [
+            "document_a",
+            "document_b"
+        ], "Pipeline history should preserve successful earlier state"
+        assert pipeline_history[0]["state"]["context"] == "constructed context", "Pipeline history should preserve successful context state"
+        assert failure_handler.get_isolation_boundaries() == {}, "Pipeline execution should leave no dangling isolation boundaries"
+        diagnostics = failure_handler.get_error_diagnostics(
+            generation_error
+        )
+        assert len(diagnostics) >= 2, "Pipeline failures should preserve internal error diagnostics"
+        assert any(
+            diagnostic["message"] == "Generation provider temporarily unavailable"
+            for diagnostic in diagnostics
+        ), "Pipeline diagnostics should retain the originating generation error"
+        assert any(
+            diagnostic["message"] == "Pipeline stopped at stage: generation"
+            for diagnostic in diagnostics
+        ), "Pipeline diagnostics should identify where pipeline execution stopped"
+        recoverable_handler = ErrorHandler(Logger())
+        recoverable_state = {
+            "retrieved": ["document_a"],
+            "context": "constructed context",
+            "answer": None,
+            "citations": None,
+            "evaluation": None
+        }
+        recoverable_failure = recoverable_handler.handle_expected(
+            "Temporary generation failure",
+            category="generation",
+            component="generator",
+            operation="generate",
+            recoverable=True
+        )
+        recovery_attempted = {
+            "count": 0
+        }
+        def recoverable_generation(working):
+            recovery_attempted["count"] += 1
+            if recovery_attempted["count"] == 1:
+                raise recoverable_failure
+            working["answer"] = "recovered answer"
+        recoverable_pipeline = recoverable_handler.execute_pipeline(
+            [
+                (
+                    "generation",
+                    recoverable_generation
+                )
+            ],
+            recoverable_state
+        )
+        assert recoverable_pipeline["success"] is False, "Pipeline execution should not silently retry recoverable failures"
+        assert recoverable_pipeline["failed_stage"] == "generation", "Recoverable pipeline failures should identify the failed stage before recovery"
+        assert recoverable_state["retrieved"] == ["document_a"], "Recoverable pipeline failures should preserve earlier retrieval state"
+        assert recoverable_state["context"] == "constructed context", "Recoverable pipeline failures should preserve earlier context state"
+        assert recoverable_state["answer"] is None, "Failed generation should not partially commit answer state"
+        recovered = recoverable_handler.recover_isolated_operation(
+            "generation_recovery",
+            recoverable_state,
+            recoverable_failure,
+            lambda working: working.update(
+                {
+                    "answer": "recovered answer"
+                }
+            )
+        )
+        assert recovered["success"] is True, "A failed pipeline stage should be recoverable through the controlled recovery mechanism"
+        assert recoverable_state["answer"] == "recovered answer", "Successful recovery should update only the failed stage state"
+        validation_handler = ErrorHandler(Logger())
+        try:
+            validation_handler.execute_pipeline(
+                [],
+                {}
+            )
+            assert False, "Pipeline execution should reject an empty stage collection"
+        except ValueError:
+            pass
+        try:
+            validation_handler.execute_pipeline(
+                [
+                    ("retrieval", "not callable")
+                ],
+                {}
+            )
+            assert False, "Pipeline execution should reject non-callable stage operations"
+        except ValueError:
+            pass
+        try:
+            validation_handler.execute_pipeline(
+                [
+                    ("retrieval", lambda working: None)
+                ],
+                []
+            )
+            assert False, "Pipeline execution should reject non-dictionary pipeline state"
+        except ValueError:
+            pass
+        error_handler.clear()
+        assert error_handler.get_pipeline_history() == [], "Clearing the error handler should remove pipeline history"
+        assert error_handler.get_diagnostics() == [], "Clearing the error handler should remove pipeline diagnostics"
+        assert error_handler.get_errors() == [], "Clearing the error handler should remove stored errors"
+        success += 1
+        print(green("Version 0.12.10 pipeline error handling is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.12.10 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
