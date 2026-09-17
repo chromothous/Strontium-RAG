@@ -604,6 +604,29 @@ class ErrorHandler:
             user_message
         )
 
+    def _copy_state(self, state):
+        if not isinstance(state, dict):
+            raise ValueError(
+                "Recovery state must be a dictionary"
+            )
+        return dict(state)
+
+    def _build_recovery_record(
+        self,
+        error,
+        state_before,
+        state_after,
+        success,
+        result
+    ):
+        return {
+            "error": error,
+            "state_before": dict(state_before),
+            "state_after": dict(state_after),
+            "success": success,
+            "result": result
+        }
+
     def recover(
         self,
         error,
@@ -620,6 +643,8 @@ class ErrorHandler:
             )
         recovery_record = {
             "error": error,
+            "state_before": None,
+            "state_after": None,
             "success": False,
             "result": None
         }
@@ -694,6 +719,7 @@ class ErrorHandler:
             raise ValueError(
                 "Recovery operation must be callable"
             )
+        state_before = self._copy_state(state)
         self.begin_isolation(
             name,
             state
@@ -714,11 +740,13 @@ class ErrorHandler:
                 name,
                 state
             )
-            recovery_record = {
-                "error": error,
-                "success": True,
-                "result": result
-            }
+            recovery_record = self._build_recovery_record(
+                error,
+                state_before,
+                recovered_state,
+                True,
+                result
+            )
             self._recovery_history.append(
                 recovery_record
             )
@@ -740,12 +768,15 @@ class ErrorHandler:
                 name,
                 state
             )
+            restored_state = self._copy_state(state)
             self._recovery_history.append(
-                {
-                    "error": error,
-                    "success": False,
-                    "result": None
-                }
+                self._build_recovery_record(
+                    error,
+                    state_before,
+                    restored_state,
+                    False,
+                    None
+                )
             )
             self.propagate(
                 recovery_error,
@@ -755,7 +786,7 @@ class ErrorHandler:
             return {
                 "success": False,
                 "result": None,
-                "state": dict(state),
+                "state": restored_state,
                 "error": recovery_error
             }
         except Exception as exception:
@@ -763,22 +794,25 @@ class ErrorHandler:
                 name,
                 state
             )
+            restored_state = self._copy_state(state)
             recovery_error = self.handle_unexpected(
                 exception,
                 component="recovery",
                 operation="recover"
             )
             self._recovery_history.append(
-                {
-                    "error": error,
-                    "success": False,
-                    "result": None
-                }
+                self._build_recovery_record(
+                    error,
+                    state_before,
+                    restored_state,
+                    False,
+                    None
+                )
             )
             return {
                 "success": False,
                 "result": None,
-                "state": dict(state),
+                "state": restored_state,
                 "error": recovery_error
             }
 
@@ -870,38 +904,38 @@ class ErrorHandler:
                     "result": result,
                     "error": None
                 }
-            except StrontiumError as error:
-                self.validate_error(error)
-                attempt_record["error"] = error
+            except StrontiumError as retry_error:
+                self.validate_error(retry_error)
+                attempt_record["error"] = retry_error
                 retry_record["attempts"].append(
                     attempt_record
                 )
-                retry_record["error"] = error
+                retry_record["error"] = retry_error
                 self._log_diagnostic(
                     "warning",
                     f"Retry attempt {attempt} failed",
-                    error,
-                    error.component,
-                    error.operation
+                    retry_error,
+                    retry_error.component,
+                    retry_error.operation
                 )
-                if not error.is_recoverable():
+                if not retry_error.is_recoverable():
                     break
                 if error_handler is not None:
                     error_handler(
-                        error,
+                        retry_error,
                         attempt
                     )
             except Exception as exception:
-                error = self.handle_unexpected(
+                retry_error = self.handle_unexpected(
                     exception,
                     component="retry",
                     operation="attempt"
                 )
-                attempt_record["error"] = error
+                attempt_record["error"] = retry_error
                 retry_record["attempts"].append(
                     attempt_record
                 )
-                retry_record["error"] = error
+                retry_record["error"] = retry_error
                 break
         self._retry_history.append(
             retry_record

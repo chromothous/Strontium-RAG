@@ -9458,6 +9458,217 @@ def full_test():
         print(red(e))
         print(red("Version 0.12.10 failed"))
 
+    try:
+        tests += 1
+        from classes.error_handler import ErrorHandler, StrontiumError
+        from classes.logger import Logger
+        error_handler = ErrorHandler(Logger())
+        state = {
+            "retrieved": ["document_a", "document_b"],
+            "context": "constructed context",
+            "answer": None,
+            "citations": ["source_a"],
+            "evaluation": {
+                "retrieval_score": 1.0
+            },
+            "conversation": [
+                {
+                    "role": "user",
+                    "content": "What is RAG?"
+                }
+            ]
+        }
+        recovery_error = error_handler.handle_expected(
+            "Generation temporarily failed",
+            category="generation",
+            component="generator",
+            operation="generate",
+            recoverable=True
+        )
+        state_before_recovery = dict(state)
+        recovery_result = error_handler.recover_isolated_operation(
+            "generation_recovery",
+            state,
+            recovery_error,
+            lambda working: working.update(
+                {
+                    "answer": "RAG combines retrieval with generation."
+                }
+            )
+        )
+        assert recovery_result["success"] is True, "Recovery should succeed for a recoverable generation failure"
+        assert state["retrieved"] == ["document_a", "document_b"], "Recovery should preserve previously completed retrieval state"
+        assert state["context"] == "constructed context", "Recovery should preserve previously completed context state"
+        assert state["citations"] == ["source_a"], "Recovery should preserve previously completed citation state"
+        assert state["evaluation"] == {
+            "retrieval_score": 1.0
+        }, "Recovery should preserve existing evaluation state"
+        assert state["conversation"] == [
+            {
+                "role": "user",
+                "content": "What is RAG?"
+            }
+        ], "Recovery should preserve existing conversation state"
+        assert state["answer"] == "RAG combines retrieval with generation.", "Recovery should update the failed generation stage"
+        recovery_history = error_handler.get_recovery_history()
+        assert len(recovery_history) == 1, "Recovery should record exactly one recovery event"
+        assert recovery_history[0]["state_before"] == state_before_recovery, "Recovery history should preserve the complete state before recovery"
+        assert recovery_history[0]["state_after"] == state, "Recovery history should preserve the complete state after successful recovery"
+        assert recovery_history[0]["success"] is True, "Recovery history should identify successful recovery"
+        second_recovery_error = error_handler.handle_expected(
+            "Citation temporarily failed",
+            category="citation",
+            component="citation",
+            operation="cite",
+            recoverable=True
+        )
+        state_before_second_recovery = dict(state)
+        second_recovery_result = error_handler.recover_isolated_operation(
+            "citation_recovery",
+            state,
+            second_recovery_error,
+            lambda working: working.update(
+                {
+                    "citations": ["source_a", "source_b"]
+                }
+            )
+        )
+        assert second_recovery_result["success"] is True, "Recovery should support a later failed stage after an earlier stage has already been recovered"
+        assert state["retrieved"] == ["document_a", "document_b"], "Repeated recovery should preserve retrieval state"
+        assert state["context"] == "constructed context", "Repeated recovery should preserve context state"
+        assert state["answer"] == "RAG combines retrieval with generation.", "Repeated recovery should preserve the previously recovered answer"
+        assert state["evaluation"] == {
+            "retrieval_score": 1.0
+        }, "Repeated recovery should preserve evaluation state"
+        assert state["conversation"] == [
+            {
+                "role": "user",
+                "content": "What is RAG?"
+            }
+        ], "Repeated recovery should preserve conversation state"
+        assert state["citations"] == ["source_a", "source_b"], "Repeated recovery should update only the newly recovered stage"
+        assert len(error_handler.get_successful_recoveries()) == 2, "Successful recovery history should contain both successful recovery operations"
+        second_recovery_history = error_handler.get_recovery_history()[1]
+        assert second_recovery_history["state_before"] == state_before_second_recovery, "Repeated recovery should capture the current state before the later recovery"
+        assert second_recovery_history["state_after"] == state, "Repeated recovery should capture the resulting state after the later recovery"
+        failed_state = {
+            "retrieved": ["document_a", "document_b"],
+            "context": "constructed context",
+            "answer": "existing answer",
+            "citations": ["source_a"],
+            "evaluation": {
+                "score": 1.0
+            },
+            "conversation": [
+                {
+                    "role": "user",
+                    "content": "What is RAG?"
+                },
+                {
+                    "role": "assistant",
+                    "content": "existing answer"
+                }
+            ]
+        }
+        failed_recovery_error = error_handler.handle_expected(
+            "Evaluation recovery failed",
+            category="evaluation",
+            component="evaluator",
+            operation="evaluate",
+            recoverable=True
+        )
+        failed_state_before = dict(failed_state)
+        failed_recovery_result = error_handler.recover_isolated_operation(
+            "evaluation_recovery",
+            failed_state,
+            failed_recovery_error,
+            lambda working: (_ for _ in ()).throw(
+                RuntimeError("Recovery operation failed")
+            )
+        )
+        assert failed_recovery_result["success"] is False, "Failed recovery should report failure"
+        assert failed_state == failed_state_before, "Failed recovery should leave the original state unchanged"
+        assert failed_recovery_result["state"] == failed_state_before, "Failed recovery should return the restored state"
+        assert failed_recovery_result["error"].category == "unexpected", "Unexpected recovery failure should be classified as unexpected"
+        assert failed_recovery_result["error"].cause is not None, "Unexpected recovery failure should preserve its original exception"
+        failed_history = error_handler.get_failed_recoveries()
+        assert len(failed_history) == 1, "Failed recovery should be recorded separately from successful recovery"
+        assert failed_history[0]["state_before"] == failed_state_before, "Failed recovery history should preserve the state before the failed attempt"
+        assert failed_history[0]["state_after"] == failed_state_before, "Failed recovery history should preserve the restored state after failure"
+        retry_state = {
+            "retrieved": ["document_a"],
+            "context": "constructed context",
+            "answer": None,
+            "citations": ["source_a"],
+            "evaluation": {
+                "score": 1.0
+            }
+        }
+        repeated_recovery_counter = {
+            "count": 0
+        }
+        repeated_error = error_handler.handle_expected(
+            "Generation recovery required",
+            category="generation",
+            component="generator",
+            operation="generate",
+            recoverable=True
+        )
+        def predictable_recovery(working):
+            repeated_recovery_counter["count"] += 1
+            working["answer"] = (
+                f"recovered answer {repeated_recovery_counter['count']}"
+            )
+        first_predictable = error_handler.recover_isolated_operation(
+            "predictable_recovery",
+            retry_state,
+            repeated_error,
+            predictable_recovery
+        )
+        second_predictable = error_handler.recover_isolated_operation(
+            "predictable_recovery",
+            retry_state,
+            repeated_error,
+            predictable_recovery
+        )
+        assert first_predictable["success"] is True, "The first repeated recovery should succeed"
+        assert second_predictable["success"] is True, "A repeated recovery should remain predictable and controlled"
+        assert repeated_recovery_counter["count"] == 2, "Repeated recovery should execute exactly once per explicit recovery request"
+        assert retry_state["retrieved"] == ["document_a"], "Repeated recovery should preserve retrieval state"
+        assert retry_state["context"] == "constructed context", "Repeated recovery should preserve context state"
+        assert retry_state["citations"] == ["source_a"], "Repeated recovery should preserve citations"
+        assert retry_state["evaluation"] == {
+            "score": 1.0
+        }, "Repeated recovery should preserve evaluation state"
+        assert retry_state["answer"] == "recovered answer 2", "Repeated recovery should deterministically apply the latest successful recovery"
+        assert len(
+            error_handler.get_isolation_boundaries()
+        ) == 0, "Recovery state handling should leave no dangling isolation boundaries"
+        assert len(
+            error_handler.get_successful_recoveries()
+        ) == 4, "Recovery history should preserve every successful recovery operation"
+        diagnostics = error_handler.get_error_diagnostics(
+            recovery_error
+        )
+        assert any(
+            diagnostic["message"] == "Starting isolated recovery operation"
+            for diagnostic in diagnostics
+        ), "Recovery diagnostics should preserve the start of the recovery lifecycle"
+        assert any(
+            diagnostic["message"] == "Isolated recovery operation succeeded"
+            for diagnostic in diagnostics
+        ), "Recovery diagnostics should preserve successful recovery completion"
+        error_handler.clear()
+        assert error_handler.get_recovery_history() == [], "Clearing the error handler should remove recovery history"
+        assert error_handler.get_errors() == [], "Clearing the error handler should remove stored errors"
+        assert error_handler.get_diagnostics() == [], "Clearing the error handler should remove diagnostics"
+        success += 1
+        print(green("Version 0.12.11 error recovery state integrity is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.12.11 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

@@ -549,3 +549,6 @@ User-facing error handling is online.
 
 Version 0.12.10
 Pipeline error handling is online.
+
+Version 0.12.11
+Error recovery state integrity is online.
