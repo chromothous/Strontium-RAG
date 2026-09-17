@@ -9862,6 +9862,125 @@ def full_test():
         print(red(e))
         print(red("Version 0.12.12 failed"))
 
+    try:
+        tests += 1
+        from classes.security import SecurityValidator, SecurityPolicy, ValidationResult, SecurityError, SecurityValidationError, SecurityPolicyError
+        from classes.logger import Logger
+        from classes.error_handler import ErrorHandler
+        security_logger = Logger()
+        security_error_handler = ErrorHandler(security_logger)
+        default_policy = SecurityPolicy()
+        assert isinstance(default_policy, SecurityPolicy), "Security foundation should create a valid default SecurityPolicy instance"
+        assert default_policy.validate() is True, "Security policy should validate its secure default configuration"
+        assert default_policy.max_string_length > 0, "Security policy should provide a positive default maximum string length"
+        assert default_policy.max_collection_size > 0, "Security policy should provide a positive default maximum collection size"
+        assert default_policy.max_metadata_size > 0, "Security policy should provide a positive default metadata size limit"
+        assert default_policy.max_nesting_depth > 0, "Security policy should provide a positive default nesting depth limit"
+        assert "https" in default_policy.allowed_schemes, "Security policy should allow HTTPS by default"
+        assert ".txt" in default_policy.allowed_file_types, "Security policy should preserve the established text document format by default"
+        security = SecurityValidator(security_logger, security_error_handler)
+        assert isinstance(security, SecurityValidator), "Security foundation should create a valid SecurityValidator instance"
+        assert security.logger is security_logger, "Security validator should preserve the configured Logger"
+        assert security.error_handler is security_error_handler, "Security validator should preserve the configured ErrorHandler"
+        assert isinstance(security.policy, SecurityPolicy), "Security validator should establish a SecurityPolicy by default"
+        security_state = security.get_security_state()
+        assert security_state["secure_by_default"] is True, "Security foundation should explicitly report secure-by-default behavior"
+        assert security_state["logger_integrated"] is True, "Security foundation should integrate with Logger"
+        assert security_state["error_handler_integrated"] is True, "Security foundation should integrate with ErrorHandler"
+        valid_string = security.validate_string("What is retrieval augmented generation?", "query")
+        assert isinstance(valid_string, ValidationResult), "Security string validation should return a ValidationResult"
+        assert valid_string.is_valid() is True, "Security validation should accept a valid string input"
+        assert valid_string.is_untrusted() is True, "Validated input should remain untrusted until explicitly promoted"
+        assert valid_string.value == "What is retrieval augmented generation?", "Security validation should preserve valid input"
+        invalid_string = security.validate_string("", "query")
+        assert invalid_string.is_valid() is False, "Security validation should reject empty required strings"
+        assert invalid_string.is_untrusted() is True, "Rejected input should never become trusted"
+        try:
+            security.require_valid(invalid_string, "query")
+            assert False, "Security require_valid should reject invalid validation results"
+        except SecurityValidationError:
+            pass
+        valid_mapping = security.validate_mapping({"query": "What is RAG?", "session_id": "security-session"}, "request", required_fields=["query"], allowed_fields=["query", "session_id"])
+        assert valid_mapping.is_valid() is True, "Security mapping validation should accept a valid structured input"
+        assert valid_mapping.value == {"query": "What is RAG?", "session_id": "security-session"}, "Security mapping validation should preserve valid structured data"
+        invalid_mapping = security.validate_mapping({"query": "What is RAG?", "unexpected": "blocked"}, "request", required_fields=["query"], allowed_fields=["query"])
+        assert invalid_mapping.is_valid() is False, "Security mapping validation should reject unexpected fields"
+        assert len(invalid_mapping.errors) > 0, "Security mapping validation should report structural validation failures"
+        valid_collection = security.validate_collection(["document_a", "document_b"], "documents")
+        assert valid_collection.is_valid() is True, "Security collection validation should accept collections within policy limits"
+        assert valid_collection.value == ["document_a", "document_b"], "Security collection validation should preserve collection contents"
+        oversized_collection = security.validate_collection(list(range(default_policy.max_collection_size + 1)), "documents")
+        assert oversized_collection.is_valid() is False, "Security collection validation should enforce the default collection limit"
+        trusted_result = security.mark_trusted(valid_string)
+        assert isinstance(trusted_result, ValidationResult), "Security trust promotion should return a ValidationResult"
+        assert trusted_result.is_valid() is True, "Successfully validated input should remain valid after trust promotion"
+        assert trusted_result.is_trusted() is True, "Security trust promotion should explicitly mark validated input as trusted"
+        assert trusted_result.value == valid_string.value, "Security trust promotion should preserve validated input"
+        assert valid_string.is_trusted() is False, "Security trust promotion should not mutate the original validation result"
+        combined_result = security.validate_and_trust("trusted query", "query")
+        assert isinstance(combined_result, ValidationResult), "Security validate-and-trust should return a ValidationResult"
+        assert combined_result.is_valid() is True, "Security validate-and-trust should validate valid input"
+        assert combined_result.is_trusted() is True, "Security validate-and-trust should produce explicitly trusted state"
+        assert security.is_trusted(combined_result) is True, "Security validator should recognize explicitly trusted validation results"
+        assert security.is_trusted(valid_string) is False, "Security validator should distinguish validated but untrusted input"
+        assert security.is_trusted("raw input") is False, "Security validator should never treat raw input as trusted"
+        try:
+            SecurityValidator("not a logger")
+            assert False, "Security validator should reject an invalid Logger dependency"
+        except ValueError:
+            pass
+        try:
+            SecurityValidator(security_logger, "not an error handler")
+            assert False, "Security validator should reject an invalid ErrorHandler dependency"
+        except ValueError:
+            pass
+        try:
+            SecurityPolicy(max_string_length=0)
+            assert False, "Security policy should reject a zero maximum string length"
+        except ValueError:
+            pass
+        try:
+            SecurityPolicy(max_collection_size=-1)
+            assert False, "Security policy should reject a negative maximum collection size"
+        except ValueError:
+            pass
+        try:
+            SecurityPolicy(allowed_schemes=[])
+            assert False, "Security policy should reject an empty allowed scheme collection"
+        except ValueError:
+            pass
+        try:
+            ValidationResult(valid=False, trusted=True)
+            assert False, "Validation results should never allow invalid input to become trusted"
+        except ValueError:
+            pass
+        try:
+            SecurityValidationError("invalid field", field="")
+            assert False, "Security validation errors should reject empty field identities"
+        except ValueError:
+            pass
+        try:
+            SecurityPolicyError("invalid policy", policy="not a policy")
+            assert False, "Security policy errors should reject invalid policy references"
+        except ValueError:
+            pass
+        diagnostics = security_error_handler.get_diagnostics()
+        assert len(diagnostics) > 0, "Security validation failures should integrate with ErrorHandler diagnostics"
+        assert any(diagnostic["category"] == "validation" and diagnostic["component"] == "security" for diagnostic in diagnostics), "Security validation failures should be categorized as security validation events"
+        policy_copy = security.get_policy()
+        assert isinstance(policy_copy, dict), "Security policy access should return a dictionary representation"
+        policy_copy["max_string_length"] = 1
+        assert security.policy.max_string_length != 1, "Security policy access should not expose mutable internal configuration"
+        assert SecurityError("Security foundation error").category == "security", "SecurityError should establish the security exception category"
+        assert SecurityValidationError("Validation failure", "query").category == "validation", "SecurityValidationError should establish the validation exception category"
+        assert SecurityPolicyError("Policy failure").category == "policy", "SecurityPolicyError should establish the policy exception category"
+        success += 1
+        print(green("Version 0.13.0 security and input validation foundation is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.13.0 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
