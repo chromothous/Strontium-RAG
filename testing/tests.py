@@ -9669,6 +9669,199 @@ def full_test():
         print(red(e))
         print(red("Version 0.12.11 failed"))
 
+    try:
+        tests += 1
+        from classes.error_handler import ErrorHandler, StrontiumError
+        from classes.logger import Logger
+        logger = Logger()
+        error_handler = ErrorHandler(logger)
+        state = {
+            "retrieved": ["document_a"],
+            "context": "constructed context",
+            "answer": None,
+            "citations": ["source_a"],
+            "evaluation": {
+                "retrieval_score": 1.0
+            },
+            "conversation": [
+                {
+                    "role": "user",
+                    "content": "What is RAG?"
+                }
+            ]
+        }
+        pipeline_error = error_handler.handle_expected(
+            "Generation failed",
+            category="generation",
+            component="generator",
+            operation="generate",
+            recoverable=True,
+            user_message="The response is temporarily unavailable."
+        )
+        propagated = error_handler.propagate(
+            pipeline_error,
+            "conversation",
+            "process_complete"
+        )
+        assert propagated is pipeline_error, "Propagation should preserve the original StrontiumError instance"
+        assert pipeline_error.get_error_path() == [
+            {
+                "component": "generator",
+                "operation": "generate"
+            },
+            {
+                "component": "conversation",
+                "operation": "process_complete"
+            }
+        ], "Propagation should preserve the complete error path"
+        assert error_handler.get_user_message(
+            pipeline_error
+        ) == "The response is temporarily unavailable.", "User-facing messaging should preserve the configured message"
+        assert error_handler.get_user_response(
+            pipeline_error
+        )["category"] == "generation", "User-facing response should preserve the error category"
+        retry_counter = {
+            "count": 0
+        }
+        def retry_operation():
+            retry_counter["count"] += 1
+            raise StrontiumError(
+                "Retry failed",
+                category="generation",
+                component="generator",
+                operation="generate",
+                recoverable=True
+            )
+        recovery_result = error_handler.execute_complete_error_pipeline(
+            pipeline_error,
+            state,
+            lambda working: (_ for _ in ()).throw(pipeline_error),
+            retry_operation=retry_operation,
+            recovery_operation=lambda working: working.update(
+                {
+                    "answer": "Recovered RAG answer."
+                }
+            ),
+            retry_attempts=2,
+            propagation_component="pipeline",
+            propagation_operation="execute"
+        )
+        assert recovery_result["success"] is True, "Complete error handling should recover a failed recoverable operation"
+        assert recovery_result["classification"] == "generation", "Complete error handling should preserve error classification"
+        assert recovery_result["primary"]["success"] is False, "Primary failure should be recorded before recovery"
+        assert recovery_result["retry"]["success"] is False, "Failed retry attempts should remain recorded when retry is exhausted"
+        assert recovery_result["recovery"]["success"] is True, "Successful recovery should terminate the complete error pipeline"
+        assert recovery_result["fallback"] is None, "Fallback should not execute after successful recovery"
+        assert retry_counter["count"] == 2, "Complete error handling should execute every configured retry attempt"
+        assert state["retrieved"] == ["document_a"], "Recovery should preserve retrieval state"
+        assert state["context"] == "constructed context", "Recovery should preserve context state"
+        assert state["citations"] == ["source_a"], "Recovery should preserve citation state"
+        assert state["evaluation"] == {
+            "retrieval_score": 1.0
+        }, "Recovery should preserve evaluation state"
+        assert state["conversation"] == [
+            {
+                "role": "user",
+                "content": "What is RAG?"
+            }
+        ], "Recovery should preserve conversation state"
+        assert state["answer"] == "Recovered RAG answer.", "Recovery should update the failed generation state"
+        assert len(
+            error_handler.get_successful_recoveries()
+        ) == 1, "Complete error handling should record the successful recovery"
+        assert len(
+            error_handler.get_failed_recoveries()
+        ) == 0, "Successful recovery should not create a failed recovery record"
+        assert len(
+            error_handler.get_failed_retries()
+        ) == 1, "Exhausted retry handling should record one failed retry operation"
+        diagnostics = error_handler.get_error_diagnostics(
+            pipeline_error
+        )
+        assert any(
+            diagnostic["message"] == "Complete error handling pipeline started"
+            for diagnostic in diagnostics
+        ), "Complete error handling should log pipeline start diagnostics"
+        assert any(
+            diagnostic["message"] == "Starting isolated recovery operation"
+            for diagnostic in diagnostics
+        ), "Complete error handling should log recovery start diagnostics"
+        assert any(
+            diagnostic["message"] == "Isolated recovery operation succeeded"
+            for diagnostic in diagnostics
+        ), "Complete error handling should log recovery completion diagnostics"
+        nonrecoverable_error = error_handler.handle_expected(
+            "Generation permanently failed",
+            category="generation",
+            component="generator",
+            operation="generate",
+            recoverable=False
+        )
+        nonrecoverable_state = {
+            "answer": "existing answer"
+        }
+        nonrecoverable_result = error_handler.execute_complete_error_pipeline(
+            nonrecoverable_error,
+            nonrecoverable_state,
+            lambda working: (_ for _ in ()).throw(
+                nonrecoverable_error
+            ),
+            retry_operation=lambda: "should not execute",
+            recovery_operation=lambda working: working.update(
+                {
+                    "answer": "should not execute"
+                }
+            ),
+            fallback_operation=lambda: "should not execute"
+        )
+        assert nonrecoverable_result["success"] is False, "Non-recoverable failures should terminate the complete error pipeline"
+        assert nonrecoverable_result["retry"] is None, "Non-recoverable failures should not trigger retry handling"
+        assert nonrecoverable_result["recovery"] is None, "Non-recoverable failures should not trigger recovery handling"
+        assert nonrecoverable_result["fallback"] is None, "Non-recoverable failures should not trigger fallback handling"
+        assert nonrecoverable_state == {
+            "answer": "existing answer"
+        }, "Non-recoverable failure handling should preserve state"
+        try:
+            1 / 0
+        except Exception as unexpected_exception:
+            unexpected_error = error_handler.handle_unexpected(
+                unexpected_exception,
+                component="generator",
+                operation="generate"
+            )
+        unexpected_state = {
+            "answer": "existing answer"
+        }
+        unexpected_result = error_handler.execute_complete_error_pipeline(
+            unexpected_error,
+            unexpected_state,
+            lambda working: (_ for _ in ()).throw(
+                unexpected_error
+            ),
+            fallback_operation=lambda: "should not execute"
+        )
+        assert unexpected_result["success"] is False, "Unexpected failures should remain terminal"
+        assert unexpected_result["classification"] == "unexpected", "Unexpected failures should preserve unexpected classification"
+        assert unexpected_result["fallback"] is None, "Unexpected failures should not enter recoverable fallback handling"
+        assert unexpected_state == {
+            "answer": "existing answer"
+        }, "Unexpected failure handling should preserve state"
+        assert len(
+            error_handler.get_isolation_boundaries()
+        ) == 0, "Complete error handling should leave no dangling isolation boundaries"
+        error_handler.clear()
+        assert error_handler.get_recovery_history() == [], "Clearing should remove recovery history"
+        assert error_handler.get_retry_history() == [], "Clearing should remove retry history"
+        assert error_handler.get_fallback_history() == [], "Clearing should remove fallback history"
+        assert error_handler.get_diagnostics() == [], "Clearing should remove diagnostics"
+        assert error_handler.get_errors() == [], "Clearing should remove stored errors"
+        success += 1
+        print(green("Version 0.12.12 complete error handling pipeline is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.12.12 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

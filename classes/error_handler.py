@@ -1528,6 +1528,253 @@ class ErrorHandler:
             for name, data in self._isolated_states.items()
         }
 
+    def execute_complete_error_pipeline(
+        self,
+        error,
+        state,
+        primary_operation,
+        retry_operation=None,
+        recovery_operation=None,
+        fallback_operation=None,
+        retry_attempts=1,
+        propagation_component=None,
+        propagation_operation=None
+    ):
+        self.validate_error(error)
+        if not isinstance(state, dict):
+            raise ValueError(
+                "Complete error pipeline state must be a dictionary"
+            )
+        if not callable(primary_operation):
+            raise ValueError(
+                "Complete error pipeline primary operation must be callable"
+            )
+        if retry_operation is not None and not callable(retry_operation):
+            raise ValueError(
+                "Complete error pipeline retry operation must be callable"
+            )
+        if recovery_operation is not None and not callable(recovery_operation):
+            raise ValueError(
+                "Complete error pipeline recovery operation must be callable"
+            )
+        if fallback_operation is not None and not callable(fallback_operation):
+            raise ValueError(
+                "Complete error pipeline fallback operation must be callable"
+            )
+        if not isinstance(retry_attempts, int):
+            raise ValueError(
+                "Complete error pipeline retry attempts must be an integer"
+            )
+        if retry_attempts < 1:
+            raise ValueError(
+                "Complete error pipeline retry attempts must be at least 1"
+            )
+        if propagation_component is not None:
+            if not isinstance(propagation_component, str):
+                raise ValueError(
+                    "Complete error pipeline propagation component must be a string"
+                )
+            if not propagation_component.strip():
+                raise ValueError(
+                    "Complete error pipeline propagation component cannot be empty"
+                )
+            if propagation_operation is None:
+                raise ValueError(
+                    "Complete error pipeline propagation operation is required"
+                )
+        if propagation_operation is not None:
+            if not isinstance(propagation_operation, str):
+                raise ValueError(
+                    "Complete error pipeline propagation operation must be a string"
+                )
+            if not propagation_operation.strip():
+                raise ValueError(
+                    "Complete error pipeline propagation operation cannot be empty"
+                )
+            if propagation_component is None:
+                raise ValueError(
+                    "Complete error pipeline propagation component is required"
+                )
+        state_before = dict(state)
+        self._log_diagnostic(
+            "warning",
+            "Complete error handling pipeline started",
+            error,
+            error.component,
+            error.operation
+        )
+        if (
+            propagation_component is not None
+            and propagation_operation is not None
+        ):
+            self.propagate(
+                error,
+                propagation_component,
+                propagation_operation
+            )
+        primary_result = self.isolate_operation(
+            "complete_error_pipeline_primary",
+            state,
+            primary_operation
+        )
+        if primary_result["success"]:
+            self._log_diagnostic(
+                "info",
+                "Complete error handling pipeline completed in primary operation",
+                error,
+                error.component,
+                error.operation
+            )
+            return {
+                "success": True,
+                "classification": self.classify(error.category),
+                "error": error,
+                "primary": primary_result,
+                "retry": None,
+                "recovery": None,
+                "fallback": None,
+                "state_before": state_before,
+                "state_after": dict(state),
+                "user_response": self.get_user_response(error)
+            }
+        current_error = primary_result["error"]
+        if not isinstance(current_error, StrontiumError):
+            current_error = error
+        self._log_diagnostic(
+            "error",
+            "Complete error handling pipeline primary operation failed",
+            current_error,
+            current_error.component,
+            current_error.operation
+        )
+        retry_result = None
+        if current_error.is_recoverable() and retry_operation is not None:
+            retry_result = self.retry_recoverable(
+                current_error,
+                retry_operation,
+                retry_attempts
+            )
+            if retry_result["success"]:
+                self._log_diagnostic(
+                    "info",
+                    "Complete error handling pipeline recovered through retry",
+                    current_error,
+                    current_error.component,
+                    current_error.operation
+                )
+                return {
+                    "success": True,
+                    "classification": self.classify(current_error.category),
+                    "error": current_error,
+                    "primary": primary_result,
+                    "retry": retry_result,
+                    "recovery": None,
+                    "fallback": None,
+                    "state_before": state_before,
+                    "state_after": dict(state),
+                    "user_response": self.get_user_response(current_error)
+                }
+            if retry_result["error"] is not None:
+                current_error = retry_result["error"]
+        recovery_result = None
+        if current_error.is_recoverable() and recovery_operation is not None:
+            self._log_diagnostic(
+                "warning",
+                "Complete error handling pipeline recovery requested",
+                error,
+                error.component,
+                error.operation
+            )
+            self._log_diagnostic(
+                "warning",
+                "Starting isolated recovery operation",
+                error,
+                error.component,
+                error.operation
+            )
+            recovery_result = self.recover_isolated_operation(
+                "complete_error_pipeline_recovery",
+                state,
+                current_error,
+                recovery_operation
+            )
+            if recovery_result["success"]:
+                self._log_diagnostic(
+                    "info",
+                    "Complete error handling pipeline recovered through recovery",
+                    error,
+                    error.component,
+                    error.operation
+                )
+                self._log_diagnostic(
+                    "info",
+                    "Isolated recovery operation succeeded",
+                    error,
+                    error.component,
+                    error.operation
+                )
+                return {
+                    "success": True,
+                    "classification": self.classify(current_error.category),
+                    "error": current_error,
+                    "primary": primary_result,
+                    "retry": retry_result,
+                    "recovery": recovery_result,
+                    "fallback": None,
+                    "state_before": state_before,
+                    "state_after": dict(state),
+                    "user_response": self.get_user_response(current_error)
+                }
+            if recovery_result["error"] is not None:
+                current_error = recovery_result["error"]
+        fallback_result = None
+        if current_error.is_recoverable() and fallback_operation is not None:
+            fallback_result = self.fallback(
+                lambda: (_ for _ in ()).throw(current_error),
+                fallback_operation
+            )
+            if fallback_result["success"]:
+                self._log_diagnostic(
+                    "info",
+                    "Complete error handling pipeline recovered through fallback",
+                    current_error,
+                    current_error.component,
+                    current_error.operation
+                )
+                return {
+                    "success": True,
+                    "classification": self.classify(current_error.category),
+                    "error": current_error,
+                    "primary": primary_result,
+                    "retry": retry_result,
+                    "recovery": recovery_result,
+                    "fallback": fallback_result,
+                    "state_before": state_before,
+                    "state_after": dict(state),
+                    "user_response": self.get_user_response(current_error)
+                }
+            if fallback_result["error"] is not None:
+                current_error = fallback_result["error"]
+        self._log_diagnostic(
+            "error",
+            "Complete error handling pipeline failed",
+            current_error,
+            current_error.component,
+            current_error.operation
+        )
+        return {
+            "success": False,
+            "classification": self.classify(current_error.category),
+            "error": current_error,
+            "primary": primary_result,
+            "retry": retry_result,
+            "recovery": recovery_result,
+            "fallback": fallback_result,
+            "state_before": state_before,
+            "state_after": dict(state),
+            "user_response": self.get_user_response(current_error)
+        }
+
     def classify(self, category):
         return self.validate_category(category)
 

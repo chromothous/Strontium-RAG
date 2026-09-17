@@ -552,3 +552,6 @@ Pipeline error handling is online.
 
 Version 0.12.11
 Error recovery state integrity is online.
+
+Version 0.12.12
+Complete error hndling pipeline is online.
