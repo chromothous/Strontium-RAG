@@ -9981,6 +9981,95 @@ def full_test():
         print(red(e))
         print(red("Version 0.13.0 failed"))
 
+    try:
+        tests += 1
+        from classes.security import SecurityValidator, SecurityPolicy, ValidationResult, SecurityError, SecurityValidationError, SecurityPolicyError, TrustBoundary
+        from classes.logger import Logger
+        from classes.error_handler import ErrorHandler
+        security_logger = Logger()
+        security_error_handler = ErrorHandler(security_logger)
+        security = SecurityValidator(security_logger, security_error_handler)
+        assert isinstance(security, SecurityValidator), "Security trust boundary implementation should preserve the existing SecurityValidator"
+        assert isinstance(security.policy, SecurityPolicy), "Security trust boundary implementation should preserve the existing SecurityPolicy"
+        assert isinstance(TrustBoundary.ALL, tuple), "Security trust boundaries should provide a defined boundary collection"
+        assert len(TrustBoundary.ALL) == 9, "Security trust boundary foundation should define all required input boundaries"
+        assert TrustBoundary.USER_QUERY in TrustBoundary.ALL, "Security trust boundaries should include user queries"
+        assert TrustBoundary.DOCUMENT in TrustBoundary.ALL, "Security trust boundaries should include documents"
+        assert TrustBoundary.METADATA in TrustBoundary.ALL, "Security trust boundaries should include metadata"
+        assert TrustBoundary.CONFIGURATION in TrustBoundary.ALL, "Security trust boundaries should include configuration"
+        assert TrustBoundary.FILE_PATH in TrustBoundary.ALL, "Security trust boundaries should include file paths"
+        assert TrustBoundary.URL in TrustBoundary.ALL, "Security trust boundaries should include URLs"
+        assert TrustBoundary.PROVIDER_MODEL in TrustBoundary.ALL, "Security trust boundaries should include provider and model inputs"
+        assert TrustBoundary.CONVERSATION_STATE in TrustBoundary.ALL, "Security trust boundaries should include conversation state"
+        assert TrustBoundary.EXTERNAL_RESPONSE in TrustBoundary.ALL, "Security trust boundaries should include external responses"
+        query_result = security.validate_trust_boundary("What is RAG?", TrustBoundary.USER_QUERY, "query")
+        assert isinstance(query_result, ValidationResult), "Trust boundary validation should return a ValidationResult"
+        assert query_result.is_valid() is True, "Valid user query input should pass trust boundary validation"
+        assert query_result.is_untrusted() is True, "Boundary validation should not automatically trust input"
+        assert query_result.boundary == TrustBoundary.USER_QUERY, "Validation result should preserve its trust boundary"
+        assert query_result.value == "What is RAG?", "Trust boundary validation should preserve the input"
+        invalid_query = security.validate_trust_boundary("", TrustBoundary.USER_QUERY, "query")
+        assert invalid_query.is_valid() is False, "Invalid user query input should fail trust boundary validation"
+        assert invalid_query.is_untrusted() is True, "Rejected input should remain untrusted"
+        try:
+            security.promote_boundary(invalid_query, TrustBoundary.USER_QUERY)
+            assert False, "Invalid input should not cross a trust boundary"
+        except SecurityValidationError:
+            pass
+        trusted_query = security.promote_boundary(query_result, TrustBoundary.USER_QUERY)
+        assert trusted_query.is_valid() is True, "Valid input should remain valid after boundary promotion"
+        assert trusted_query.is_trusted() is True, "Explicit boundary promotion should establish trusted state"
+        assert trusted_query.boundary == TrustBoundary.USER_QUERY, "Promoted input should preserve its trust boundary"
+        assert query_result.is_trusted() is False, "Boundary promotion should not mutate the original validation result"
+        assert security.is_boundary_trusted(TrustBoundary.USER_QUERY) is True, "Security validator should record explicitly trusted boundaries"
+        assert security.is_boundary_trusted(TrustBoundary.DOCUMENT) is False, "Unpromoted boundaries should remain untrusted"
+        trusted_document = security.validate_boundary_and_trust("Document contents", TrustBoundary.DOCUMENT, "document")
+        assert trusted_document.is_valid() is True, "Boundary validation and promotion should accept valid documents"
+        assert trusted_document.is_trusted() is True, "Boundary validation and promotion should explicitly trust valid documents"
+        assert trusted_document.boundary == TrustBoundary.DOCUMENT, "Trusted documents should preserve their boundary"
+        assert security.is_boundary_trusted(TrustBoundary.DOCUMENT) is True, "Trusted document boundary should be recorded"
+        try:
+            security.validate_trust_boundary("value", "unsupported_boundary", "value")
+            assert False, "Security validator should reject unsupported trust boundaries"
+        except ValueError:
+            pass
+        try:
+            security.validate_trust_boundary("value", "", "value")
+            assert False, "Security validator should reject empty trust boundaries"
+        except ValueError:
+            pass
+        mismatched_result = security.validate_trust_boundary("value", TrustBoundary.URL, "url")
+        try:
+            security.promote_boundary(mismatched_result, TrustBoundary.DOCUMENT)
+            assert False, "Security validator should reject promotion into a different trust boundary"
+        except SecurityValidationError:
+            pass
+        try:
+            security.promote_boundary("not a validation result", TrustBoundary.URL)
+            assert False, "Security validator should reject raw values at trust promotion"
+        except ValueError:
+            pass
+        assert isinstance(security.get_trust_boundaries(), list), "Security validator should expose supported trust boundaries"
+        assert len(security.get_trust_boundaries()) == 9, "Security validator should expose all nine trust boundaries"
+        trusted_boundaries = security.get_trusted_boundaries()
+        assert TrustBoundary.USER_QUERY in trusted_boundaries, "Security validator should expose the trusted user query boundary"
+        assert TrustBoundary.DOCUMENT in trusted_boundaries, "Security validator should expose the trusted document boundary"
+        trusted_boundaries.append("fake_boundary")
+        assert "fake_boundary" not in security.get_trusted_boundaries(), "Security trusted boundary access should not expose mutable internal state"
+        state = security.get_security_state()
+        assert "supported_trust_boundaries" in state, "Security state should expose supported trust boundaries"
+        assert "trusted_boundaries" in state, "Security state should expose trusted boundaries"
+        assert TrustBoundary.EXTERNAL_RESPONSE in state["supported_trust_boundaries"], "Security state should include external response as a supported boundary"
+        assert TrustBoundary.USER_QUERY in state["trusted_boundaries"], "Security state should include the promoted user query boundary"
+        boundary_dict = trusted_query.to_dict()
+        assert boundary_dict["boundary"] == TrustBoundary.USER_QUERY, "Validation result serialization should preserve trust boundary information"
+        success += 1
+        print(green("Version 0.13.1 input trust boundaries are online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.13.1 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

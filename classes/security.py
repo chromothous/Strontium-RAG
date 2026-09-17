@@ -66,7 +66,8 @@ class ValidationResult:
         value=None,
         errors=None,
         warnings=None,
-        trusted=False
+        trusted=False,
+        boundary=None
     ):
         if not isinstance(valid, bool):
             raise ValueError(
@@ -88,6 +89,11 @@ class ValidationResult:
             raise ValueError(
                 "Validation result trusted flag must be a boolean"
             )
+        if boundary is not None:
+            if not isinstance(boundary, str) or not boundary.strip():
+                raise ValueError(
+                    "Validation result boundary must be a non-empty string or None"
+                )
         if trusted and not valid:
             raise ValueError(
                 "Invalid validation results cannot be trusted"
@@ -98,6 +104,7 @@ class ValidationResult:
         self.errors = list(errors)
         self.warnings = list(warnings)
         self.trusted = trusted
+        self.boundary = boundary
 
     def is_valid(self):
         return self.valid is True
@@ -117,7 +124,8 @@ class ValidationResult:
             "value": self.value,
             "errors": list(self.errors),
             "warnings": list(self.warnings),
-            "trusted": self.trusted
+            "trusted": self.trusted,
+            "boundary": self.boundary
         }
 
 
@@ -269,6 +277,34 @@ class SecurityPolicy:
         }
 
 
+class TrustBoundary:
+    USER_QUERY = "user_query"
+    DOCUMENT = "document"
+    METADATA = "metadata"
+    CONFIGURATION = "configuration"
+    FILE_PATH = "file_path"
+    URL = "url"
+    PROVIDER_MODEL = "provider_model"
+    CONVERSATION_STATE = "conversation_state"
+    EXTERNAL_RESPONSE = "external_response"
+
+    ALL = (
+        USER_QUERY,
+        DOCUMENT,
+        METADATA,
+        CONFIGURATION,
+        FILE_PATH,
+        URL,
+        PROVIDER_MODEL,
+        CONVERSATION_STATE,
+        EXTERNAL_RESPONSE
+    )
+
+    @classmethod
+    def is_valid(cls, boundary):
+        return boundary in cls.ALL
+
+
 class SecurityValidator:
     def __init__(
         self,
@@ -300,6 +336,7 @@ class SecurityValidator:
         self.logger = logger
         self.error_handler = error_handler
         self.policy = policy
+        self._trusted_boundaries = set()
 
     def _record_failure(
         self,
@@ -536,6 +573,39 @@ class SecurityValidator:
             value
         )
 
+    def _validate_trust_boundary(
+        self,
+        boundary
+    ):
+        if not isinstance(boundary, str) or not boundary.strip():
+            raise ValueError(
+                "Security trust boundary must be a non-empty string"
+            )
+        if not TrustBoundary.is_valid(boundary):
+            raise ValueError(
+                f"Security trust boundary is not supported: {boundary}"
+            )
+        return boundary
+
+    def validate_trust_boundary(
+        self,
+        value,
+        boundary,
+        field=None
+    ):
+        boundary = self._validate_trust_boundary(
+            boundary
+        )
+        if field is None:
+            field = boundary
+        result = self.validate_input(
+            value,
+            field
+        )
+        result.boundary = boundary
+        return result
+
+
     def require_valid(
         self,
         result,
@@ -590,8 +660,81 @@ class SecurityValidator:
             value=result.value,
             errors=list(result.errors),
             warnings=list(result.warnings),
-            trusted=True
+            trusted=True,
+            boundary=result.boundary
         )
+
+    def promote_boundary(
+        self,
+        result,
+        boundary=None
+    ):
+        if not isinstance(result, ValidationResult):
+            raise ValueError(
+                "Security trust boundary promotion requires a ValidationResult"
+            )
+        if boundary is None:
+            boundary = result.boundary
+        boundary = self._validate_trust_boundary(
+            boundary
+        )
+        if result.boundary is not None and result.boundary != boundary:
+            raise SecurityValidationError(
+                "Validation result does not belong to the requested trust boundary",
+                result.boundary
+            )
+        if not result.is_valid():
+            raise SecurityValidationError(
+                "Invalid validation results cannot cross a trust boundary",
+                result.boundary if result.boundary is not None else boundary
+            )
+        trusted_result = ValidationResult(
+            valid=True,
+            value=result.value,
+            errors=list(result.errors),
+            warnings=list(result.warnings),
+            trusted=True,
+            boundary=boundary
+        )
+        self._trusted_boundaries.add(
+            boundary
+        )
+        self.logger.info(
+            f"Security trust boundary promoted: {boundary}"
+        )
+        return trusted_result
+
+    def validate_boundary_and_trust(
+        self,
+        value,
+        boundary,
+        field=None
+    ):
+        result = self.validate_trust_boundary(
+            value,
+            boundary,
+            field
+        )
+        return self.promote_boundary(
+            result,
+            boundary
+        )
+
+    def is_boundary_trusted(
+        self,
+        boundary
+    ):
+        boundary = self._validate_trust_boundary(
+            boundary
+        )
+        return boundary in self._trusted_boundaries
+
+    def get_trust_boundaries(self):
+        return list(TrustBoundary.ALL)
+
+    def get_trusted_boundaries(self):
+        return list(self._trusted_boundaries)
+
 
     def validate_and_trust(
         self,
@@ -627,5 +770,7 @@ class SecurityValidator:
             ),
             "error_handler_integrated": (
                 self.error_handler is not None
-            )
+            ),
+            "supported_trust_boundaries": self.get_trust_boundaries(),
+            "trusted_boundaries": self.get_trusted_boundaries()
         }
