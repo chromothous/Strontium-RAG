@@ -567,3 +567,6 @@ Type and schema validation is online.
 
 Version 0.13.3
 Size and complexity limits are online.
+
+Version 0.13.4 
+Encoding and normalization security is online.

@@ -10264,6 +10264,86 @@ def full_test():
         print(red(e))
         print(red("Version 0.13.3 failed"))
 
+    try:
+        tests += 1
+        from classes.security import SecurityValidator, SecurityPolicy, ValidationResult, SecurityError, SecurityValidationError, SecurityPolicyError, SecuritySchemaError, SecuritySchema, TrustBoundary
+        from classes.logger import Logger
+        from classes.error_handler import ErrorHandler
+        security_logger = Logger()
+        security_error_handler = ErrorHandler(security_logger)
+        policy = SecurityPolicy(encoding="utf-8", normalize_unicode=True, normalize_whitespace=True, reject_control_characters=True, reject_invalid_characters=True)
+        security = SecurityValidator(security_logger, security_error_handler, policy)
+        assert policy.encoding == "utf-8", "Security policy should expose the configured encoding"
+        assert policy.normalize_unicode is True, "Security policy should enable Unicode normalization by default"
+        assert policy.normalize_whitespace is True, "Security policy should enable whitespace normalization by default"
+        assert policy.reject_control_characters is True, "Security policy should reject control characters by default"
+        assert policy.reject_invalid_characters is True, "Security policy should reject invalid Unicode characters by default"
+        valid_encoding = security.validate_encoding("Hello, world!", "text")
+        assert valid_encoding.is_valid() is True, "Encoding validation should accept valid UTF-8 text"
+        assert valid_encoding.value == "Hello, world!", "Encoding validation should preserve valid text"
+        normalized_unicode = security.normalize_input("Café", "text")
+        assert normalized_unicode.is_valid() is True, "Unicode normalization should accept valid Unicode text"
+        assert normalized_unicode.value == "Café", "Unicode normalization should produce canonical NFC text"
+        normalized_whitespace = security.normalize_input("  hello   world  ", "text")
+        assert normalized_whitespace.is_valid() is True, "Whitespace normalization should accept valid text"
+        assert normalized_whitespace.value == "hello world", "Whitespace normalization should canonicalize repeated whitespace"
+        control_character = security.normalize_input("hello\nworld", "text")
+        assert control_character.is_valid() is False, "Control-character handling should reject embedded control characters"
+        invalid_surrogate = security.normalize_input("\ud800", "text")
+        assert invalid_surrogate.is_valid() is False, "Invalid Unicode character handling should reject surrogate characters"
+        combined = security.validate_and_normalize("  Café   ", "text")
+        assert combined.is_valid() is True, "Validate-and-normalize should validate and normalize valid input"
+        assert combined.value == "Café", "Validate-and-normalize should return canonical normalized text"
+        ordered = security.validate_normalization_order("  hello   world  ", "text")
+        assert ordered.is_valid() is True, "Encoding normalization pipeline should accept valid input"
+        assert ordered.value == "hello world", "Encoding normalization pipeline should normalize consistently"
+        try:
+            SecurityPolicy(encoding="")
+            assert False, "Security policy should reject an empty encoding"
+        except ValueError:
+            pass
+        try:
+            SecurityPolicy(encoding="not-an-encoding")
+            assert False, "Security policy should reject unsupported encodings"
+        except ValueError:
+            pass
+        try:
+            SecurityPolicy(normalize_unicode="yes")
+            assert False, "Security policy should reject non-boolean Unicode normalization settings"
+        except ValueError:
+            pass
+        try:
+            SecurityPolicy(normalize_whitespace="yes")
+            assert False, "Security policy should reject non-boolean whitespace normalization settings"
+        except ValueError:
+            pass
+        try:
+            SecurityPolicy(reject_control_characters="yes")
+            assert False, "Security policy should reject non-boolean control-character settings"
+        except ValueError:
+            pass
+        try:
+            SecurityPolicy(reject_invalid_characters="yes")
+            assert False, "Security policy should reject non-boolean invalid-character settings"
+        except ValueError:
+            pass
+        valid_non_string_result = security.validate_encoding(123, "text")
+        assert valid_non_string_result.is_invalid() is True, "Encoding validation should return an invalid result for non-string input"
+        diagnostics = security_error_handler.get_diagnostics()
+        assert any(diagnostic["category"] == "validation" and diagnostic["component"] == "security" for diagnostic in diagnostics), "Encoding and normalization failures should remain integrated with security validation diagnostics"
+        policy_copy = security.get_policy()
+        assert policy_copy["encoding"] == "utf-8", "Security policy serialization should preserve encoding configuration"
+        assert policy_copy["normalize_unicode"] is True, "Security policy serialization should preserve Unicode normalization configuration"
+        assert policy_copy["normalize_whitespace"] is True, "Security policy serialization should preserve whitespace normalization configuration"
+        assert policy_copy["reject_control_characters"] is True, "Security policy serialization should preserve control-character configuration"
+        assert policy_copy["reject_invalid_characters"] is True, "Security policy serialization should preserve invalid-character configuration"
+        success += 1
+        print(green("Version 0.13.4 encoding and normalization security is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.13.4 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

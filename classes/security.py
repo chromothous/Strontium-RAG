@@ -1,5 +1,6 @@
 from classes.logger import Logger
 from classes.error_handler import ErrorHandler
+import unicodedata
 
 
 class SecurityError(Exception):
@@ -189,6 +190,11 @@ class SecurityPolicy:
     DEFAULT_MAX_CHUNK_SIZE = 100000
     DEFAULT_MAX_CONTEXT_SIZE = 500000
     DEFAULT_MAX_CONVERSATION_HISTORY_SIZE = 100000
+    DEFAULT_ENCODING = "utf-8"
+    DEFAULT_NORMALIZE_UNICODE = True
+    DEFAULT_NORMALIZE_WHITESPACE = True
+    DEFAULT_REJECT_CONTROL_CHARACTERS = True
+    DEFAULT_REJECT_INVALID_CHARACTERS = True
     DEFAULT_ALLOWED_SCHEMES = (
         "https",
     )
@@ -208,6 +214,11 @@ class SecurityPolicy:
         max_chunk_size=DEFAULT_MAX_CHUNK_SIZE,
         max_context_size=DEFAULT_MAX_CONTEXT_SIZE,
         max_conversation_history_size=DEFAULT_MAX_CONVERSATION_HISTORY_SIZE,
+        encoding=DEFAULT_ENCODING,
+        normalize_unicode=DEFAULT_NORMALIZE_UNICODE,
+        normalize_whitespace=DEFAULT_NORMALIZE_WHITESPACE,
+        reject_control_characters=DEFAULT_REJECT_CONTROL_CHARACTERS,
+        reject_invalid_characters=DEFAULT_REJECT_INVALID_CHARACTERS,
         allowed_schemes=None,
         allowed_file_types=None
     ):
@@ -251,6 +262,37 @@ class SecurityPolicy:
             max_conversation_history_size,
             "max conversation history size"
         )
+        if not isinstance(encoding, str) or not encoding.strip():
+            raise ValueError(
+                "Security encoding must be a non-empty string"
+            )
+        try:
+            "".encode(encoding)
+        except (LookupError, UnicodeError):
+            raise ValueError(
+                "Security encoding must be a supported encoding"
+            )
+        if not isinstance(normalize_unicode, bool):
+            raise ValueError(
+                "Security normalize_unicode must be a boolean"
+            )
+        if not isinstance(normalize_whitespace, bool):
+            raise ValueError(
+                "Security normalize_whitespace must be a boolean"
+            )
+        if not isinstance(reject_control_characters, bool):
+            raise ValueError(
+                "Security reject_control_characters must be a boolean"
+            )
+        if not isinstance(reject_invalid_characters, bool):
+            raise ValueError(
+                "Security reject_invalid_characters must be a boolean"
+            )
+        self.encoding = encoding.strip().lower()
+        self.normalize_unicode = normalize_unicode
+        self.normalize_whitespace = normalize_whitespace
+        self.reject_control_characters = reject_control_characters
+        self.reject_invalid_characters = reject_invalid_characters
 
         if allowed_schemes is None:
             allowed_schemes = self.DEFAULT_ALLOWED_SCHEMES
@@ -358,6 +400,32 @@ class SecurityPolicy:
             self.max_conversation_history_size,
             "max conversation history size"
         )
+        if not isinstance(self.encoding, str) or not self.encoding.strip():
+            raise ValueError(
+                "Security encoding must be a non-empty string"
+            )
+        try:
+            "".encode(self.encoding)
+        except (LookupError, UnicodeError):
+            raise ValueError(
+                "Security encoding must be a supported encoding"
+            )
+        if not isinstance(self.normalize_unicode, bool):
+            raise ValueError(
+                "Security normalize_unicode must be a boolean"
+            )
+        if not isinstance(self.normalize_whitespace, bool):
+            raise ValueError(
+                "Security normalize_whitespace must be a boolean"
+            )
+        if not isinstance(self.reject_control_characters, bool):
+            raise ValueError(
+                "Security reject_control_characters must be a boolean"
+            )
+        if not isinstance(self.reject_invalid_characters, bool):
+            raise ValueError(
+                "Security reject_invalid_characters must be a boolean"
+            )
 
         if not self.allowed_schemes:
             raise ValueError(
@@ -383,6 +451,11 @@ class SecurityPolicy:
             "max_chunk_size": self.max_chunk_size,
             "max_context_size": self.max_context_size,
             "max_conversation_history_size": self.max_conversation_history_size,
+            "encoding": self.encoding,
+            "normalize_unicode": self.normalize_unicode,
+            "normalize_whitespace": self.normalize_whitespace,
+            "reject_control_characters": self.reject_control_characters,
+            "reject_invalid_characters": self.reject_invalid_characters,
             "allowed_schemes": tuple(
                 self.allowed_schemes
             ),
@@ -1152,6 +1225,145 @@ class SecurityValidator:
         return self._build_result(
             value,
             errors
+        )
+
+
+    def validate_encoding(
+        self,
+        value,
+        field="input",
+        encoding=None
+    ):
+        if not isinstance(value, str):
+            error = self._record_failure(
+                f"{field} must be a string for encoding validation",
+                field
+            )
+            return self._build_result(
+                value,
+                [str(error)]
+            )
+        if encoding is None:
+            encoding = self.policy.encoding
+        if not isinstance(encoding, str) or not encoding.strip():
+            raise ValueError(
+                "Security encoding must be a non-empty string"
+            )
+        try:
+            encoded = value.encode(
+                encoding
+            )
+            decoded = encoded.decode(
+                encoding
+            )
+        except (LookupError, UnicodeError):
+            error = self._record_failure(
+                f"{field} contains invalid data for encoding {encoding}",
+                field
+            )
+            return self._build_result(
+                value,
+                [str(error)]
+            )
+        if self.policy.reject_invalid_characters and decoded != value:
+            error = self._record_failure(
+                f"{field} failed encoding round-trip validation",
+                field
+            )
+            return self._build_result(
+                value,
+                [str(error)]
+            )
+        return self._build_result(
+            decoded
+        )
+
+    def normalize_input(
+        self,
+        value,
+        field="input"
+    ):
+        if not isinstance(value, str):
+            error = self._record_failure(
+                f"{field} must be a string for normalization",
+                field
+            )
+            return self._build_result(
+                value,
+                [str(error)]
+            )
+        if self.policy.reject_control_characters:
+            for character in value:
+                if unicodedata.category(character) == "Cc":
+                    error = self._record_failure(
+                        f"{field} contains control characters",
+                        field
+                    )
+                    return self._build_result(
+                        value,
+                        [str(error)]
+                    )
+        if self.policy.reject_invalid_characters:
+            for character in value:
+                if unicodedata.category(character) == "Cs":
+                    error = self._record_failure(
+                        f"{field} contains invalid Unicode characters",
+                        field
+                    )
+                    return self._build_result(
+                        value,
+                        [str(error)]
+                    )
+        normalized = value
+        if self.policy.normalize_unicode:
+            normalized = unicodedata.normalize(
+                "NFC",
+                normalized
+            )
+        if self.policy.normalize_whitespace:
+            normalized = " ".join(
+                normalized.split()
+            )
+        return self._build_result(
+            normalized
+        )
+
+    def validate_and_normalize(
+        self,
+        value,
+        field="input"
+    ):
+        validation = self.validate_string(
+            value,
+            field
+        )
+        if validation.is_invalid():
+            return validation
+        return self.normalize_input(
+            validation.value,
+            field
+        )
+
+    def validate_normalization_order(
+        self,
+        value,
+        field="input"
+    ):
+        encoded = self.validate_encoding(
+            value,
+            field
+        )
+        if encoded.is_invalid():
+            return encoded
+        normalized = self.normalize_input(
+            encoded.value,
+            field
+        )
+        if normalized.is_invalid():
+            return normalized
+        return self.validate_string(
+            normalized.value,
+            field
         )
 
     def get_policy(self):
