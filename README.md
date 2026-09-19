@@ -564,3 +564,6 @@ Input trust boundaries are online.
 
 Version 0.13.2
 Type and schema validation is online.
+
+Version 0.13.3
+Size and complexity limits are online.

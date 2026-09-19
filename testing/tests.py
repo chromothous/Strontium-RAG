@@ -10161,6 +10161,109 @@ def full_test():
         print(red(e))
         print(red("Version 0.13.2 failed"))
 
+    try:
+        tests += 1
+        from classes.security import SecurityValidator, SecurityPolicy, ValidationResult, SecurityError, SecurityValidationError, SecurityPolicyError, SecuritySchemaError, SecuritySchema, TrustBoundary
+        from classes.logger import Logger
+        from classes.error_handler import ErrorHandler
+        security_logger = Logger()
+        security_error_handler = ErrorHandler(security_logger)
+        policy = SecurityPolicy(max_field_length=10, max_document_size=20, max_query_size=10, max_chunk_size=15, max_context_size=25, max_conversation_history_size=30)
+        security = SecurityValidator(security_logger, security_error_handler, policy)
+        assert policy.max_field_length == 10, "Security policy should expose a maximum field length"
+        assert policy.max_document_size == 20, "Security policy should expose a maximum document size"
+        assert policy.max_query_size == 10, "Security policy should expose a maximum query size"
+        assert policy.max_chunk_size == 15, "Security policy should expose a maximum chunk size"
+        assert policy.max_context_size == 25, "Security policy should expose a maximum context size"
+        assert policy.max_conversation_history_size == 30, "Security policy should expose a maximum conversation history size"
+        valid_field = security.validate_field_length("1234567890", "field")
+        assert valid_field.is_valid() is True, "Field length validation should accept values within the configured limit"
+        invalid_field = security.validate_field_length("12345678901", "field")
+        assert invalid_field.is_valid() is False, "Field length validation should reject values exceeding the configured limit"
+        valid_document = security.validate_document_size("12345678901234567890", "document")
+        assert valid_document.is_valid() is True, "Document size validation should accept values within the configured limit"
+        invalid_document = security.validate_document_size("123456789012345678901", "document")
+        assert invalid_document.is_valid() is False, "Document size validation should reject values exceeding the configured limit"
+        valid_query = security.validate_query_size("1234567890", "query")
+        assert valid_query.is_valid() is True, "Query size validation should accept values within the configured limit"
+        invalid_query = security.validate_query_size("12345678901", "query")
+        assert invalid_query.is_valid() is False, "Query size validation should reject values exceeding the configured limit"
+        valid_chunk = security.validate_chunk_size("123456789012345", "chunk")
+        assert valid_chunk.is_valid() is True, "Chunk size validation should accept values within the configured limit"
+        invalid_chunk = security.validate_chunk_size("1234567890123456", "chunk")
+        assert invalid_chunk.is_valid() is False, "Chunk size validation should reject values exceeding the configured limit"
+        valid_context = security.validate_context_size("1234567890123456789012345", "context")
+        assert valid_context.is_valid() is True, "Context size validation should accept values within the configured limit"
+        invalid_context = security.validate_context_size("12345678901234567890123456", "context")
+        assert invalid_context.is_valid() is False, "Context size validation should reject values exceeding the configured limit"
+        valid_history = security.validate_conversation_history_size("123456789012345678901234567890", "history")
+        assert valid_history.is_valid() is True, "Conversation history validation should accept values within the configured limit"
+        invalid_history = security.validate_conversation_history_size("1234567890123456789012345678901", "history")
+        assert invalid_history.is_valid() is False, "Conversation history validation should reject values exceeding the configured limit"
+        valid_collection = security.validate_size_limit(["a", "b"], 2, "collection", "collection size")
+        assert valid_collection.is_valid() is True, "Generic size validation should support collection limits"
+        invalid_collection = security.validate_size_limit(["a", "b", "c"], 2, "collection", "collection size")
+        assert invalid_collection.is_valid() is False, "Generic size validation should reject oversized collections"
+        shallow = {"level": {"value": "safe"}}
+        shallow_result = security.validate_complexity(shallow, "metadata", max_depth=3, max_collection_size=5)
+        assert shallow_result.is_valid() is True, "Complexity validation should accept structures within configured limits"
+        deep = {"a": {"b": {"c": {"d": "too deep"}}}}
+        deep_result = security.validate_complexity(deep, "metadata", max_depth=3, max_collection_size=5)
+        assert deep_result.is_valid() is False, "Complexity validation should reject excessive nesting depth"
+        large_collection = {"items": list(range(6))}
+        large_collection_result = security.validate_complexity(large_collection, "metadata", max_depth=10, max_collection_size=5)
+        assert large_collection_result.is_valid() is False, "Complexity validation should reject oversized nested collections"
+        policy_dict = security.get_policy()
+        assert policy_dict["max_field_length"] == 10, "Security policy serialization should preserve field length limits"
+        assert policy_dict["max_document_size"] == 20, "Security policy serialization should preserve document size limits"
+        assert policy_dict["max_query_size"] == 10, "Security policy serialization should preserve query size limits"
+        assert policy_dict["max_chunk_size"] == 15, "Security policy serialization should preserve chunk size limits"
+        assert policy_dict["max_context_size"] == 25, "Security policy serialization should preserve context size limits"
+        assert policy_dict["max_conversation_history_size"] == 30, "Security policy serialization should preserve conversation history limits"
+        try:
+            SecurityPolicy(max_field_length=0)
+            assert False, "Security policy should reject a zero field length limit"
+        except ValueError:
+            pass
+        try:
+            SecurityPolicy(max_document_size=-1)
+            assert False, "Security policy should reject a negative document size limit"
+        except ValueError:
+            pass
+        try:
+            security.validate_size_limit("value", 0, "field")
+            assert False, "Security size validation should reject a non-positive limit"
+        except ValueError:
+            pass
+        try:
+            security.validate_size_limit("value", 10, "")
+            assert False, "Security size validation should reject an empty field name"
+        except ValueError:
+            pass
+        try:
+            security.validate_size_limit(123, 10, "field")
+            assert False, "Security size validation should reject unsupported value types"
+        except ValueError:
+            pass
+        try:
+            security.validate_complexity("value", "input", max_depth=0)
+            assert False, "Security complexity validation should reject a non-positive depth limit"
+        except ValueError:
+            pass
+        try:
+            security.validate_complexity("value", "input", max_collection_size=0)
+            assert False, "Security complexity validation should reject a non-positive collection limit"
+        except ValueError:
+            pass
+        diagnostics = security_error_handler.get_diagnostics()
+        assert any(diagnostic["category"] == "validation" and diagnostic["component"] == "security" for diagnostic in diagnostics), "Size and complexity failures should remain integrated with security validation diagnostics"
+        success += 1
+        print(green("Version 0.13.3 size and complexity limits are online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.13.3 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

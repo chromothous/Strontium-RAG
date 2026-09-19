@@ -183,6 +183,12 @@ class SecurityPolicy:
     DEFAULT_MAX_COLLECTION_SIZE = 1000
     DEFAULT_MAX_METADATA_SIZE = 100
     DEFAULT_MAX_NESTING_DEPTH = 10
+    DEFAULT_MAX_FIELD_LENGTH = 10000
+    DEFAULT_MAX_DOCUMENT_SIZE = 1000000
+    DEFAULT_MAX_QUERY_SIZE = 10000
+    DEFAULT_MAX_CHUNK_SIZE = 100000
+    DEFAULT_MAX_CONTEXT_SIZE = 500000
+    DEFAULT_MAX_CONVERSATION_HISTORY_SIZE = 100000
     DEFAULT_ALLOWED_SCHEMES = (
         "https",
     )
@@ -196,6 +202,12 @@ class SecurityPolicy:
         max_collection_size=DEFAULT_MAX_COLLECTION_SIZE,
         max_metadata_size=DEFAULT_MAX_METADATA_SIZE,
         max_nesting_depth=DEFAULT_MAX_NESTING_DEPTH,
+        max_field_length=DEFAULT_MAX_FIELD_LENGTH,
+        max_document_size=DEFAULT_MAX_DOCUMENT_SIZE,
+        max_query_size=DEFAULT_MAX_QUERY_SIZE,
+        max_chunk_size=DEFAULT_MAX_CHUNK_SIZE,
+        max_context_size=DEFAULT_MAX_CONTEXT_SIZE,
+        max_conversation_history_size=DEFAULT_MAX_CONVERSATION_HISTORY_SIZE,
         allowed_schemes=None,
         allowed_file_types=None
     ):
@@ -214,6 +226,30 @@ class SecurityPolicy:
         self.max_nesting_depth = self._validate_positive_integer(
             max_nesting_depth,
             "max nesting depth"
+        )
+        self.max_field_length = self._validate_positive_integer(
+            max_field_length,
+            "max field length"
+        )
+        self.max_document_size = self._validate_positive_integer(
+            max_document_size,
+            "max document size"
+        )
+        self.max_query_size = self._validate_positive_integer(
+            max_query_size,
+            "max query size"
+        )
+        self.max_chunk_size = self._validate_positive_integer(
+            max_chunk_size,
+            "max chunk size"
+        )
+        self.max_context_size = self._validate_positive_integer(
+            max_context_size,
+            "max context size"
+        )
+        self.max_conversation_history_size = self._validate_positive_integer(
+            max_conversation_history_size,
+            "max conversation history size"
         )
 
         if allowed_schemes is None:
@@ -298,6 +334,30 @@ class SecurityPolicy:
             self.max_nesting_depth,
             "max nesting depth"
         )
+        self._validate_positive_integer(
+            self.max_field_length,
+            "max field length"
+        )
+        self._validate_positive_integer(
+            self.max_document_size,
+            "max document size"
+        )
+        self._validate_positive_integer(
+            self.max_query_size,
+            "max query size"
+        )
+        self._validate_positive_integer(
+            self.max_chunk_size,
+            "max chunk size"
+        )
+        self._validate_positive_integer(
+            self.max_context_size,
+            "max context size"
+        )
+        self._validate_positive_integer(
+            self.max_conversation_history_size,
+            "max conversation history size"
+        )
 
         if not self.allowed_schemes:
             raise ValueError(
@@ -317,6 +377,12 @@ class SecurityPolicy:
             "max_collection_size": self.max_collection_size,
             "max_metadata_size": self.max_metadata_size,
             "max_nesting_depth": self.max_nesting_depth,
+            "max_field_length": self.max_field_length,
+            "max_document_size": self.max_document_size,
+            "max_query_size": self.max_query_size,
+            "max_chunk_size": self.max_chunk_size,
+            "max_context_size": self.max_context_size,
+            "max_conversation_history_size": self.max_conversation_history_size,
             "allowed_schemes": tuple(
                 self.allowed_schemes
             ),
@@ -909,6 +975,184 @@ class SecurityValidator:
             )
             return self._build_result(value, [str(error)])
         return self._build_result(value)
+
+    def validate_size_limit(
+        self,
+        value,
+        limit,
+        field="input",
+        unit="characters"
+    ):
+        if not isinstance(limit, int) or isinstance(limit, bool) or limit <= 0:
+            raise ValueError(
+                "Security size limit must be a positive integer"
+            )
+        if not isinstance(field, str) or not field.strip():
+            raise ValueError(
+                "Security size limit field must be a non-empty string"
+            )
+        if not isinstance(unit, str) or not unit.strip():
+            raise ValueError(
+                "Security size limit unit must be a non-empty string"
+            )
+        if isinstance(value, str):
+            size = len(value)
+        elif isinstance(value, (list, tuple, set, dict)):
+            size = len(value)
+        else:
+            raise ValueError(
+                "Security size validation requires a string or collection"
+            )
+        if size > limit:
+            error = self._record_failure(
+                f"{field} exceeds the maximum allowed {unit}",
+                field
+            )
+            return self._build_result(
+                value,
+                [str(error)]
+            )
+        return self._build_result(
+            value
+        )
+
+    def validate_field_length(
+        self,
+        value,
+        field="input"
+    ):
+        return self.validate_size_limit(
+            value,
+            self.policy.max_field_length,
+            field,
+            "field length"
+        )
+
+    def validate_document_size(
+        self,
+        value,
+        field="document"
+    ):
+        return self.validate_size_limit(
+            value,
+            self.policy.max_document_size,
+            field,
+            "document size"
+        )
+
+    def validate_query_size(
+        self,
+        value,
+        field="query"
+    ):
+        return self.validate_size_limit(
+            value,
+            self.policy.max_query_size,
+            field,
+            "query size"
+        )
+
+    def validate_chunk_size(
+        self,
+        value,
+        field="chunk"
+    ):
+        return self.validate_size_limit(
+            value,
+            self.policy.max_chunk_size,
+            field,
+            "chunk size"
+        )
+
+    def validate_context_size(
+        self,
+        value,
+        field="context"
+    ):
+        return self.validate_size_limit(
+            value,
+            self.policy.max_context_size,
+            field,
+            "context size"
+        )
+
+    def validate_conversation_history_size(
+        self,
+        value,
+        field="conversation_history"
+    ):
+        return self.validate_size_limit(
+            value,
+            self.policy.max_conversation_history_size,
+            field,
+            "conversation history size"
+        )
+
+    def validate_complexity(
+        self,
+        value,
+        field="input",
+        max_depth=None,
+        max_collection_size=None
+    ):
+        if max_depth is None:
+            max_depth = self.policy.max_nesting_depth
+        if max_collection_size is None:
+            max_collection_size = self.policy.max_collection_size
+        if not isinstance(max_depth, int) or isinstance(max_depth, bool) or max_depth <= 0:
+            raise ValueError(
+                "Security complexity max depth must be a positive integer"
+            )
+        if not isinstance(max_collection_size, int) or isinstance(max_collection_size, bool) or max_collection_size <= 0:
+            raise ValueError(
+                "Security complexity max collection size must be a positive integer"
+            )
+
+        def depth(item, current_depth=0):
+            if isinstance(item, dict):
+                if len(item) > max_collection_size:
+                    return current_depth + 1, True
+                if not item:
+                    return current_depth + 1, False
+                children = [
+                    depth(child, current_depth + 1)
+                    for child in item.values()
+                ]
+            elif isinstance(item, (list, tuple, set)):
+                if len(item) > max_collection_size:
+                    return current_depth + 1, True
+                if not item:
+                    return current_depth + 1, False
+                children = [
+                    depth(child, current_depth + 1)
+                    for child in item
+                ]
+            else:
+                return current_depth, False
+            maximum_depth = max(item_depth for item_depth, _ in children)
+            oversized = any(item_oversized for _, item_oversized in children)
+            return maximum_depth, oversized
+
+        current_depth, oversized_collection = depth(value)
+        errors = []
+        if current_depth > max_depth:
+            errors.append(
+                f"{field} exceeds the maximum allowed nesting depth"
+            )
+        if oversized_collection:
+            errors.append(
+                f"{field} contains a collection exceeding the maximum allowed collection size"
+            )
+        if errors:
+            for message in errors:
+                self._record_failure(
+                    message,
+                    field
+                )
+        return self._build_result(
+            value,
+            errors
+        )
 
     def get_policy(self):
         return self.policy.to_dict()
