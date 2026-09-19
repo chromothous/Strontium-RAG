@@ -570,3 +570,6 @@ Size and complexity limits are online.
 
 Version 0.13.4 
 Encoding and normalization security is online.
+
+Version 0.13.5
+Document and file safety is online.

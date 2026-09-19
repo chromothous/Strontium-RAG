@@ -1,5 +1,7 @@
 from classes.logger import Logger
 from classes.error_handler import ErrorHandler
+import os
+import tempfile
 import unicodedata
 
 
@@ -195,6 +197,9 @@ class SecurityPolicy:
     DEFAULT_NORMALIZE_WHITESPACE = True
     DEFAULT_REJECT_CONTROL_CHARACTERS = True
     DEFAULT_REJECT_INVALID_CHARACTERS = True
+    DEFAULT_REJECT_BINARY_CONTENT = True
+    DEFAULT_REJECT_DANGEROUS_CONTENT = True
+    DEFAULT_SECURE_TEMP_FILE_MODE = 0o600
     DEFAULT_ALLOWED_SCHEMES = (
         "https",
     )
@@ -219,6 +224,9 @@ class SecurityPolicy:
         normalize_whitespace=DEFAULT_NORMALIZE_WHITESPACE,
         reject_control_characters=DEFAULT_REJECT_CONTROL_CHARACTERS,
         reject_invalid_characters=DEFAULT_REJECT_INVALID_CHARACTERS,
+        reject_binary_content=DEFAULT_REJECT_BINARY_CONTENT,
+        reject_dangerous_content=DEFAULT_REJECT_DANGEROUS_CONTENT,
+        secure_temp_file_mode=DEFAULT_SECURE_TEMP_FILE_MODE,
         allowed_schemes=None,
         allowed_file_types=None
     ):
@@ -288,11 +296,30 @@ class SecurityPolicy:
             raise ValueError(
                 "Security reject_invalid_characters must be a boolean"
             )
+        if not isinstance(reject_binary_content, bool):
+            raise ValueError(
+                "Security reject_binary_content must be a boolean"
+            )
+        if not isinstance(reject_dangerous_content, bool):
+            raise ValueError(
+                "Security reject_dangerous_content must be a boolean"
+            )
+        if not isinstance(secure_temp_file_mode, int) or isinstance(secure_temp_file_mode, bool):
+            raise ValueError(
+                "Security secure_temp_file_mode must be an integer"
+            )
+        if secure_temp_file_mode <= 0 or secure_temp_file_mode > 0o777:
+            raise ValueError(
+                "Security secure_temp_file_mode must be between 1 and 0o777"
+            )
         self.encoding = encoding.strip().lower()
         self.normalize_unicode = normalize_unicode
         self.normalize_whitespace = normalize_whitespace
         self.reject_control_characters = reject_control_characters
         self.reject_invalid_characters = reject_invalid_characters
+        self.reject_binary_content = reject_binary_content
+        self.reject_dangerous_content = reject_dangerous_content
+        self.secure_temp_file_mode = secure_temp_file_mode
 
         if allowed_schemes is None:
             allowed_schemes = self.DEFAULT_ALLOWED_SCHEMES
@@ -426,6 +453,22 @@ class SecurityPolicy:
             raise ValueError(
                 "Security reject_invalid_characters must be a boolean"
             )
+        if not isinstance(self.reject_binary_content, bool):
+            raise ValueError(
+                "Security reject_binary_content must be a boolean"
+            )
+        if not isinstance(self.reject_dangerous_content, bool):
+            raise ValueError(
+                "Security reject_dangerous_content must be a boolean"
+            )
+        if not isinstance(self.secure_temp_file_mode, int) or isinstance(self.secure_temp_file_mode, bool):
+            raise ValueError(
+                "Security secure_temp_file_mode must be an integer"
+            )
+        if self.secure_temp_file_mode <= 0 or self.secure_temp_file_mode > 0o777:
+            raise ValueError(
+                "Security secure_temp_file_mode must be between 1 and 0o777"
+            )
 
         if not self.allowed_schemes:
             raise ValueError(
@@ -456,6 +499,9 @@ class SecurityPolicy:
             "normalize_whitespace": self.normalize_whitespace,
             "reject_control_characters": self.reject_control_characters,
             "reject_invalid_characters": self.reject_invalid_characters,
+            "reject_binary_content": self.reject_binary_content,
+            "reject_dangerous_content": self.reject_dangerous_content,
+            "secure_temp_file_mode": self.secure_temp_file_mode,
             "allowed_schemes": tuple(
                 self.allowed_schemes
             ),
@@ -1365,6 +1411,316 @@ class SecurityValidator:
             normalized.value,
             field
         )
+
+
+    def validate_file_extension(
+        self,
+        file_name,
+        field="file"
+    ):
+        if not isinstance(file_name, str) or not file_name.strip():
+            error = self._record_failure(
+                f"{field} must be a non-empty file name",
+                field
+            )
+            return self._build_result(
+                file_name,
+                [str(error)]
+            )
+        extension = os.path.splitext(
+            file_name
+        )[1].lower()
+        if extension not in self.policy.allowed_file_types:
+            error = self._record_failure(
+                f"{field} has an unsupported file type: {extension or 'none'}",
+                field
+            )
+            return self._build_result(
+                file_name,
+                [str(error)]
+            )
+        return self._build_result(
+            file_name
+        )
+
+    def validate_file_size(
+        self,
+        file_size,
+        field="file"
+    ):
+        if not isinstance(file_size, int) or isinstance(file_size, bool):
+            error = self._record_failure(
+                f"{field} size must be an integer",
+                field
+            )
+            return self._build_result(
+                file_size,
+                [str(error)]
+            )
+        if file_size < 0:
+            error = self._record_failure(
+                f"{field} size cannot be negative",
+                field
+            )
+            return self._build_result(
+                file_size,
+                [str(error)]
+            )
+        if file_size > self.policy.max_document_size:
+            error = self._record_failure(
+                f"{field} exceeds the maximum allowed file size",
+                field
+            )
+            return self._build_result(
+                file_size,
+                [str(error)]
+            )
+        return self._build_result(
+            file_size
+        )
+
+    def validate_file_content(
+        self,
+        content,
+        file_name,
+        field="file"
+    ):
+        extension_result = self.validate_file_extension(
+            file_name,
+            field
+        )
+        if extension_result.is_invalid():
+            return extension_result
+        if isinstance(content, bytes):
+            if not content:
+                error = self._record_failure(
+                    f"{field} cannot be empty",
+                    field
+                )
+                return self._build_result(
+                    content,
+                    [str(error)]
+                )
+            if len(content) > self.policy.max_document_size:
+                error = self._record_failure(
+                    f"{field} exceeds the maximum allowed file size",
+                    field
+                )
+                return self._build_result(
+                    content,
+                    [str(error)]
+                )
+            if self.policy.reject_binary_content and b"\x00" in content:
+                error = self._record_failure(
+                    f"{field} contains binary content",
+                    field
+                )
+                return self._build_result(
+                    content,
+                    [str(error)]
+                )
+            try:
+                decoded = content.decode(
+                    self.policy.encoding
+                )
+            except (UnicodeDecodeError, LookupError):
+                error = self._record_failure(
+                    f"{field} contains malformed content for {self.policy.encoding}",
+                    field
+                )
+                return self._build_result(
+                    content,
+                    [str(error)]
+                )
+        elif isinstance(content, str):
+            if not content:
+                error = self._record_failure(
+                    f"{field} cannot be empty",
+                    field
+                )
+                return self._build_result(
+                    content,
+                    [str(error)]
+                )
+            if len(content.encode(self.policy.encoding)) > self.policy.max_document_size:
+                error = self._record_failure(
+                    f"{field} exceeds the maximum allowed file size",
+                    field
+                )
+                return self._build_result(
+                    content,
+                    [str(error)]
+                )
+            decoded = content
+        else:
+            error = self._record_failure(
+                f"{field} content must be bytes or string data",
+                field
+            )
+            return self._build_result(
+                content,
+                [str(error)]
+            )
+        if self.policy.reject_dangerous_content:
+            dangerous_markers = (
+                "\x00",
+                "#!/bin/",
+                "<script",
+                "<?php"
+            )
+            lowered = decoded.lower()
+            for marker in dangerous_markers:
+                if marker in lowered:
+                    error = self._record_failure(
+                        f"{field} contains potentially dangerous content",
+                        field
+                    )
+                    return self._build_result(
+                        content,
+                        [str(error)]
+                    )
+        normalized_result = self.normalize_input(
+            decoded,
+            field
+        )
+        if normalized_result.is_invalid():
+            return self._build_result(
+                content,
+                normalized_result.errors
+            )
+        return self._build_result(
+            normalized_result.value
+        )
+
+    def validate_document_file(
+        self,
+        file_name,
+        content,
+        field="document"
+    ):
+        return self.validate_file_content(
+            content,
+            file_name,
+            field
+        )
+
+    def validate_file(
+        self,
+        file_path,
+        field="file"
+    ):
+        if not isinstance(file_path, str) or not file_path.strip():
+            error = self._record_failure(
+                f"{field} path must be a non-empty string",
+                field
+            )
+            return self._build_result(
+                file_path,
+                [str(error)]
+            )
+        extension_result = self.validate_file_extension(
+            file_path,
+            field
+        )
+        if extension_result.is_invalid():
+            return extension_result
+        try:
+            file_size = os.path.getsize(
+                file_path
+            )
+        except (OSError, ValueError) as exception:
+            error = self._record_failure(
+                f"{field} could not be inspected: {exception}",
+                field
+            )
+            return self._build_result(
+                file_path,
+                [str(error)]
+            )
+        size_result = self.validate_file_size(
+            file_size,
+            field
+        )
+        if size_result.is_invalid():
+            return size_result
+        try:
+            with open(
+                file_path,
+                "rb"
+            ) as file_handle:
+                content = file_handle.read(
+                    self.policy.max_document_size + 1
+                )
+        except (OSError, ValueError) as exception:
+            error = self._record_failure(
+                f"{field} could not be read: {exception}",
+                field
+            )
+            return self._build_result(
+                file_path,
+                [str(error)]
+            )
+        content_result = self.validate_file_content(
+            content,
+            file_path,
+            field
+        )
+        if content_result.is_invalid():
+            return self._build_result(
+                file_path,
+                content_result.errors
+            )
+        return self._build_result(
+            {
+                "path": file_path,
+                "size": file_size,
+                "content": content_result.value
+            }
+        )
+
+    def create_secure_temp_file(
+        self,
+        suffix=".txt",
+        field="temporary_file"
+    ):
+        extension_result = self.validate_file_extension(
+            f"temporary{suffix}",
+            field
+        )
+        if extension_result.is_invalid():
+            raise SecurityValidationError(
+                "Security temporary file type is not allowed",
+                field
+            )
+        file_descriptor, file_path = tempfile.mkstemp(
+            suffix=suffix
+        )
+        try:
+            os.chmod(
+                file_path,
+                self.policy.secure_temp_file_mode
+            )
+        except OSError:
+            os.close(
+                file_descriptor
+            )
+            try:
+                os.remove(
+                    file_path
+                )
+            except OSError:
+                pass
+            raise SecurityValidationError(
+                "Security temporary file permissions could not be secured",
+                field
+            )
+        os.close(
+            file_descriptor
+        )
+        self.logger.info(
+            "Security secure temporary file created"
+        )
+        return file_path
 
     def get_policy(self):
         return self.policy.to_dict()

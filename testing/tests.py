@@ -10344,6 +10344,89 @@ def full_test():
         print(red(e))
         print(red("Version 0.13.4 failed"))
 
+    try:
+        tests += 1
+        from classes.security import SecurityValidator, SecurityPolicy, ValidationResult, SecurityError, SecurityValidationError, SecurityPolicyError, SecuritySchemaError, SecuritySchema, TrustBoundary
+        from classes.logger import Logger
+        from classes.error_handler import ErrorHandler
+        import os
+        security_logger = Logger()
+        security_error_handler = ErrorHandler(security_logger)
+        policy = SecurityPolicy(max_document_size=32, reject_binary_content=True, reject_dangerous_content=True, secure_temp_file_mode=0o600)
+        security = SecurityValidator(security_logger, security_error_handler, policy)
+        assert policy.reject_binary_content is True, "Security policy should reject binary content by default"
+        assert policy.reject_dangerous_content is True, "Security policy should reject dangerous content by default"
+        assert policy.secure_temp_file_mode == 0o600, "Security policy should preserve the secure temporary file mode"
+        valid_extension = security.validate_file_extension("document.txt", "file")
+        assert valid_extension.is_valid() is True, "File safety should accept an allowed file extension"
+        invalid_extension = security.validate_file_extension("document.pdf", "file")
+        assert invalid_extension.is_valid() is False, "File safety should reject an unsupported file extension"
+        valid_size = security.validate_file_size(32, "file")
+        assert valid_size.is_valid() is True, "File safety should accept a file at the configured size limit"
+        invalid_size = security.validate_file_size(33, "file")
+        assert invalid_size.is_valid() is False, "File safety should reject files exceeding the configured size limit"
+        empty_content = security.validate_file_content(b"", "document.txt", "document")
+        assert empty_content.is_valid() is False, "File safety should reject empty documents"
+        malformed_content = security.validate_file_content(b"\xff\xfe", "document.txt", "document")
+        assert malformed_content.is_valid() is False, "File safety should reject malformed encoded content"
+        binary_content = security.validate_file_content(b"hello\x00world", "document.txt", "document")
+        assert binary_content.is_valid() is False, "File safety should reject binary content in text documents"
+        dangerous_script = security.validate_file_content(b"#!/bin/sh\necho test", "document.txt", "document")
+        assert dangerous_script.is_valid() is False, "File safety should reject dangerous script markers"
+        dangerous_markup = security.validate_file_content("<script>alert(1)</script>", "document.txt", "document")
+        assert dangerous_markup.is_valid() is False, "File safety should reject dangerous markup markers"
+        valid_content = security.validate_file_content(b"Safe document content", "document.txt", "document")
+        assert valid_content.is_valid() is True, "File safety should accept valid text document content"
+        assert valid_content.value == "Safe document content", "File safety should return normalized valid document content"
+        oversized_content = security.validate_file_content(b"123456789012345678901234567890123", "document.txt", "document")
+        assert oversized_content.is_valid() is False, "File safety should reject oversized document content"
+        document_result = security.validate_document_file("document.txt", "Safe document", "document")
+        assert document_result.is_valid() is True, "Document file validation should accept a valid text document"
+        temp_path = security.create_secure_temp_file(".txt")
+        assert os.path.exists(temp_path) is True, "Security should create the secure temporary file"
+        temp_mode = os.stat(temp_path).st_mode & 0o777
+        if os.name == "posix":
+            assert temp_mode == 0o600, "Security temporary files should use restrictive permissions"
+        else:
+            assert security.policy.secure_temp_file_mode == 0o600, "Security temporary files should retain the configured restrictive permission policy"
+        os.remove(temp_path)
+        temp_nonexistent = not os.path.exists(temp_path)
+        assert temp_nonexistent is True, "Security test cleanup should remove the temporary file"
+        try:
+            security.create_secure_temp_file(".pdf")
+            assert False, "Security should reject unsupported temporary file types"
+        except SecurityValidationError:
+            pass
+        try:
+            SecurityPolicy(reject_binary_content="yes")
+            assert False, "Security policy should reject non-boolean binary-content settings"
+        except ValueError:
+            pass
+        try:
+            SecurityPolicy(reject_dangerous_content="yes")
+            assert False, "Security policy should reject non-boolean dangerous-content settings"
+        except ValueError:
+            pass
+        try:
+            SecurityPolicy(secure_temp_file_mode=0)
+            assert False, "Security policy should reject an unsafe temporary file mode"
+        except ValueError:
+            pass
+        invalid_file_input = security.validate_file(123, "file")
+        assert invalid_file_input.is_valid() is False, "File safety should reject non-string file paths"
+        diagnostics = security_error_handler.get_diagnostics()
+        assert any(diagnostic["category"] == "validation" and diagnostic["component"] == "security" for diagnostic in diagnostics), "File safety failures should remain integrated with security validation diagnostics"
+        policy_copy = security.get_policy()
+        assert policy_copy["reject_binary_content"] is True, "Security policy serialization should preserve binary-content protection"
+        assert policy_copy["reject_dangerous_content"] is True, "Security policy serialization should preserve dangerous-content protection"
+        assert policy_copy["secure_temp_file_mode"] == 0o600, "Security policy serialization should preserve secure temporary-file permissions"
+        success += 1
+        print(green("Version 0.13.5 document and file safety is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.13.5 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
