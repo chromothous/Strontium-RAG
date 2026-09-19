@@ -10070,6 +10070,97 @@ def full_test():
         print(red(e))
         print(red("Version 0.13.1 failed"))
 
+    try:
+        tests += 1
+        from classes.security import SecurityValidator, SecuritySchema, SecuritySchemaError, ValidationResult, TrustBoundary
+        from classes.logger import Logger
+        from classes.error_handler import ErrorHandler
+        security_logger = Logger()
+        security_error_handler = ErrorHandler(security_logger)
+        security = SecurityValidator(security_logger, security_error_handler)
+        nested_schema = SecuritySchema({"limit": {"type": int, "required": True}})
+        request_schema = SecuritySchema({"query": {"type": str, "required": True}, "mode": {"type": str, "required": False, "allowed_values": ("answer", "search")}, "options": {"type": dict, "required": False, "schema": nested_schema}}, allow_extra_fields=False)
+        assert isinstance(request_schema, SecuritySchema), "Security schema validation should create a valid SecuritySchema"
+        assert request_schema.allow_extra_fields is False, "Security schemas should reject unexpected fields by default"
+        valid_result = security.validate_schema({"query": "What is RAG?", "mode": "answer", "options": {"limit": 5}}, request_schema, "request", TrustBoundary.USER_QUERY)
+        assert isinstance(valid_result, ValidationResult), "Schema validation should return a ValidationResult"
+        assert valid_result.is_valid() is True, "Valid structured input should pass schema validation"
+        assert valid_result.is_untrusted() is True, "Schema validation should not automatically trust input"
+        assert valid_result.boundary == TrustBoundary.USER_QUERY, "Schema validation should preserve the supplied trust boundary"
+        missing_required = security.validate_schema({"mode": "answer"}, request_schema, "request")
+        assert missing_required.is_valid() is False, "Schema validation should reject missing required fields"
+        assert any("query" in error for error in missing_required.errors), "Schema validation should identify missing required fields"
+        wrong_type = security.validate_schema({"query": 42}, request_schema, "request")
+        assert wrong_type.is_valid() is False, "Schema validation should reject incorrect field types"
+        invalid_choice = security.validate_schema({"query": "What is RAG?", "mode": "delete"}, request_schema, "request")
+        assert invalid_choice.is_valid() is False, "Schema validation should reject values outside allowed values"
+        nested_missing = security.validate_schema({"query": "What is RAG?", "options": {}}, request_schema, "request")
+        assert nested_missing.is_valid() is False, "Schema validation should validate nested structures"
+        assert any("limit" in error for error in nested_missing.errors), "Nested schema validation should identify missing nested fields"
+        unexpected_field = security.validate_schema({"query": "What is RAG?", "unexpected": True}, request_schema, "request")
+        assert unexpected_field.is_valid() is False, "Schema validation should reject unexpected fields by default"
+        optional_result = security.validate_schema({"query": "What is RAG?"}, request_schema, "request")
+        assert optional_result.is_valid() is True, "Schema validation should allow missing optional fields"
+        permissive_schema = SecuritySchema({"query": {"type": str, "required": True}}, allow_extra_fields=True)
+        permissive_result = security.validate_schema({"query": "What is RAG?", "extra": True}, permissive_schema, "request")
+        assert permissive_result.is_valid() is True, "Schema validation should support explicitly permitted extra fields"
+        typed_result = security.validate_typed_field("answer", "mode", str, ("answer", "search"))
+        assert typed_result.is_valid() is True, "Typed field validation should accept the correct type and allowed value"
+        wrong_typed_result = security.validate_typed_field(10, "mode", str, ("answer", "search"))
+        assert wrong_typed_result.is_valid() is False, "Typed field validation should reject incorrect types"
+        invalid_typed_choice = security.validate_typed_field("delete", "mode", str, ("answer", "search"))
+        assert invalid_typed_choice.is_valid() is False, "Typed field validation should reject invalid allowed values"
+        optional_typed_result = security.validate_typed_field(None, "description", str, required=False)
+        assert optional_typed_result.is_valid() is True, "Optional typed fields should allow None"
+        try:
+            SecuritySchema({"field": {"type": "str"}})
+            assert False, "Security schemas should reject non-type type definitions"
+        except ValueError:
+            pass
+        try:
+            SecuritySchema({"field": {"required": "yes"}})
+            assert False, "Security schemas should reject non-boolean required flags"
+        except ValueError:
+            pass
+        try:
+            SecuritySchema({"field": {"allowed_values": []}})
+            assert False, "Security schemas should reject empty allowed-value collections"
+        except ValueError:
+            pass
+        try:
+            SecuritySchema({"field": {"schema": {"nested": {"type": str}}}})
+            assert False, "Security schemas should reject invalid nested schema definitions"
+        except ValueError:
+            pass
+        try:
+            security.validate_schema({"query": "test"}, "not a schema")
+            assert False, "Security schema validation should reject invalid schema objects"
+        except ValueError:
+            pass
+        try:
+            security.validate_typed_field("test", "field", "str")
+            assert False, "Security typed field validation should reject non-type expected types"
+        except ValueError:
+            pass
+        try:
+            security.validate_typed_field("test", "", str)
+            assert False, "Security typed field validation should reject empty field names"
+        except ValueError:
+            pass
+        schema_dict = request_schema.to_dict()
+        assert schema_dict["fields"]["query"]["type"] == "str", "Security schema serialization should expose field type names"
+        assert schema_dict["fields"]["query"]["required"] is True, "Security schema serialization should preserve required-field state"
+        assert schema_dict["fields"]["mode"]["allowed_values"] == ("answer", "search"), "Security schema serialization should preserve allowed values"
+        diagnostics = security_error_handler.get_diagnostics()
+        assert any(diagnostic["category"] == "validation" and diagnostic["component"] == "security" for diagnostic in diagnostics), "Schema failures should remain integrated with security validation diagnostics"
+        assert SecuritySchemaError("schema failure").category == "schema", "SecuritySchemaError should establish the schema exception category"
+        success += 1
+        print(green("Version 0.13.2 type and schema validation is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.13.2 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

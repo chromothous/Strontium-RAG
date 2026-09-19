@@ -561,3 +561,6 @@ Security and input validation foundation is online.
 
 Version 0.13.1
 Input trust boundaries are online.
+
+Version 0.13.2
+Type and schema validation is online.

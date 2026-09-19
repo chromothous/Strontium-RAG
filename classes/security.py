@@ -59,6 +59,55 @@ class SecurityPolicyError(SecurityError):
         self.policy = policy
 
 
+class SecuritySchemaError(SecurityError):
+    def __init__(self, message, field=None):
+        super().__init__(message, category="schema")
+        if field is not None and (not isinstance(field, str) or not field.strip()):
+            raise ValueError("Security schema field must be a non-empty string or None")
+        self.field = field
+
+
+class SecuritySchema:
+    def __init__(self, fields, allow_extra_fields=False):
+        if not isinstance(fields, dict):
+            raise ValueError("Security schema fields must be a dictionary")
+        if not isinstance(allow_extra_fields, bool):
+            raise ValueError("Security schema allow_extra_fields must be a boolean")
+        self.fields = {}
+        for name, definition in fields.items():
+            if not isinstance(name, str) or not name.strip():
+                raise ValueError("Security schema field names must be non-empty strings")
+            if not isinstance(definition, dict):
+                raise ValueError(f"Security schema definition for {name} must be a dictionary")
+            item = dict(definition)
+            field_type = item.get("type")
+            if field_type is not None and not isinstance(field_type, type):
+                raise ValueError(f"Security schema type for {name} must be a type or None")
+            required = item.get("required", False)
+            if not isinstance(required, bool):
+                raise ValueError(f"Security schema required flag for {name} must be a boolean")
+            if "allowed_values" in item:
+                values = item["allowed_values"]
+                if not isinstance(values, (list, tuple, set)) or not values:
+                    raise ValueError(f"Security schema allowed values for {name} must be a non-empty collection")
+                item["allowed_values"] = tuple(values)
+            if item.get("schema") is not None and not isinstance(item["schema"], SecuritySchema):
+                raise ValueError(f"Security nested schema for {name} must be a SecuritySchema")
+            self.fields[name] = item
+        self.allow_extra_fields = allow_extra_fields
+
+    def to_dict(self):
+        result = {}
+        for name, definition in self.fields.items():
+            item = dict(definition)
+            if item.get("type") is not None:
+                item["type"] = item["type"].__name__
+            if "schema" in item and item["schema"] is not None:
+                item["schema"] = item["schema"].to_dict()
+            result[name] = item
+        return {"fields": result, "allow_extra_fields": self.allow_extra_fields}
+
+
 class ValidationResult:
     def __init__(
         self,
@@ -756,6 +805,110 @@ class SecurityValidator:
         if not isinstance(value, ValidationResult):
             return False
         return value.is_trusted()
+
+    def validate_schema(
+        self,
+        value,
+        schema,
+        field="input",
+        boundary=None
+    ):
+        if not isinstance(schema, SecuritySchema):
+            raise ValueError(
+                "Security schema validation requires a SecuritySchema"
+            )
+        if not isinstance(value, dict):
+            error = self._record_failure(
+                f"{field} must be a dictionary for schema validation",
+                field,
+                SecuritySchemaError
+            )
+            result = self._build_result(value, [str(error)])
+            result.boundary = boundary
+            return result
+        errors = []
+        for field_name, definition in schema.fields.items():
+            required = definition.get("required", False)
+            if required and field_name not in value:
+                errors.append(f"{field} is missing required field: {field_name}")
+                continue
+            if field_name not in value:
+                continue
+            field_value = value[field_name]
+            expected_type = definition.get("type")
+            if expected_type is not None and not isinstance(field_value, expected_type):
+                errors.append(f"{field}.{field_name} must be of type {expected_type.__name__}")
+                continue
+            allowed_values = definition.get("allowed_values")
+            if allowed_values is not None and field_value not in allowed_values:
+                errors.append(f"{field}.{field_name} contains a value outside the allowed values")
+            nested_schema = definition.get("schema")
+            if nested_schema is not None:
+                nested_result = self.validate_schema(
+                    field_value,
+                    nested_schema,
+                    f"{field}.{field_name}",
+                    boundary
+                )
+                if nested_result.is_invalid():
+                    errors.extend(nested_result.errors)
+        if not schema.allow_extra_fields:
+            for key in value:
+                if key not in schema.fields:
+                    errors.append(f"{field} contains unexpected field: {key}")
+        if errors:
+            for message in errors:
+                self._record_failure(message, field, SecuritySchemaError)
+        result = self._build_result(dict(value), errors)
+        result.boundary = boundary
+        return result
+
+    def validate_typed_field(
+        self,
+        value,
+        field,
+        expected_type,
+        allowed_values=None,
+        required=True
+    ):
+        if not isinstance(field, str) or not field.strip():
+            raise ValueError(
+                "Security typed field name must be a non-empty string"
+            )
+        if not isinstance(expected_type, type):
+            raise ValueError(
+                "Security typed field expected type must be a type"
+            )
+        if not isinstance(required, bool):
+            raise ValueError(
+                "Security typed field required flag must be a boolean"
+            )
+        if allowed_values is not None:
+            if not isinstance(allowed_values, (list, tuple, set)):
+                raise ValueError(
+                    "Security typed field allowed values must be a collection"
+                )
+            if not allowed_values:
+                raise ValueError(
+                    "Security typed field allowed values cannot be empty"
+                )
+        if value is None and not required:
+            return self._build_result(value)
+        if not isinstance(value, expected_type):
+            error = self._record_failure(
+                f"{field} must be of type {expected_type.__name__}",
+                field,
+                SecuritySchemaError
+            )
+            return self._build_result(value, [str(error)])
+        if allowed_values is not None and value not in allowed_values:
+            error = self._record_failure(
+                f"{field} contains a value outside the allowed values",
+                field,
+                SecuritySchemaError
+            )
+            return self._build_result(value, [str(error)])
+        return self._build_result(value)
 
     def get_policy(self):
         return self.policy.to_dict()
