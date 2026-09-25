@@ -585,3 +585,6 @@ Content and injection defense is online.
 
 Version 0.13.9
 Secret and credential portection is online.
+
+Version 0.13.10
+Metadata and identity validation is online.

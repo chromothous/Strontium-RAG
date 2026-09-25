@@ -10892,7 +10892,102 @@ def full_test():
         print(red(e))
         print(red("Version 0.13.9 failed"))
 
-
+    try:
+        tests += 1
+        from classes.security import SecurityValidator, SecurityPolicy, ValidationResult, SecurityError, SecurityValidationError, SecurityPolicyError, SecuritySchemaError, SecurityContentError, SecuritySecretError, SecurityIdentityError, SecuritySchema, TrustBoundary
+        from classes.logger import Logger
+        from classes.error_handler import ErrorHandler
+        security_logger = Logger()
+        security_error_handler = ErrorHandler(security_logger)
+        security = SecurityValidator(security_logger, security_error_handler)
+        default_policy = SecurityPolicy()
+        assert default_policy.max_identifier_length == 256, "Security policy should provide a bounded identifier length"
+        assert default_policy.reject_identity_whitespace is True, "Security policy should reject identity whitespace by default"
+        assert "document" in default_policy.allowed_identity_types, "Security policy should support document identities"
+        assert "source" in default_policy.allowed_identity_types, "Security policy should support source identities"
+        assert "chunk" in default_policy.allowed_identity_types, "Security policy should support chunk identities"
+        valid_identifier = security.validate_identifier("doc-001", "document", "document_id")
+        assert isinstance(valid_identifier, ValidationResult), "Identity validation should return a ValidationResult"
+        assert valid_identifier.is_valid() is True, "Identity validation should accept a valid document identifier"
+        assert valid_identifier.value == "doc-001", "Identity validation should preserve the identifier"
+        invalid_whitespace = security.validate_identifier("doc 001", "document", "document_id")
+        assert invalid_whitespace.is_valid() is False, "Identity validation should reject identifiers containing whitespace"
+        invalid_characters = security.validate_identifier("doc/001", "document", "document_id")
+        assert invalid_characters.is_valid() is False, "Identity validation should reject identifiers containing unsupported characters"
+        try:
+            security.validate_identifier("doc-001", "unknown", "document_id")
+            assert False, "Identity validation should reject unsupported identity types"
+        except SecurityIdentityError:
+            pass
+        metadata = {"source": "source-001", "document_id": "doc-001"}
+        registered = security.register_identity("document", "doc-001", metadata)
+        assert registered.is_valid() is True, "Identity registration should accept a valid new identity"
+        stored_metadata = security.get_identity_metadata("document", "doc-001")
+        assert stored_metadata == metadata, "Identity registry should preserve registered metadata"
+        duplicate = security.register_identity("document", "doc-001", metadata)
+        assert duplicate.is_valid() is True, "Registering an identical identity should remain valid"
+        collision = security.register_identity("document", "doc-001", {"source": "different-source"})
+        assert collision.is_valid() is False, "Identity registration should reject metadata collisions"
+        consistent = security.validate_identity_consistency({"document_id": "doc-001", "source": "source-001"}, "document", "metadata")
+        assert consistent.is_valid() is True, "Identity consistency should accept registered matching metadata"
+        inconsistent = security.validate_identity_consistency({"document_id": "doc-001", "source": "different-source"}, "document", "metadata")
+        assert inconsistent.is_valid() is False, "Identity consistency should reject metadata that conflicts with the registered identity"
+        document_identity = security.validate_document_identity("doc-002", "source-002")
+        assert document_identity.is_valid() is True, "Document identity validation should accept a valid document identity"
+        chunk_identity = security.validate_chunk_identity("chunk-001", "doc-002", 0, {"source": "source-002"})
+        assert chunk_identity.is_valid() is True, "Chunk identity validation should accept a valid chunk identity"
+        invalid_chunk_index = security.validate_chunk_identity("chunk-002", "doc-002", -1)
+        assert invalid_chunk_index.is_valid() is False, "Chunk identity validation should reject negative chunk indexes"
+        missing_document = security.validate_identity_consistency({"chunk_id": "chunk-003", "chunk_index": 0}, "chunk", "chunk_metadata")
+        assert missing_document.is_valid() is False, "Chunk identity validation should require its parent document identity"
+        source_identifier = security.validate_identifier("source-001", "source", "source_id")
+        assert source_identifier.is_valid() is True, "Source identity validation should accept a valid source identifier"
+        long_identifier = security.validate_identifier("a" * (default_policy.max_identifier_length + 1), "document", "document_id")
+        assert long_identifier.is_valid() is False, "Identity validation should reject identifiers exceeding the configured maximum length"
+        registry = security.get_identity_registry()
+        assert "document:doc-001" in registry, "Identity registry reporting should expose registered identities"
+        registry["document:doc-001"]["source"] = "tampered"
+        assert security.get_identity_metadata("document", "doc-001")["source"] == "source-001", "Identity registry access should not expose mutable internal state"
+        try:
+            SecurityIdentityError("identity failure", "", "doc-001")
+            assert False, "Security identity errors should reject empty identity types"
+        except ValueError:
+            pass
+        try:
+            SecurityPolicy(max_identifier_length=0)
+            assert False, "Security policy should reject a zero maximum identifier length"
+        except ValueError:
+            pass
+        try:
+            SecurityPolicy(reject_identity_whitespace="yes")
+            assert False, "Security policy should reject non-boolean identity whitespace settings"
+        except ValueError:
+            pass
+        try:
+            SecurityPolicy(identity_pattern="[")
+            assert False, "Security policy should reject invalid identity patterns"
+        except ValueError:
+            pass
+        try:
+            SecurityPolicy(allowed_identity_types=[""])
+            assert False, "Security policy should reject empty identity types"
+        except ValueError:
+            pass
+        policy_copy = security.get_policy()
+        assert policy_copy["max_identifier_length"] == 256, "Security policy serialization should expose identifier length limits"
+        assert policy_copy["reject_identity_whitespace"] is True, "Security policy serialization should expose identity whitespace protection"
+        assert "allowed_identity_types" in policy_copy, "Security policy serialization should expose allowed identity types"
+        state = security.get_security_state()
+        assert state["identity_protection"]["registered_identity_count"] == 1, "Security state should report registered identity count"
+        diagnostics = security_error_handler.get_diagnostics()
+        assert any(diagnostic["category"] == "validation" and diagnostic["component"] == "security" for diagnostic in diagnostics), "Identity validation failures should remain integrated with security validation diagnostics"
+        assert SecurityIdentityError("identity failure").category == "identity", "SecurityIdentityError should establish the identity exception category"
+        success += 1
+        print(green("Version 0.13.10 metadata and identity validation is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.13.10 failed"))
 
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))

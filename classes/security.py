@@ -67,6 +67,31 @@ class SecuritySecretError(SecurityError):
         self.field = field
 
 
+class SecurityIdentityError(SecurityError):
+    def __init__(
+        self,
+        message,
+        identity_type=None,
+        identifier=None
+    ):
+        super().__init__(
+            message,
+            category="identity"
+        )
+        if identity_type is not None:
+            if not isinstance(identity_type, str) or not identity_type.strip():
+                raise ValueError(
+                    "Security identity type must be a non-empty string or None"
+                )
+        if identifier is not None:
+            if not isinstance(identifier, str) or not identifier.strip():
+                raise ValueError(
+                    "Security identity identifier must be a non-empty string or None"
+                )
+        self.identity_type = identity_type
+        self.identifier = identifier
+
+
 class SecurityPolicyError(SecurityError):
     def __init__(
         self,
@@ -358,6 +383,16 @@ class SecurityPolicy:
         "credential",
         "credentials",
     )
+    DEFAULT_MAX_IDENTIFIER_LENGTH = 256
+    DEFAULT_REJECT_IDENTITY_WHITESPACE = True
+    DEFAULT_IDENTITY_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    DEFAULT_ALLOWED_IDENTITY_TYPES = (
+        "document",
+        "source",
+        "chunk",
+        "conversation",
+        "session",
+    )
     DEFAULT_ALLOWED_SCHEMES = (
         "https",
     )
@@ -401,6 +436,10 @@ class SecurityPolicy:
         allow_empty_secrets=DEFAULT_ALLOW_EMPTY_SECRETS,
         min_secret_length=DEFAULT_MIN_SECRET_LENGTH,
         sensitive_field_names=DEFAULT_SENSITIVE_FIELD_NAMES,
+        max_identifier_length=DEFAULT_MAX_IDENTIFIER_LENGTH,
+        reject_identity_whitespace=DEFAULT_REJECT_IDENTITY_WHITESPACE,
+        identity_pattern=DEFAULT_IDENTITY_PATTERN,
+        allowed_identity_types=DEFAULT_ALLOWED_IDENTITY_TYPES,
         allowed_schemes=None,
         allowed_file_types=None
     ):
@@ -670,6 +709,51 @@ class SecurityPolicy:
         self.sensitive_field_names = tuple(
             normalized_sensitive_fields
         )
+        if not isinstance(max_identifier_length, int) or isinstance(max_identifier_length, bool):
+            raise ValueError(
+                "Security max identifier length must be an integer"
+            )
+        if max_identifier_length < 1:
+            raise ValueError(
+                "Security max identifier length must be positive"
+            )
+        if not isinstance(reject_identity_whitespace, bool):
+            raise ValueError(
+                "Security reject_identity_whitespace must be a boolean"
+            )
+        if not isinstance(identity_pattern, str) or not identity_pattern.strip():
+            raise ValueError(
+                "Security identity pattern must be a non-empty string"
+            )
+        try:
+            re.compile(identity_pattern)
+        except re.error as exception:
+            raise ValueError(
+                f"Security identity pattern must be valid: {exception}"
+            )
+        if not isinstance(allowed_identity_types, (list, tuple)):
+            raise ValueError(
+                "Security allowed identity types must be a list or tuple"
+            )
+        if not allowed_identity_types:
+            raise ValueError(
+                "Security allowed identity types cannot be empty"
+            )
+        normalized_identity_types = []
+        for identity_type in allowed_identity_types:
+            if not isinstance(identity_type, str) or not identity_type.strip():
+                raise ValueError(
+                    "Security identity types must contain non-empty strings"
+                )
+            normalized_identity_types.append(
+                identity_type.strip().lower()
+            )
+        self.max_identifier_length = max_identifier_length
+        self.reject_identity_whitespace = reject_identity_whitespace
+        self.identity_pattern = identity_pattern
+        self.allowed_identity_types = tuple(
+            normalized_identity_types
+        )
 
         if allowed_schemes is None:
             allowed_schemes = self.DEFAULT_ALLOWED_SCHEMES
@@ -900,6 +984,36 @@ class SecurityPolicy:
             raise ValueError(
                 "Security sensitive field names cannot be empty"
             )
+        if not isinstance(self.max_identifier_length, int) or isinstance(self.max_identifier_length, bool):
+            raise ValueError(
+                "Security max identifier length must be an integer"
+            )
+        if self.max_identifier_length < 1:
+            raise ValueError(
+                "Security max identifier length must be positive"
+            )
+        if not isinstance(self.reject_identity_whitespace, bool):
+            raise ValueError(
+                "Security reject_identity_whitespace must be a boolean"
+            )
+        if not isinstance(self.identity_pattern, str) or not self.identity_pattern.strip():
+            raise ValueError(
+                "Security identity pattern must be a non-empty string"
+            )
+        try:
+            re.compile(self.identity_pattern)
+        except re.error as exception:
+            raise ValueError(
+                f"Security identity pattern must be valid: {exception}"
+            )
+        if not isinstance(self.allowed_identity_types, tuple):
+            raise ValueError(
+                "Security allowed identity types must be a tuple"
+            )
+        if not self.allowed_identity_types:
+            raise ValueError(
+                "Security allowed identity types cannot be empty"
+            )
 
         if not self.allowed_schemes:
             raise ValueError(
@@ -960,6 +1074,12 @@ class SecurityPolicy:
             "min_secret_length": self.min_secret_length,
             "sensitive_field_names": tuple(
                 self.sensitive_field_names
+            ),
+            "max_identifier_length": self.max_identifier_length,
+            "reject_identity_whitespace": self.reject_identity_whitespace,
+            "identity_pattern": self.identity_pattern,
+            "allowed_identity_types": tuple(
+                self.allowed_identity_types
             ),
             "allowed_schemes": tuple(
                 self.allowed_schemes
@@ -1030,6 +1150,7 @@ class SecurityValidator:
         self.error_handler = error_handler
         self.policy = policy
         self._trusted_boundaries = set()
+        self._identity_registry = {}
 
     def _record_failure(
         self,
@@ -3286,6 +3407,422 @@ class SecurityValidator:
             "sensitive": True
         }
 
+    def _validate_identity_type(
+        self,
+        identity_type
+    ):
+        if not isinstance(identity_type, str) or not identity_type.strip():
+            raise ValueError(
+                "Security identity type must be a non-empty string"
+            )
+        normalized = identity_type.strip().lower()
+        if normalized not in self.policy.allowed_identity_types:
+            raise SecurityIdentityError(
+                "Security identity type is not allowed",
+                normalized,
+                None
+            )
+        return normalized
+
+    def _validate_identifier_format(
+        self,
+        identifier,
+        field
+    ):
+        if not isinstance(identifier, str):
+            error = self._record_failure(
+                f"{field} must be a string",
+                field,
+                SecurityIdentityError
+            )
+            return None, [str(error)]
+        if not identifier.strip():
+            error = self._record_failure(
+                f"{field} cannot be empty",
+                field,
+                SecurityIdentityError
+            )
+            return None, [str(error)]
+        if len(identifier) > self.policy.max_identifier_length:
+            error = self._record_failure(
+                f"{field} exceeds the maximum identifier length",
+                field,
+                SecurityIdentityError
+            )
+            return None, [str(error)]
+        if (
+            self.policy.reject_identity_whitespace
+            and identifier != identifier.strip()
+        ):
+            error = self._record_failure(
+                f"{field} contains leading or trailing whitespace",
+                field,
+                SecurityIdentityError
+            )
+            return None, [str(error)]
+        if any(character.isspace() for character in identifier):
+            error = self._record_failure(
+                f"{field} contains whitespace",
+                field,
+                SecurityIdentityError
+            )
+            return None, [str(error)]
+        if re.fullmatch(
+            self.policy.identity_pattern,
+            identifier
+        ) is None:
+            error = self._record_failure(
+                f"{field} contains invalid identity characters",
+                field,
+                SecurityIdentityError
+            )
+            return None, [str(error)]
+        return identifier, []
+
+    def validate_identifier(
+        self,
+        identifier,
+        identity_type,
+        field="identifier",
+        register=False,
+        metadata=None
+    ):
+        normalized_type = self._validate_identity_type(
+            identity_type
+        )
+        normalized_identifier, errors = self._validate_identifier_format(
+            identifier,
+            field
+        )
+        if errors:
+            return ValidationResult(
+                valid=False,
+                value=identifier,
+                errors=errors,
+                trusted=False,
+                sensitive=False
+            )
+        if metadata is not None and not isinstance(metadata, dict):
+            error = self._record_failure(
+                f"{field} metadata must be a dictionary",
+                field,
+                SecurityIdentityError
+            )
+            return ValidationResult(
+                valid=False,
+                value=identifier,
+                errors=[str(error)],
+                trusted=False
+            )
+        if register:
+            registration = self.register_identity(
+                normalized_type,
+                normalized_identifier,
+                metadata
+            )
+            if registration.is_invalid():
+                return registration
+        return ValidationResult(
+            valid=True,
+            value=normalized_identifier,
+            errors=[],
+            warnings=[],
+            trusted=False
+        )
+
+    def register_identity(
+        self,
+        identity_type,
+        identifier,
+        metadata=None
+    ):
+        normalized_type = self._validate_identity_type(
+            identity_type
+        )
+        normalized_identifier, errors = self._validate_identifier_format(
+            identifier,
+            "identifier"
+        )
+        if errors:
+            return ValidationResult(
+                valid=False,
+                value=identifier,
+                errors=errors,
+                trusted=False
+            )
+        if metadata is None:
+            metadata = {}
+        if not isinstance(metadata, dict):
+            error = self._record_failure(
+                "Identity metadata must be a dictionary",
+                "metadata",
+                SecurityIdentityError
+            )
+            return ValidationResult(
+                valid=False,
+                value=identifier,
+                errors=[str(error)],
+                trusted=False
+            )
+        registry_key = (
+            normalized_type,
+            normalized_identifier
+        )
+        existing = self._identity_registry.get(
+            registry_key
+        )
+        if existing is not None:
+            if existing != metadata:
+                error = self._record_failure(
+                    f"Identity collision detected for {normalized_type}:{normalized_identifier}",
+                    "identifier",
+                    SecurityIdentityError
+                )
+                return ValidationResult(
+                    valid=False,
+                    value=identifier,
+                    errors=[str(error)],
+                    trusted=False
+                )
+            return ValidationResult(
+                valid=True,
+                value=normalized_identifier,
+                errors=[],
+                warnings=["identity already registered"],
+                trusted=False
+            )
+        self._identity_registry[registry_key] = dict(
+            metadata
+        )
+        return ValidationResult(
+            valid=True,
+            value=normalized_identifier,
+            errors=[],
+            warnings=[],
+            trusted=False
+        )
+
+    def get_identity_metadata(
+        self,
+        identity_type,
+        identifier
+    ):
+        normalized_type = self._validate_identity_type(
+            identity_type
+        )
+        normalized_identifier, errors = self._validate_identifier_format(
+            identifier,
+            "identifier"
+        )
+        if errors:
+            raise SecurityIdentityError(
+                errors[0],
+                normalized_type,
+                identifier
+            )
+        metadata = self._identity_registry.get(
+            (
+                normalized_type,
+                normalized_identifier
+            )
+        )
+        if metadata is None:
+            return None
+        return dict(metadata)
+
+    def validate_identity_consistency(
+        self,
+        metadata,
+        identity_type="document",
+        field="metadata"
+    ):
+        normalized_type = self._validate_identity_type(
+            identity_type
+        )
+        if not isinstance(metadata, dict):
+            error = self._record_failure(
+                f"{field} must be a dictionary",
+                field,
+                SecurityIdentityError
+            )
+            return ValidationResult(
+                valid=False,
+                value=metadata,
+                errors=[str(error)],
+                trusted=False
+            )
+        identity_field = f"{normalized_type}_id"
+        if identity_field not in metadata:
+            error = self._record_failure(
+                f"{field} is missing required identity field: {identity_field}",
+                field,
+                SecurityIdentityError
+            )
+            return ValidationResult(
+                valid=False,
+                value=metadata,
+                errors=[str(error)],
+                trusted=False
+            )
+        identifier_result = self.validate_identifier(
+            metadata[identity_field],
+            normalized_type,
+            identity_field
+        )
+        if identifier_result.is_invalid():
+            return identifier_result
+        source_value = metadata.get(
+            "source"
+        )
+        if normalized_type == "document" and source_value is not None:
+            source_result = self.validate_identifier(
+                source_value,
+                "source",
+                "source"
+            )
+            if source_result.is_invalid():
+                return source_result
+        if normalized_type == "chunk":
+            parent_document_id = metadata.get(
+                "document_id"
+            )
+            if parent_document_id is None:
+                error = self._record_failure(
+                    f"{field} is missing required parent document_id",
+                    field,
+                    SecurityIdentityError
+                )
+                return ValidationResult(
+                    valid=False,
+                    value=metadata,
+                    errors=[str(error)],
+                    trusted=False
+                )
+            document_result = self.validate_identifier(
+                parent_document_id,
+                "document",
+                "document_id"
+            )
+            if document_result.is_invalid():
+                return document_result
+            if "chunk_index" in metadata:
+                chunk_index = metadata["chunk_index"]
+                if not isinstance(chunk_index, int) or isinstance(chunk_index, bool) or chunk_index < 0:
+                    error = self._record_failure(
+                        f"{field}.chunk_index must be a non-negative integer",
+                        field,
+                        SecurityIdentityError
+                    )
+                    return ValidationResult(
+                        valid=False,
+                        value=metadata,
+                        errors=[str(error)],
+                        trusted=False
+                    )
+        identity_key = (
+            normalized_type,
+            identifier_result.value
+        )
+        registered = self._identity_registry.get(
+            identity_key
+        )
+        if registered is not None and registered != metadata:
+            error = self._record_failure(
+                f"{field} identity metadata does not match registered identity",
+                field,
+                SecurityIdentityError
+            )
+            return ValidationResult(
+                valid=False,
+                value=metadata,
+                errors=[str(error)],
+                trusted=False
+            )
+        return ValidationResult(
+            valid=True,
+            value=dict(metadata),
+            errors=[],
+            warnings=[],
+            trusted=False
+        )
+
+    def validate_document_identity(
+        self,
+        document_id,
+        source=None,
+        metadata=None
+    ):
+        identity_metadata = {}
+        if metadata is not None:
+            if not isinstance(metadata, dict):
+                error = self._record_failure(
+                    "Document identity metadata must be a dictionary",
+                    "metadata",
+                    SecurityIdentityError
+                )
+                return ValidationResult(
+                    valid=False,
+                    value=metadata,
+                    errors=[str(error)],
+                    trusted=False
+                )
+            identity_metadata.update(
+                metadata
+            )
+        if source is not None:
+            identity_metadata["source"] = source
+        identity_metadata["document_id"] = document_id
+        result = self.validate_identity_consistency(
+            identity_metadata,
+            "document",
+            "document_identity"
+        )
+        if result.is_invalid():
+            return result
+        return result
+
+    def validate_chunk_identity(
+        self,
+        chunk_id,
+        document_id,
+        chunk_index,
+        metadata=None
+    ):
+        identity_metadata = {}
+        if metadata is not None:
+            if not isinstance(metadata, dict):
+                error = self._record_failure(
+                    "Chunk identity metadata must be a dictionary",
+                    "metadata",
+                    SecurityIdentityError
+                )
+                return ValidationResult(
+                    valid=False,
+                    value=metadata,
+                    errors=[str(error)],
+                    trusted=False
+                )
+            identity_metadata.update(
+                metadata
+            )
+        identity_metadata["chunk_id"] = chunk_id
+        identity_metadata["document_id"] = document_id
+        identity_metadata["chunk_index"] = chunk_index
+        return self.validate_identity_consistency(
+            identity_metadata,
+            "chunk",
+            "chunk_identity"
+        )
+
+    def get_identity_registry(self):
+        return {
+            f"{identity_type}:{identifier}": dict(metadata)
+            for (
+                identity_type,
+                identifier
+            ), metadata in self._identity_registry.items()
+        }
+
     def get_policy(self):
         return self.policy.to_dict()
 
@@ -3315,6 +3852,17 @@ class SecurityValidator:
                 "min_secret_length": self.policy.min_secret_length,
                 "sensitive_field_names": list(
                     self.policy.sensitive_field_names
+                )
+            },
+            "identity_protection": {
+                "max_identifier_length": self.policy.max_identifier_length,
+                "reject_identity_whitespace": self.policy.reject_identity_whitespace,
+                "identity_pattern": self.policy.identity_pattern,
+                "allowed_identity_types": list(
+                    self.policy.allowed_identity_types
+                ),
+                "registered_identity_count": len(
+                    self._identity_registry
                 )
             },
             "supported_trust_boundaries": self.get_trust_boundaries(),
