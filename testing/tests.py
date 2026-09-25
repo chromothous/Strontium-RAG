@@ -10539,6 +10539,110 @@ def full_test():
         print(red(e))
         print(red("Version 0.13.6 failed"))
 
+    try:
+        tests += 1
+        from classes.security import SecurityValidator, SecurityPolicy, ValidationResult, SecurityError, SecurityValidationError, SecurityPolicyError, SecuritySchemaError, SecuritySchema, TrustBoundary
+        from classes.logger import Logger
+        from classes.error_handler import ErrorHandler
+        security_logger = Logger()
+        security_error_handler = ErrorHandler(security_logger)
+        security = SecurityValidator(security_logger, security_error_handler)
+        default_policy = SecurityPolicy()
+        assert default_policy.block_local_addresses is True, "Security policy should block local and internal addresses by default"
+        assert default_policy.allow_url_credentials is False, "Security policy should reject URL credentials by default"
+        assert default_policy.allowed_hosts == (), "Security policy should allow any non-blocked external host when no host allowlist is configured"
+        assert default_policy.blocked_hosts == (), "Security policy should not require explicit blocked hosts by default"
+        valid_url = security.validate_url("https://example.com", "url")
+        assert isinstance(valid_url, ValidationResult), "URL validation should return a ValidationResult"
+        assert valid_url.is_valid() is True, "URL validation should accept a valid HTTPS external URL"
+        assert valid_url.value == "https://example.com", "URL validation should preserve the normalized URL string"
+        external_url = security.validate_external_resource("https://example.com/api", "resource")
+        assert external_url.is_valid() is True, "External resource validation should accept a valid external URL"
+        assert external_url.boundary == TrustBoundary.URL, "External resource validation should assign the URL trust boundary"
+        provider_url = security.validate_provider_endpoint("https://api.example.com", "provider")
+        assert provider_url.is_valid() is True, "Provider endpoint validation should accept a valid external HTTPS endpoint"
+        assert provider_url.boundary == TrustBoundary.PROVIDER_MODEL, "Provider endpoint validation should assign the provider/model trust boundary"
+        invalid_scheme = security.validate_url("http://example.com", "url")
+        assert invalid_scheme.is_valid() is False, "URL validation should reject HTTP when HTTPS is the secure default"
+        invalid_hostname = security.validate_url("https://", "url")
+        assert invalid_hostname.is_valid() is False, "URL validation should reject URLs without a hostname"
+        invalid_localhost = security.validate_url("https://localhost/api", "url")
+        assert invalid_localhost.is_valid() is False, "URL validation should reject localhost"
+        invalid_loopback = security.validate_url("https://127.0.0.1/api", "url")
+        assert invalid_loopback.is_valid() is False, "URL validation should reject loopback addresses"
+        invalid_private = security.validate_url("https://192.168.1.10/api", "url")
+        assert invalid_private.is_valid() is False, "URL validation should reject private network addresses"
+        invalid_link_local = security.validate_url("https://169.254.169.254/latest", "url")
+        assert invalid_link_local.is_valid() is False, "URL validation should reject link-local addresses"
+        invalid_internal_name = security.validate_url("https://service.internal/api", "url")
+        assert invalid_internal_name.is_valid() is False, "URL validation should reject internal hostnames"
+        invalid_credentials = security.validate_url("https://user:password@example.com/api", "url")
+        assert invalid_credentials.is_valid() is False, "URL validation should reject embedded URL credentials by default"
+        allowed_host_policy = SecurityPolicy(allowed_hosts=["api.example.com"])
+        allowed_host_security = SecurityValidator(Logger(), ErrorHandler(Logger()), allowed_host_policy)
+        allowed_host = allowed_host_security.validate_url("https://api.example.com/v1", "url")
+        assert allowed_host.is_valid() is True, "URL validation should accept an explicitly allowed host"
+        rejected_host = allowed_host_security.validate_url("https://other.example.com/v1", "url")
+        assert rejected_host.is_valid() is False, "URL validation should reject hosts outside an explicit host allowlist"
+        blocked_host_policy = SecurityPolicy(blocked_hosts=["blocked.example.com"])
+        blocked_host_security = SecurityValidator(Logger(), ErrorHandler(Logger()), blocked_host_policy)
+        blocked_host = blocked_host_security.validate_url("https://blocked.example.com/v1", "url")
+        assert blocked_host.is_valid() is False, "URL validation should reject explicitly blocked hosts"
+        redirect_ok = security.validate_redirect_target("https://example.com/new", "https://example.com/old", "redirect")
+        assert redirect_ok.is_valid() is True, "Redirect validation should accept a safe HTTPS redirect"
+        redirect_downgrade = security.validate_redirect_target("http://example.com/new", "https://example.com/old", "redirect")
+        assert redirect_downgrade.is_valid() is False, "Redirect validation should reject HTTPS to HTTP downgrade"
+        malformed_url = security.validate_url("https://example.com:invalid", "url")
+        assert malformed_url.is_valid() is False, "URL validation should reject malformed ports"
+        unsupported_url = security.validate_url("ftp://example.com/file", "url")
+        assert unsupported_url.is_valid() is False, "URL validation should reject unsupported external resource schemes"
+        try:
+            SecurityPolicy(block_local_addresses="yes")
+            assert False, "Security policy should reject non-boolean local-address protection settings"
+        except ValueError:
+            pass
+        try:
+            SecurityPolicy(allow_url_credentials="yes")
+            assert False, "Security policy should reject non-boolean URL credential settings"
+        except ValueError:
+            pass
+        try:
+            SecurityPolicy(allowed_hosts="example.com")
+            assert False, "Security policy should reject invalid host allowlist collections"
+        except ValueError:
+            pass
+        try:
+            SecurityPolicy(blocked_hosts="example.com")
+            assert False, "Security policy should reject invalid host blocklist collections"
+        except ValueError:
+            pass
+        try:
+            SecurityPolicy(allowed_hosts=[""])
+            assert False, "Security policy should reject empty allowed hosts"
+        except ValueError:
+            pass
+        try:
+            SecurityPolicy(blocked_hosts=[""])
+            assert False, "Security policy should reject empty blocked hosts"
+        except ValueError:
+            pass
+        policy_copy = security.get_policy()
+        assert "block_local_addresses" in policy_copy, "Security policy serialization should expose local-address protection"
+        assert "allow_url_credentials" in policy_copy, "Security policy serialization should expose URL credential policy"
+        assert "allowed_hosts" in policy_copy, "Security policy serialization should expose allowed hosts"
+        assert "blocked_hosts" in policy_copy, "Security policy serialization should expose blocked hosts"
+        state = security.get_security_state()
+        assert state["policy"]["block_local_addresses"] is True, "Security state should preserve local-address protection"
+        diagnostics = security_error_handler.get_diagnostics()
+        assert any(diagnostic["category"] == "validation" and diagnostic["component"] == "security" for diagnostic in diagnostics), "URL security failures should remain integrated with security validation diagnostics"
+        success += 1
+        print(green("Version 0.13.7 URL and external resource validation is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.13.7 failed"))
+
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

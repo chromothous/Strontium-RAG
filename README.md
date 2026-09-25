@@ -576,3 +576,6 @@ Document and file safety is online.
 
 Version 0.13.6
 Path traversal protection is online.
+
+Version 0.13.7
+URL and external resource validation is online.

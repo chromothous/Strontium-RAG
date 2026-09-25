@@ -3,6 +3,8 @@ from classes.error_handler import ErrorHandler
 import os
 import tempfile
 import unicodedata
+import ipaddress
+from urllib.parse import urlparse
 from pathlib import Path
 
 
@@ -206,6 +208,10 @@ class SecurityPolicy:
     DEFAULT_REJECT_SYMLINKS = True
     DEFAULT_ALLOWED_PATH_ROOTS = ()
     DEFAULT_PROTECTED_PATHS = ()
+    DEFAULT_BLOCK_LOCAL_ADDRESSES = True
+    DEFAULT_ALLOW_URL_CREDENTIALS = False
+    DEFAULT_ALLOWED_HOSTS = ()
+    DEFAULT_BLOCKED_HOSTS = ()
     DEFAULT_ALLOWED_SCHEMES = (
         "https",
     )
@@ -238,6 +244,10 @@ class SecurityPolicy:
         reject_symlinks=DEFAULT_REJECT_SYMLINKS,
         allowed_path_roots=None,
         protected_paths=None,
+        block_local_addresses=DEFAULT_BLOCK_LOCAL_ADDRESSES,
+        allow_url_credentials=DEFAULT_ALLOW_URL_CREDENTIALS,
+        allowed_hosts=None,
+        blocked_hosts=None,
         allowed_schemes=None,
         allowed_file_types=None
     ):
@@ -385,6 +395,52 @@ class SecurityPolicy:
         )
         self.protected_paths = tuple(
             normalized_protected
+        )
+        if not isinstance(block_local_addresses, bool):
+            raise ValueError(
+                "Security block_local_addresses must be a boolean"
+            )
+        if not isinstance(allow_url_credentials, bool):
+            raise ValueError(
+                "Security allow_url_credentials must be a boolean"
+            )
+        if allowed_hosts is None:
+            allowed_hosts = ()
+        if blocked_hosts is None:
+            blocked_hosts = ()
+        if not isinstance(allowed_hosts, (list, tuple)):
+            raise ValueError(
+                "Security allowed hosts must be a list or tuple"
+            )
+        if not isinstance(blocked_hosts, (list, tuple)):
+            raise ValueError(
+                "Security blocked hosts must be a list or tuple"
+            )
+        normalized_allowed_hosts = []
+        for host in allowed_hosts:
+            if not isinstance(host, str) or not host.strip():
+                raise ValueError(
+                    "Security allowed hosts must contain non-empty strings"
+                )
+            normalized_allowed_hosts.append(
+                host.strip().lower().rstrip(".")
+            )
+        normalized_blocked_hosts = []
+        for host in blocked_hosts:
+            if not isinstance(host, str) or not host.strip():
+                raise ValueError(
+                    "Security blocked hosts must contain non-empty strings"
+                )
+            normalized_blocked_hosts.append(
+                host.strip().lower().rstrip(".")
+            )
+        self.block_local_addresses = block_local_addresses
+        self.allow_url_credentials = allow_url_credentials
+        self.allowed_hosts = tuple(
+            normalized_allowed_hosts
+        )
+        self.blocked_hosts = tuple(
+            normalized_blocked_hosts
         )
 
         if allowed_schemes is None:
@@ -555,6 +611,22 @@ class SecurityPolicy:
             raise ValueError(
                 "Security protected paths must be a tuple"
             )
+        if not isinstance(self.block_local_addresses, bool):
+            raise ValueError(
+                "Security block_local_addresses must be a boolean"
+            )
+        if not isinstance(self.allow_url_credentials, bool):
+            raise ValueError(
+                "Security allow_url_credentials must be a boolean"
+            )
+        if not isinstance(self.allowed_hosts, tuple):
+            raise ValueError(
+                "Security allowed hosts must be a tuple"
+            )
+        if not isinstance(self.blocked_hosts, tuple):
+            raise ValueError(
+                "Security blocked hosts must be a tuple"
+            )
 
         if not self.allowed_schemes:
             raise ValueError(
@@ -596,6 +668,14 @@ class SecurityPolicy:
             ),
             "protected_paths": tuple(
                 self.protected_paths
+            ),
+            "block_local_addresses": self.block_local_addresses,
+            "allow_url_credentials": self.allow_url_credentials,
+            "allowed_hosts": tuple(
+                self.allowed_hosts
+            ),
+            "blocked_hosts": tuple(
+                self.blocked_hosts
             ),
             "allowed_schemes": tuple(
                 self.allowed_schemes
@@ -2042,6 +2122,255 @@ class SecurityValidator:
             field,
             must_exist=True
         )
+
+    def _normalize_url_host(
+        self,
+        host
+    ):
+        if host is None:
+            return None
+        return host.strip().lower().rstrip(".")
+
+    def _host_is_local_or_internal(
+        self,
+        host
+    ):
+        normalized_host = self._normalize_url_host(
+            host
+        )
+        if not normalized_host:
+            return True
+        local_hostnames = {
+            "localhost",
+            "localhost.localdomain",
+            "ip6-localhost",
+            "ip6-loopback"
+        }
+        if normalized_host in local_hostnames:
+            return True
+        if (
+            normalized_host.endswith(".localhost")
+            or normalized_host.endswith(".local")
+            or normalized_host.endswith(".internal")
+            or normalized_host.endswith(".lan")
+        ):
+            return True
+        try:
+            address = ipaddress.ip_address(
+                normalized_host
+            )
+        except ValueError:
+            return False
+        return (
+            address.is_loopback
+            or address.is_private
+            or address.is_link_local
+            or address.is_unspecified
+            or address.is_reserved
+            or address.is_multicast
+        )
+
+    def _host_allowed_by_policy(
+        self,
+        host
+    ):
+        normalized_host = self._normalize_url_host(
+            host
+        )
+        if normalized_host in self.policy.blocked_hosts:
+            return False
+        if self.policy.allowed_hosts:
+            return normalized_host in self.policy.allowed_hosts
+        return True
+
+    def validate_url(
+        self,
+        url,
+        field="url",
+        require_external=True
+    ):
+        if not isinstance(url, str) or not url.strip():
+            error = self._record_failure(
+                f"{field} must be a non-empty URL",
+                field
+            )
+            return self._build_result(
+                url,
+                [str(error)]
+            )
+        if len(url) > self.policy.max_string_length:
+            error = self._record_failure(
+                f"{field} exceeds the maximum allowed length",
+                field
+            )
+            return self._build_result(
+                url,
+                [str(error)]
+            )
+        try:
+            parsed = urlparse(
+                url.strip()
+            )
+            scheme = parsed.scheme.lower()
+            hostname = parsed.hostname
+            port = parsed.port
+        except ValueError as exception:
+            error = self._record_failure(
+                f"{field} is malformed: {exception}",
+                field
+            )
+            return self._build_result(
+                url,
+                [str(error)]
+            )
+        if not scheme:
+            error = self._record_failure(
+                f"{field} must include a URL scheme",
+                field
+            )
+            return self._build_result(
+                url,
+                [str(error)]
+            )
+        if scheme not in self.policy.allowed_schemes:
+            error = self._record_failure(
+                f"{field} uses a disallowed URL scheme",
+                field
+            )
+            return self._build_result(
+                url,
+                [str(error)]
+            )
+        if hostname is None or not hostname.strip():
+            error = self._record_failure(
+                f"{field} must include a hostname",
+                field
+            )
+            return self._build_result(
+                url,
+                [str(error)]
+            )
+        if not self.policy.allow_url_credentials and (
+            parsed.username is not None
+            or parsed.password is not None
+        ):
+            error = self._record_failure(
+                f"{field} cannot include URL credentials",
+                field
+            )
+            return self._build_result(
+                url,
+                [str(error)]
+            )
+        normalized_host = self._normalize_url_host(
+            hostname
+        )
+        if require_external and (
+            self.policy.block_local_addresses
+            and self._host_is_local_or_internal(normalized_host)
+        ):
+            error = self._record_failure(
+                f"{field} targets a local or internal address",
+                field
+            )
+            return self._build_result(
+                url,
+                [str(error)]
+            )
+        if not self._host_allowed_by_policy(
+            normalized_host
+        ):
+            error = self._record_failure(
+                f"{field} host is restricted by security policy",
+                field
+            )
+            return self._build_result(
+                url,
+                [str(error)]
+            )
+        if port is not None and (
+            port <= 0
+            or port > 65535
+        ):
+            error = self._record_failure(
+                f"{field} contains an invalid port",
+                field
+            )
+            return self._build_result(
+                url,
+                [str(error)]
+            )
+        return self._build_result(
+            url.strip()
+        )
+
+    def validate_external_resource(
+        self,
+        url,
+        field="external_resource"
+    ):
+        result = self.validate_url(
+            url,
+            field,
+            require_external=True
+        )
+        result.boundary = TrustBoundary.URL
+        return result
+
+    def validate_provider_endpoint(
+        self,
+        url,
+        field="provider_endpoint"
+    ):
+        result = self.validate_url(
+            url,
+            field,
+            require_external=True
+        )
+        result.boundary = TrustBoundary.PROVIDER_MODEL
+        return result
+
+    def validate_redirect_target(
+        self,
+        target_url,
+        source_url=None,
+        field="redirect"
+    ):
+        target_result = self.validate_url(
+            target_url,
+            field,
+            require_external=True
+        )
+        if target_result.is_invalid():
+            return target_result
+        if source_url is not None:
+            source_result = self.validate_url(
+                source_url,
+                f"{field}_source",
+                require_external=True
+            )
+            if source_result.is_invalid():
+                return self._build_result(
+                    target_url,
+                    source_result.errors
+                )
+            source_parsed = urlparse(
+                source_result.value
+            )
+            target_parsed = urlparse(
+                target_result.value
+            )
+            if source_parsed.scheme.lower() == "https" and target_parsed.scheme.lower() != "https":
+                error = self._record_failure(
+                    f"{field} cannot downgrade from HTTPS",
+                    field
+                )
+                return self._build_result(
+                    target_url,
+                    [str(error)]
+                )
+        target_result.boundary = TrustBoundary.URL
+        return target_result
 
     def get_policy(self):
         return self.policy.to_dict()
