@@ -73,6 +73,71 @@ class SecuritySchemaError(SecurityError):
         self.field = field
 
 
+class SecurityContentError(SecurityError):
+    def __init__(
+        self,
+        message,
+        field=None,
+        source=None
+    ):
+        super().__init__(
+            message,
+            category="content"
+        )
+        if field is not None:
+            if not isinstance(field, str) or not field.strip():
+                raise ValueError(
+                    "Security content field must be a non-empty string or None"
+                )
+        if source is not None:
+            if not isinstance(source, str) or not source.strip():
+                raise ValueError(
+                    "Security content source must be a non-empty string or None"
+                )
+            if source not in SecurityContentSource.ALL:
+                raise ValueError(
+                    f"Security content source is not supported: {source}"
+                )
+        self.field = field
+        self.source = source
+
+
+class SecurityContentSource:
+    SYSTEM = "system"
+    USER = "user"
+    RETRIEVED = "retrieved"
+    EXTERNAL = "external"
+
+    ALL = (
+        SYSTEM,
+        USER,
+        RETRIEVED,
+        EXTERNAL
+    )
+
+    TRUSTED = (
+        SYSTEM,
+    )
+
+    UNTRUSTED = (
+        USER,
+        RETRIEVED,
+        EXTERNAL
+    )
+
+    @classmethod
+    def is_valid(cls, source):
+        return source in cls.ALL
+
+    @classmethod
+    def is_trusted_source(cls, source):
+        return source in cls.TRUSTED
+
+    @classmethod
+    def is_untrusted_source(cls, source):
+        return source in cls.UNTRUSTED
+
+
 class SecuritySchema:
     def __init__(self, fields, allow_extra_fields=False):
         if not isinstance(fields, dict):
@@ -122,7 +187,10 @@ class ValidationResult:
         errors=None,
         warnings=None,
         trusted=False,
-        boundary=None
+        boundary=None,
+        source=None,
+        instructions_detected=False,
+        commands_detected=False
     ):
         if not isinstance(valid, bool):
             raise ValueError(
@@ -149,6 +217,23 @@ class ValidationResult:
                 raise ValueError(
                     "Validation result boundary must be a non-empty string or None"
                 )
+        if source is not None:
+            if not isinstance(source, str) or not source.strip():
+                raise ValueError(
+                    "Validation result source must be a non-empty string or None"
+                )
+            if not SecurityContentSource.is_valid(source):
+                raise ValueError(
+                    f"Validation result source is not supported: {source}"
+                )
+        if not isinstance(instructions_detected, bool):
+            raise ValueError(
+                "Validation result instructions_detected flag must be a boolean"
+            )
+        if not isinstance(commands_detected, bool):
+            raise ValueError(
+                "Validation result commands_detected flag must be a boolean"
+            )
         if trusted and not valid:
             raise ValueError(
                 "Invalid validation results cannot be trusted"
@@ -160,6 +245,9 @@ class ValidationResult:
         self.warnings = list(warnings)
         self.trusted = trusted
         self.boundary = boundary
+        self.source = source
+        self.instructions_detected = instructions_detected
+        self.commands_detected = commands_detected
 
     def is_valid(self):
         return self.valid is True
@@ -180,7 +268,10 @@ class ValidationResult:
             "errors": list(self.errors),
             "warnings": list(self.warnings),
             "trusted": self.trusted,
-            "boundary": self.boundary
+            "boundary": self.boundary,
+            "source": self.source,
+            "instructions_detected": self.instructions_detected,
+            "commands_detected": self.commands_detected
         }
 
 
@@ -212,6 +303,14 @@ class SecurityPolicy:
     DEFAULT_ALLOW_URL_CREDENTIALS = False
     DEFAULT_ALLOWED_HOSTS = ()
     DEFAULT_BLOCKED_HOSTS = ()
+    DEFAULT_REJECT_SUSPICIOUS_INSTRUCTIONS = True
+    DEFAULT_REJECT_EMBEDDED_COMMANDS = True
+    DEFAULT_ALLOWED_CONTENT_SOURCES = (
+        "system",
+        "user",
+        "retrieved",
+        "external",
+    )
     DEFAULT_ALLOWED_SCHEMES = (
         "https",
     )
@@ -248,6 +347,9 @@ class SecurityPolicy:
         allow_url_credentials=DEFAULT_ALLOW_URL_CREDENTIALS,
         allowed_hosts=None,
         blocked_hosts=None,
+        reject_suspicious_instructions=DEFAULT_REJECT_SUSPICIOUS_INSTRUCTIONS,
+        reject_embedded_commands=DEFAULT_REJECT_EMBEDDED_COMMANDS,
+        allowed_content_sources=DEFAULT_ALLOWED_CONTENT_SOURCES,
         allowed_schemes=None,
         allowed_file_types=None
     ):
@@ -442,6 +544,40 @@ class SecurityPolicy:
         self.blocked_hosts = tuple(
             normalized_blocked_hosts
         )
+        if not isinstance(reject_suspicious_instructions, bool):
+            raise ValueError(
+                "Security reject_suspicious_instructions must be a boolean"
+            )
+        if not isinstance(reject_embedded_commands, bool):
+            raise ValueError(
+                "Security reject_embedded_commands must be a boolean"
+            )
+        if not isinstance(allowed_content_sources, (list, tuple)):
+            raise ValueError(
+                "Security allowed content sources must be a list or tuple"
+            )
+        if not allowed_content_sources:
+            raise ValueError(
+                "Security allowed content sources cannot be empty"
+            )
+        normalized_content_sources = []
+        for content_source in allowed_content_sources:
+            if not isinstance(content_source, str) or not content_source.strip():
+                raise ValueError(
+                    "Security content sources must contain non-empty strings"
+                )
+            if content_source not in SecurityContentSource.ALL:
+                raise ValueError(
+                    f"Security content source is not supported: {content_source}"
+                )
+            normalized_content_sources.append(
+                content_source
+            )
+        self.reject_suspicious_instructions = reject_suspicious_instructions
+        self.reject_embedded_commands = reject_embedded_commands
+        self.allowed_content_sources = tuple(
+            normalized_content_sources
+        )
 
         if allowed_schemes is None:
             allowed_schemes = self.DEFAULT_ALLOWED_SCHEMES
@@ -627,6 +763,27 @@ class SecurityPolicy:
             raise ValueError(
                 "Security blocked hosts must be a tuple"
             )
+        if not isinstance(self.reject_suspicious_instructions, bool):
+            raise ValueError(
+                "Security reject_suspicious_instructions must be a boolean"
+            )
+        if not isinstance(self.reject_embedded_commands, bool):
+            raise ValueError(
+                "Security reject_embedded_commands must be a boolean"
+            )
+        if not isinstance(self.allowed_content_sources, tuple):
+            raise ValueError(
+                "Security allowed content sources must be a tuple"
+            )
+        if not self.allowed_content_sources:
+            raise ValueError(
+                "Security allowed content sources cannot be empty"
+            )
+        for content_source in self.allowed_content_sources:
+            if not SecurityContentSource.is_valid(content_source):
+                raise ValueError(
+                    f"Security content source is not supported: {content_source}"
+                )
 
         if not self.allowed_schemes:
             raise ValueError(
@@ -676,6 +833,11 @@ class SecurityPolicy:
             ),
             "blocked_hosts": tuple(
                 self.blocked_hosts
+            ),
+            "reject_suspicious_instructions": self.reject_suspicious_instructions,
+            "reject_embedded_commands": self.reject_embedded_commands,
+            "allowed_content_sources": tuple(
+                self.allowed_content_sources
             ),
             "allowed_schemes": tuple(
                 self.allowed_schemes
@@ -1070,7 +1232,10 @@ class SecurityValidator:
             errors=list(result.errors),
             warnings=list(result.warnings),
             trusted=True,
-            boundary=result.boundary
+            boundary=result.boundary,
+            source=result.source,
+            instructions_detected=result.instructions_detected,
+            commands_detected=result.commands_detected
         )
 
     def promote_boundary(
@@ -1103,7 +1268,10 @@ class SecurityValidator:
             errors=list(result.errors),
             warnings=list(result.warnings),
             trusted=True,
-            boundary=boundary
+            boundary=boundary,
+            source=result.source,
+            instructions_detected=result.instructions_detected,
+            commands_detected=result.commands_detected
         )
         self._trusted_boundaries.add(
             boundary
@@ -2372,6 +2540,306 @@ class SecurityValidator:
         target_result.boundary = TrustBoundary.URL
         return target_result
 
+    def _validate_content_source(
+        self,
+        source
+    ):
+        if not isinstance(source, str) or not source.strip():
+            raise ValueError(
+                "Security content source must be a non-empty string"
+            )
+        if not SecurityContentSource.is_valid(source):
+            raise ValueError(
+                f"Security content source is not supported: {source}"
+            )
+        if source not in self.policy.allowed_content_sources:
+            raise SecurityContentError(
+                "Security content source is disabled by policy",
+                source
+            )
+        return source
+
+    def _find_suspicious_instruction_markers(
+        self,
+        content
+    ):
+        lowered = content.lower()
+        markers = (
+            "ignore previous instructions",
+            "ignore all previous instructions",
+            "disregard previous instructions",
+            "disregard all previous instructions",
+            "forget previous instructions",
+            "override system instructions",
+            "override the system",
+            "reveal the system prompt",
+            "show the system prompt",
+            "system prompt",
+            "developer message",
+            "follow these instructions instead",
+            "do not follow the previous",
+            "jailbreak",
+            "prompt injection"
+        )
+        return tuple(
+            marker
+            for marker in markers
+            if marker in lowered
+        )
+
+    def _find_embedded_command_markers(
+        self,
+        content
+    ):
+        lowered = content.lower()
+        markers = (
+            "#!/bin/",
+            "powershell -",
+            "cmd.exe",
+            "invoke-expression",
+            "os.system(",
+            "subprocess.",
+            "curl ",
+            "wget ",
+            "curl|",
+            "wget|",
+            "rm -rf ",
+            "javascript:",
+            "<script",
+            "<?php"
+        )
+        return tuple(
+            marker
+            for marker in markers
+            if marker in lowered
+        )
+
+    def is_content_source_trusted(
+        self,
+        source
+    ):
+        source = self._validate_content_source(
+            source
+        )
+        return SecurityContentSource.is_trusted_source(
+            source
+        )
+
+    def validate_content(
+        self,
+        value,
+        source,
+        field="content",
+        boundary=None
+    ):
+        source = self._validate_content_source(
+            source
+        )
+        normalized_result = self.normalize_input(
+            value,
+            field
+        )
+        if normalized_result.is_invalid():
+            normalized_result.source = source
+            normalized_result.boundary = boundary
+            return normalized_result
+        normalized_value = normalized_result.value
+        instruction_markers = self._find_suspicious_instruction_markers(
+            normalized_value
+        )
+        command_markers = self._find_embedded_command_markers(
+            normalized_value
+        )
+        errors = []
+        if (
+            instruction_markers
+            and self.policy.reject_suspicious_instructions
+            and SecurityContentSource.is_untrusted_source(source)
+        ):
+            error = self._record_failure(
+                f"{field} contains suspicious instruction patterns",
+                field,
+                SecurityContentError
+            )
+            errors.append(
+                str(error)
+            )
+        if (
+            command_markers
+            and self.policy.reject_embedded_commands
+            and SecurityContentSource.is_untrusted_source(source)
+        ):
+            error = self._record_failure(
+                f"{field} contains embedded command patterns",
+                field,
+                SecurityContentError
+            )
+            errors.append(
+                str(error)
+            )
+        result = self._build_result(
+            normalized_value,
+            errors,
+            warnings=[]
+        )
+        result.boundary = boundary
+        result.source = source
+        result.instructions_detected = bool(
+            instruction_markers
+        )
+        result.commands_detected = bool(
+            command_markers
+        )
+        return result
+
+    def validate_user_content(
+        self,
+        value,
+        field="user_content"
+    ):
+        return self.validate_content(
+            value,
+            SecurityContentSource.USER,
+            field,
+            TrustBoundary.USER_QUERY
+        )
+
+    def validate_retrieved_content(
+        self,
+        value,
+        field="retrieved_content"
+    ):
+        return self.validate_content(
+            value,
+            SecurityContentSource.RETRIEVED,
+            field,
+            TrustBoundary.DOCUMENT
+        )
+
+    def validate_external_content(
+        self,
+        value,
+        field="external_content"
+    ):
+        return self.validate_content(
+            value,
+            SecurityContentSource.EXTERNAL,
+            field,
+            TrustBoundary.EXTERNAL_RESPONSE
+        )
+
+    def validate_system_content(
+        self,
+        value,
+        field="system_content"
+    ):
+        return self.validate_content(
+            value,
+            SecurityContentSource.SYSTEM,
+            field,
+            TrustBoundary.CONFIGURATION
+        )
+
+    def validate_content_package(
+        self,
+        items,
+        field="content_package"
+    ):
+        if not isinstance(items, (list, tuple)):
+            error = self._record_failure(
+                f"{field} must be a list or tuple of content items",
+                field,
+                SecurityContentError
+            )
+            return self._build_result(
+                items,
+                [str(error)]
+            )
+        validated_items = []
+        errors = []
+        for index, item in enumerate(items):
+            item_field = f"{field}[{index}]"
+            if not isinstance(item, dict):
+                error = self._record_failure(
+                    f"{item_field} must be a dictionary",
+                    item_field,
+                    SecurityContentError
+                )
+                errors.append(
+                    str(error)
+                )
+                continue
+            if "source" not in item:
+                error = self._record_failure(
+                    f"{item_field} is missing content source metadata",
+                    item_field,
+                    SecurityContentError
+                )
+                errors.append(
+                    str(error)
+                )
+                continue
+            if "content" not in item:
+                error = self._record_failure(
+                    f"{item_field} is missing content",
+                    item_field,
+                    SecurityContentError
+                )
+                errors.append(
+                    str(error)
+                )
+                continue
+            try:
+                source = self._validate_content_source(
+                    item["source"]
+                )
+            except Exception as exception:
+                errors.append(
+                    str(exception)
+                )
+                continue
+            content_result = self.validate_content(
+                item["content"],
+                source,
+                f"{item_field}.content",
+                item.get("boundary")
+            )
+            if content_result.is_invalid():
+                errors.extend(
+                    content_result.errors
+                )
+                continue
+            validated_items.append(
+                {
+                    "content": content_result.value,
+                    "source": content_result.source,
+                    "boundary": content_result.boundary,
+                    "trusted": content_result.is_trusted(),
+                    "instructions_detected": content_result.instructions_detected,
+                    "commands_detected": content_result.commands_detected
+                }
+            )
+        return self._build_result(
+            validated_items,
+            errors
+        )
+
+    def get_content_metadata(
+        self,
+        result
+    ):
+        if not isinstance(result, ValidationResult):
+            raise ValueError(
+                "Security content metadata requires a ValidationResult"
+            )
+        return {
+            "source": result.source,
+            "trusted": result.is_trusted(),
+            "boundary": result.boundary,
+            "instructions_detected": result.instructions_detected,
+            "commands_detected": result.commands_detected
+        }
+
     def get_policy(self):
         return self.policy.to_dict()
 
@@ -2385,6 +2853,15 @@ class SecurityValidator:
             ),
             "error_handler_integrated": (
                 self.error_handler is not None
+            ),
+            "supported_content_sources": list(
+                SecurityContentSource.ALL
+            ),
+            "trusted_content_sources": list(
+                SecurityContentSource.TRUSTED
+            ),
+            "untrusted_content_sources": list(
+                SecurityContentSource.UNTRUSTED
             ),
             "supported_trust_boundaries": self.get_trust_boundaries(),
             "trusted_boundaries": self.get_trusted_boundaries()
