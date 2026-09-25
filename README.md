@@ -609,3 +609,6 @@ Complete security and input validation pipeline is online.
 
 Version 0.14.0
 Rewrote tests file to be more security sound and test features better.
+
+Version 0.15.0
+UI Architecture Foundation
