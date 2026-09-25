@@ -573,3 +573,6 @@ Encoding and normalization security is online.
 
 Version 0.13.5
 Document and file safety is online.
+
+Version 0.13.6
+Path traversal protection is online.

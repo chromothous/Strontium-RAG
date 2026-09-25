@@ -3,6 +3,7 @@ from classes.error_handler import ErrorHandler
 import os
 import tempfile
 import unicodedata
+from pathlib import Path
 
 
 class SecurityError(Exception):
@@ -200,6 +201,11 @@ class SecurityPolicy:
     DEFAULT_REJECT_BINARY_CONTENT = True
     DEFAULT_REJECT_DANGEROUS_CONTENT = True
     DEFAULT_SECURE_TEMP_FILE_MODE = 0o600
+    DEFAULT_ALLOW_RELATIVE_PATHS = False
+    DEFAULT_REJECT_PARENT_TRAVERSAL = True
+    DEFAULT_REJECT_SYMLINKS = True
+    DEFAULT_ALLOWED_PATH_ROOTS = ()
+    DEFAULT_PROTECTED_PATHS = ()
     DEFAULT_ALLOWED_SCHEMES = (
         "https",
     )
@@ -227,6 +233,11 @@ class SecurityPolicy:
         reject_binary_content=DEFAULT_REJECT_BINARY_CONTENT,
         reject_dangerous_content=DEFAULT_REJECT_DANGEROUS_CONTENT,
         secure_temp_file_mode=DEFAULT_SECURE_TEMP_FILE_MODE,
+        allow_relative_paths=DEFAULT_ALLOW_RELATIVE_PATHS,
+        reject_parent_traversal=DEFAULT_REJECT_PARENT_TRAVERSAL,
+        reject_symlinks=DEFAULT_REJECT_SYMLINKS,
+        allowed_path_roots=None,
+        protected_paths=None,
         allowed_schemes=None,
         allowed_file_types=None
     ):
@@ -312,6 +323,52 @@ class SecurityPolicy:
             raise ValueError(
                 "Security secure_temp_file_mode must be between 1 and 0o777"
             )
+        if not isinstance(allow_relative_paths, bool):
+            raise ValueError(
+                "Security allow_relative_paths must be a boolean"
+            )
+        if not isinstance(reject_parent_traversal, bool):
+            raise ValueError(
+                "Security reject_parent_traversal must be a boolean"
+            )
+        if not isinstance(reject_symlinks, bool):
+            raise ValueError(
+                "Security reject_symlinks must be a boolean"
+            )
+        if allowed_path_roots is None:
+            allowed_path_roots = self.DEFAULT_ALLOWED_PATH_ROOTS
+        if protected_paths is None:
+            protected_paths = self.DEFAULT_PROTECTED_PATHS
+        if not isinstance(allowed_path_roots, (list, tuple)):
+            raise ValueError(
+                "Security allowed path roots must be a list or tuple"
+            )
+        if not isinstance(protected_paths, (list, tuple)):
+            raise ValueError(
+                "Security protected paths must be a list or tuple"
+            )
+        normalized_roots = []
+        for root in allowed_path_roots:
+            if not isinstance(root, str) or not root.strip():
+                raise ValueError(
+                    "Security allowed path roots must contain non-empty strings"
+                )
+            normalized_roots.append(
+                str(
+                    Path(root).expanduser().resolve(strict=False)
+                )
+            )
+        normalized_protected = []
+        for protected in protected_paths:
+            if not isinstance(protected, str) or not protected.strip():
+                raise ValueError(
+                    "Security protected paths must contain non-empty strings"
+                )
+            normalized_protected.append(
+                str(
+                    Path(protected).expanduser().resolve(strict=False)
+                )
+            )
         self.encoding = encoding.strip().lower()
         self.normalize_unicode = normalize_unicode
         self.normalize_whitespace = normalize_whitespace
@@ -320,6 +377,15 @@ class SecurityPolicy:
         self.reject_binary_content = reject_binary_content
         self.reject_dangerous_content = reject_dangerous_content
         self.secure_temp_file_mode = secure_temp_file_mode
+        self.allow_relative_paths = allow_relative_paths
+        self.reject_parent_traversal = reject_parent_traversal
+        self.reject_symlinks = reject_symlinks
+        self.allowed_path_roots = tuple(
+            normalized_roots
+        )
+        self.protected_paths = tuple(
+            normalized_protected
+        )
 
         if allowed_schemes is None:
             allowed_schemes = self.DEFAULT_ALLOWED_SCHEMES
@@ -469,6 +535,26 @@ class SecurityPolicy:
             raise ValueError(
                 "Security secure_temp_file_mode must be between 1 and 0o777"
             )
+        if not isinstance(self.allow_relative_paths, bool):
+            raise ValueError(
+                "Security allow_relative_paths must be a boolean"
+            )
+        if not isinstance(self.reject_parent_traversal, bool):
+            raise ValueError(
+                "Security reject_parent_traversal must be a boolean"
+            )
+        if not isinstance(self.reject_symlinks, bool):
+            raise ValueError(
+                "Security reject_symlinks must be a boolean"
+            )
+        if not isinstance(self.allowed_path_roots, tuple):
+            raise ValueError(
+                "Security allowed path roots must be a tuple"
+            )
+        if not isinstance(self.protected_paths, tuple):
+            raise ValueError(
+                "Security protected paths must be a tuple"
+            )
 
         if not self.allowed_schemes:
             raise ValueError(
@@ -502,6 +588,15 @@ class SecurityPolicy:
             "reject_binary_content": self.reject_binary_content,
             "reject_dangerous_content": self.reject_dangerous_content,
             "secure_temp_file_mode": self.secure_temp_file_mode,
+            "allow_relative_paths": self.allow_relative_paths,
+            "reject_parent_traversal": self.reject_parent_traversal,
+            "reject_symlinks": self.reject_symlinks,
+            "allowed_path_roots": tuple(
+                self.allowed_path_roots
+            ),
+            "protected_paths": tuple(
+                self.protected_paths
+            ),
             "allowed_schemes": tuple(
                 self.allowed_schemes
             ),
@@ -1609,15 +1704,13 @@ class SecurityValidator:
         file_path,
         field="file"
     ):
-        if not isinstance(file_path, str) or not file_path.strip():
-            error = self._record_failure(
-                f"{field} path must be a non-empty string",
-                field
-            )
-            return self._build_result(
-                file_path,
-                [str(error)]
-            )
+        path_result = self.validate_safe_file_path(
+            file_path,
+            field
+        )
+        if path_result.is_invalid():
+            return path_result
+        file_path = path_result.value
         extension_result = self.validate_file_extension(
             file_path,
             field
@@ -1721,6 +1814,234 @@ class SecurityValidator:
             "Security secure temporary file created"
         )
         return file_path
+
+    def _path_contains_symlink(
+        self,
+        path
+    ):
+        path = Path(path)
+        if not path.is_absolute():
+            path = Path.cwd() / path
+        current = Path(path.anchor)
+        for part in path.parts:
+            if part == path.anchor:
+                continue
+            current = current / part
+            try:
+                if current.is_symlink():
+                    return True
+            except OSError:
+                return True
+        return False
+
+    def _is_path_within_root(
+        self,
+        path,
+        root
+    ):
+        try:
+            Path(path).relative_to(
+                Path(root)
+            )
+            return True
+        except ValueError:
+            return False
+
+    def _is_protected_path(
+        self,
+        path
+    ):
+        for protected in self.policy.protected_paths:
+            if self._is_path_within_root(
+                path,
+                protected
+            ):
+                return True
+        return False
+
+    def _contains_parent_traversal(
+        self,
+        path
+    ):
+        normalized = path.replace(
+            "\\",
+            "/"
+        )
+        return ".." in normalized.split("/")
+
+    def validate_path(
+        self,
+        path,
+        field="file_path",
+        must_exist=False,
+        allow_directory=False
+    ):
+        if not isinstance(path, str) or not path.strip():
+            error = self._record_failure(
+                f"{field} must be a non-empty path string",
+                field
+            )
+            return self._build_result(
+                path,
+                [str(error)]
+            )
+        if "\x00" in path:
+            error = self._record_failure(
+                f"{field} contains a null byte",
+                field
+            )
+            return self._build_result(
+                path,
+                [str(error)]
+            )
+        if (
+            self.policy.reject_parent_traversal
+            and self._contains_parent_traversal(path)
+        ):
+            error = self._record_failure(
+                f"{field} contains parent traversal",
+                field
+            )
+            return self._build_result(
+                path,
+                [str(error)]
+            )
+        raw_path = Path(
+            path
+        ).expanduser()
+        if not raw_path.is_absolute():
+            if not self.policy.allow_relative_paths:
+                error = self._record_failure(
+                    f"{field} must be an absolute path",
+                    field
+                )
+                return self._build_result(
+                    path,
+                    [str(error)]
+                )
+            raw_path = Path.cwd() / raw_path
+        normalized_path = Path(
+            os.path.abspath(
+                os.path.normpath(
+                    str(raw_path)
+                )
+            )
+        )
+        if (
+            self.policy.reject_symlinks
+            and self._path_contains_symlink(normalized_path)
+        ):
+            error = self._record_failure(
+                f"{field} contains a symbolic link",
+                field
+            )
+            return self._build_result(
+                path,
+                [str(error)]
+            )
+        resolved_path = normalized_path.resolve(
+            strict=False
+        )
+        if self._is_protected_path(
+            resolved_path
+        ):
+            error = self._record_failure(
+                f"{field} targets a protected path",
+                field
+            )
+            return self._build_result(
+                path,
+                [str(error)]
+            )
+        if self.policy.allowed_path_roots:
+            allowed = any(
+                self._is_path_within_root(
+                    resolved_path,
+                    root
+                )
+                for root in self.policy.allowed_path_roots
+            )
+            if not allowed:
+                error = self._record_failure(
+                    f"{field} is outside the allowed path roots",
+                    field
+                )
+                return self._build_result(
+                    path,
+                    [str(error)]
+                )
+        exists = resolved_path.exists()
+        if must_exist and not exists:
+            error = self._record_failure(
+                f"{field} does not exist",
+                field
+            )
+            return self._build_result(
+                path,
+                [str(error)]
+            )
+        if (
+            exists
+            and not allow_directory
+            and resolved_path.is_dir()
+        ):
+            error = self._record_failure(
+                f"{field} must reference a file",
+                field
+            )
+            return self._build_result(
+                path,
+                [str(error)]
+            )
+        return self._build_result(
+            str(resolved_path)
+        )
+
+    def validate_file_path(
+        self,
+        path,
+        field="file_path",
+        must_exist=False
+    ):
+        result = self.validate_path(
+            path,
+            field,
+            must_exist=must_exist,
+            allow_directory=False
+        )
+        if result.is_invalid():
+            return result
+        extension_result = self.validate_file_extension(
+            result.value,
+            field
+        )
+        if extension_result.is_invalid():
+            return extension_result
+        return result
+
+    def validate_directory_path(
+        self,
+        path,
+        field="directory",
+        must_exist=False
+    ):
+        return self.validate_path(
+            path,
+            field,
+            must_exist=must_exist,
+            allow_directory=True
+        )
+
+    def validate_safe_file_path(
+        self,
+        path,
+        field="file_path"
+    ):
+        return self.validate_file_path(
+            path,
+            field,
+            must_exist=True
+        )
 
     def get_policy(self):
         return self.policy.to_dict()

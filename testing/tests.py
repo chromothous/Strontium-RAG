@@ -10427,6 +10427,118 @@ def full_test():
         print(red(e))
         print(red("Version 0.13.5 failed"))
 
+    try:
+        tests += 1
+        from classes.security import SecurityValidator, SecurityPolicy, ValidationResult, SecurityError, SecurityValidationError, SecurityPolicyError, SecuritySchemaError, SecuritySchema, TrustBoundary
+        from classes.logger import Logger
+        from classes.error_handler import ErrorHandler
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+        security_logger = Logger()
+        security_error_handler = ErrorHandler(security_logger)
+        with TemporaryDirectory() as temp_directory:
+            root = Path(temp_directory)
+            safe_file = root / "safe.txt"
+            safe_file.write_text("safe document", encoding="utf-8")
+            nested_directory = root / "nested"
+            nested_directory.mkdir()
+            protected_directory = root / "protected"
+            protected_directory.mkdir()
+            protected_file = protected_directory / "secret.txt"
+            protected_file.write_text("protected", encoding="utf-8")
+            policy = SecurityPolicy(allowed_path_roots=[str(root)], protected_paths=[str(protected_directory)], allow_relative_paths=False, reject_parent_traversal=True, reject_symlinks=True)
+            security = SecurityValidator(security_logger, security_error_handler, policy)
+            assert policy.allow_relative_paths is False, "Security policy should reject relative paths by default"
+            assert policy.reject_parent_traversal is True, "Security policy should reject parent traversal by default"
+            assert policy.reject_symlinks is True, "Security policy should reject symbolic links by default"
+            assert tuple(policy.allowed_path_roots) == (str(root.resolve()),), "Security policy should normalize allowed path roots"
+            assert tuple(policy.protected_paths) == (str(protected_directory.resolve()),), "Security policy should normalize protected paths"
+            safe_result = security.validate_path(str(safe_file), "file_path", must_exist=True)
+            assert isinstance(safe_result, ValidationResult), "Path validation should return a ValidationResult"
+            assert safe_result.is_valid() is True, "Path validation should accept an existing safe path"
+            assert safe_result.value == str(safe_file.resolve()), "Path validation should return the normalized absolute path"
+            relative_result = security.validate_path("safe.txt", "file_path")
+            assert relative_result.is_valid() is False, "Path validation should reject relative paths by default"
+            traversal_result = security.validate_path(str(nested_directory / ".." / "safe.txt"), "file_path")
+            assert traversal_result.is_valid() is False, "Path validation should reject parent traversal"
+            outside_result = security.validate_path(str(root.parent / "outside.txt"), "file_path")
+            assert outside_result.is_valid() is False, "Path validation should reject paths outside configured roots"
+            protected_result = security.validate_path(str(protected_file), "file_path", must_exist=True)
+            assert protected_result.is_valid() is False, "Path validation should reject protected paths"
+            directory_result = security.validate_path(str(root), "file_path", must_exist=True)
+            assert directory_result.is_valid() is False, "File path validation should reject directories"
+            directory_allowed_result = security.validate_directory_path(str(root), "directory", must_exist=True)
+            assert directory_allowed_result.is_valid() is True, "Directory validation should accept configured safe directories"
+            null_result = security.validate_path(str(safe_file) + "\x00", "file_path")
+            assert null_result.is_valid() is False, "Path validation should reject null bytes"
+            safe_file_result = security.validate_file_path(str(safe_file), "file_path", must_exist=True)
+            assert safe_file_result.is_valid() is True, "File path validation should accept an existing allowed text file"
+            missing_result = security.validate_safe_file_path(str(root / "missing.txt"), "file_path")
+            assert missing_result.is_valid() is False, "Safe file path validation should reject missing files"
+            symlink = root / "link.txt"
+            symlink_available = True
+            try:
+                symlink.symlink_to(safe_file)
+            except OSError:
+                symlink_available = False
+            if symlink_available:
+                symlink_result = security.validate_safe_file_path(str(symlink), "file_path")
+                assert symlink_result.is_valid() is False, "Path validation should reject symbolic links when configured to do so"
+            permissive_policy = SecurityPolicy(allowed_path_roots=[str(root)], protected_paths=[], reject_parent_traversal=True, reject_symlinks=False)
+            permissive_security = SecurityValidator(Logger(), ErrorHandler(Logger()), permissive_policy)
+            if symlink_available:
+                permissive_symlink_result = permissive_security.validate_safe_file_path(str(symlink), "file_path")
+                assert permissive_symlink_result.is_valid() is True, "Path validation should permit symbolic links when explicitly configured to do so"
+        try:
+            SecurityPolicy(allow_relative_paths="yes")
+            assert False, "Security policy should reject non-boolean relative-path settings"
+        except ValueError:
+            pass
+        try:
+            SecurityPolicy(reject_parent_traversal="yes")
+            assert False, "Security policy should reject non-boolean parent-traversal settings"
+        except ValueError:
+            pass
+        try:
+            SecurityPolicy(reject_symlinks="yes")
+            assert False, "Security policy should reject non-boolean symbolic-link settings"
+        except ValueError:
+            pass
+        try:
+            SecurityPolicy(allowed_path_roots="not a collection")
+            assert False, "Security policy should reject invalid allowed path root collections"
+        except ValueError:
+            pass
+        try:
+            SecurityPolicy(protected_paths="not a collection")
+            assert False, "Security policy should reject invalid protected path collections"
+        except ValueError:
+            pass
+        try:
+            SecurityPolicy(allowed_path_roots=[""])
+            assert False, "Security policy should reject empty allowed path roots"
+        except ValueError:
+            pass
+        security = SecurityValidator(Logger(), ErrorHandler(Logger()))
+        empty_path_result = security.validate_path("", "file_path")
+        assert empty_path_result.is_valid() is False, "Security path validation should reject empty paths"
+        policy_copy = security.get_policy()
+        assert "allow_relative_paths" in policy_copy, "Security policy serialization should expose relative-path policy"
+        assert "reject_parent_traversal" in policy_copy, "Security policy serialization should expose parent-traversal policy"
+        assert "reject_symlinks" in policy_copy, "Security policy serialization should expose symbolic-link policy"
+        assert "allowed_path_roots" in policy_copy, "Security policy serialization should expose allowed path roots"
+        assert "protected_paths" in policy_copy, "Security policy serialization should expose protected paths"
+        state = security.get_security_state()
+        assert state["policy"]["allow_relative_paths"] is False, "Security state should preserve the secure relative-path default"
+        diagnostics = security_error_handler.get_diagnostics()
+        assert any(diagnostic["category"] == "validation" and diagnostic["component"] == "security" for diagnostic in diagnostics), "Path security failures should remain integrated with security validation diagnostics"
+        success += 1
+        print(green("Version 0.13.6 path traversal protection is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.13.6 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
