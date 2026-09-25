@@ -4,6 +4,7 @@ import os
 import re
 import json
 import math
+import time
 import tempfile
 import unicodedata
 import ipaddress
@@ -109,6 +110,31 @@ class SecuritySerializationError(SecurityError):
                 raise ValueError(
                     "Security serialization field must be a non-empty string or None"
                 )
+        self.field = field
+
+
+class SecurityResourceError(SecurityError):
+    def __init__(
+        self,
+        message,
+        resource_type=None,
+        field=None
+    ):
+        super().__init__(
+            message,
+            category="resource"
+        )
+        if resource_type is not None:
+            if not isinstance(resource_type, str) or not resource_type.strip():
+                raise ValueError(
+                    "Security resource type must be a non-empty string or None"
+                )
+        if field is not None:
+            if not isinstance(field, str) or not field.strip():
+                raise ValueError(
+                    "Security resource field must be a non-empty string or None"
+                )
+        self.resource_type = resource_type
         self.field = field
 
 
@@ -420,6 +446,15 @@ class SecurityPolicy:
     DEFAULT_REJECT_UNEXPECTED_SERIALIZED_FIELDS = True
     DEFAULT_ALLOW_NON_FINITE_NUMBERS = False
     DEFAULT_SERIALIZATION_VERSION = "1"
+    DEFAULT_MAX_DOCUMENTS_PER_OPERATION = 100
+    DEFAULT_MAX_CHUNKS_PER_OPERATION = 1000
+    DEFAULT_MAX_METADATA_ITEMS_PER_OPERATION = 1000
+    DEFAULT_MAX_CONVERSATION_MESSAGES = 1000
+    DEFAULT_MAX_RETRIEVAL_REQUESTS = 100
+    DEFAULT_MAX_PROCESSING_ITEMS = 10000
+    DEFAULT_MAX_MEMORY_UNITS = 1000000
+    DEFAULT_MAX_EXPANSION_RATIO = 10.0
+    DEFAULT_MAX_PROCESSING_TIME_MS = 30000
     DEFAULT_ALLOWED_SCHEMES = (
         "https",
     )
@@ -472,6 +507,15 @@ class SecurityPolicy:
         reject_unexpected_serialized_fields=DEFAULT_REJECT_UNEXPECTED_SERIALIZED_FIELDS,
         allow_non_finite_numbers=DEFAULT_ALLOW_NON_FINITE_NUMBERS,
         serialization_version=DEFAULT_SERIALIZATION_VERSION,
+        max_documents_per_operation=DEFAULT_MAX_DOCUMENTS_PER_OPERATION,
+        max_chunks_per_operation=DEFAULT_MAX_CHUNKS_PER_OPERATION,
+        max_metadata_items_per_operation=DEFAULT_MAX_METADATA_ITEMS_PER_OPERATION,
+        max_conversation_messages=DEFAULT_MAX_CONVERSATION_MESSAGES,
+        max_retrieval_requests=DEFAULT_MAX_RETRIEVAL_REQUESTS,
+        max_processing_items=DEFAULT_MAX_PROCESSING_ITEMS,
+        max_memory_units=DEFAULT_MAX_MEMORY_UNITS,
+        max_expansion_ratio=DEFAULT_MAX_EXPANSION_RATIO,
+        max_processing_time_ms=DEFAULT_MAX_PROCESSING_TIME_MS,
         allowed_schemes=None,
         allowed_file_types=None
     ):
@@ -835,6 +879,47 @@ class SecurityPolicy:
         self.reject_unexpected_serialized_fields = reject_unexpected_serialized_fields
         self.allow_non_finite_numbers = allow_non_finite_numbers
         self.serialization_version = serialization_version.strip()
+        self.max_documents_per_operation = self._validate_positive_integer(
+            max_documents_per_operation,
+            "max documents per operation"
+        )
+        self.max_chunks_per_operation = self._validate_positive_integer(
+            max_chunks_per_operation,
+            "max chunks per operation"
+        )
+        self.max_metadata_items_per_operation = self._validate_positive_integer(
+            max_metadata_items_per_operation,
+            "max metadata items per operation"
+        )
+        self.max_conversation_messages = self._validate_positive_integer(
+            max_conversation_messages,
+            "max conversation messages"
+        )
+        self.max_retrieval_requests = self._validate_positive_integer(
+            max_retrieval_requests,
+            "max retrieval requests"
+        )
+        self.max_processing_items = self._validate_positive_integer(
+            max_processing_items,
+            "max processing items"
+        )
+        self.max_memory_units = self._validate_positive_integer(
+            max_memory_units,
+            "max memory units"
+        )
+        if not isinstance(max_expansion_ratio, (int, float)) or isinstance(max_expansion_ratio, bool):
+            raise ValueError(
+                "Security max expansion ratio must be a number"
+            )
+        if not math.isfinite(max_expansion_ratio) or max_expansion_ratio <= 0:
+            raise ValueError(
+                "Security max expansion ratio must be finite and positive"
+            )
+        self.max_expansion_ratio = float(max_expansion_ratio)
+        self.max_processing_time_ms = self._validate_positive_integer(
+            max_processing_time_ms,
+            "max processing time"
+        )
 
         if allowed_schemes is None:
             allowed_schemes = self.DEFAULT_ALLOWED_SCHEMES
@@ -1127,6 +1212,46 @@ class SecurityPolicy:
             raise ValueError(
                 "Security serialization version exceeds the maximum field length"
             )
+        self._validate_positive_integer(
+            self.max_documents_per_operation,
+            "max documents per operation"
+        )
+        self._validate_positive_integer(
+            self.max_chunks_per_operation,
+            "max chunks per operation"
+        )
+        self._validate_positive_integer(
+            self.max_metadata_items_per_operation,
+            "max metadata items per operation"
+        )
+        self._validate_positive_integer(
+            self.max_conversation_messages,
+            "max conversation messages"
+        )
+        self._validate_positive_integer(
+            self.max_retrieval_requests,
+            "max retrieval requests"
+        )
+        self._validate_positive_integer(
+            self.max_processing_items,
+            "max processing items"
+        )
+        self._validate_positive_integer(
+            self.max_memory_units,
+            "max memory units"
+        )
+        if not isinstance(self.max_expansion_ratio, (int, float)) or isinstance(self.max_expansion_ratio, bool):
+            raise ValueError(
+                "Security max expansion ratio must be a number"
+            )
+        if not math.isfinite(self.max_expansion_ratio) or self.max_expansion_ratio <= 0:
+            raise ValueError(
+                "Security max expansion ratio must be finite and positive"
+            )
+        self._validate_positive_integer(
+            self.max_processing_time_ms,
+            "max processing time"
+        )
 
         if not self.allowed_schemes:
             raise ValueError(
@@ -1201,6 +1326,15 @@ class SecurityPolicy:
             "reject_unexpected_serialized_fields": self.reject_unexpected_serialized_fields,
             "allow_non_finite_numbers": self.allow_non_finite_numbers,
             "serialization_version": self.serialization_version,
+            "max_documents_per_operation": self.max_documents_per_operation,
+            "max_chunks_per_operation": self.max_chunks_per_operation,
+            "max_metadata_items_per_operation": self.max_metadata_items_per_operation,
+            "max_conversation_messages": self.max_conversation_messages,
+            "max_retrieval_requests": self.max_retrieval_requests,
+            "max_processing_items": self.max_processing_items,
+            "max_memory_units": self.max_memory_units,
+            "max_expansion_ratio": self.max_expansion_ratio,
+            "max_processing_time_ms": self.max_processing_time_ms,
             "allowed_schemes": tuple(
                 self.allowed_schemes
             ),
@@ -1236,6 +1370,92 @@ class TrustBoundary:
     @classmethod
     def is_valid(cls, boundary):
         return boundary in cls.ALL
+
+
+class SecurityResourceBudget:
+    RESOURCE_TYPES = (
+        "documents",
+        "chunks",
+        "metadata_items",
+        "conversation_messages",
+        "retrieval_requests",
+        "processing_items",
+        "memory_units"
+    )
+
+    def __init__(
+        self,
+        validator,
+        field="workload"
+    ):
+        if not isinstance(validator, SecurityValidator):
+            raise ValueError(
+                "Security resource budget validator must be a SecurityValidator"
+            )
+        if not isinstance(field, str) or not field.strip():
+            raise ValueError(
+                "Security resource budget field must be a non-empty string"
+            )
+        self.validator = validator
+        self.field = field.strip()
+        self.started_at = time.monotonic()
+        self.usage = {
+            resource_type: 0
+            for resource_type in self.RESOURCE_TYPES
+        }
+
+    def consume(
+        self,
+        resource_type,
+        amount=1
+    ):
+        if resource_type not in self.RESOURCE_TYPES:
+            raise ValueError(
+                "Unsupported security resource type"
+            )
+        if not isinstance(amount, int) or isinstance(amount, bool) or amount < 0:
+            raise ValueError(
+                "Security resource budget amount must be a non-negative integer"
+            )
+        proposed = self.usage[resource_type] + amount
+        result = self.validator._validate_resource_count(
+            proposed,
+            resource_type,
+            f"{self.field}.{resource_type}"
+        )
+        if result.is_valid():
+            self.usage[resource_type] = proposed
+            result.value = proposed
+        return result
+
+    def check_memory(
+        self,
+        value
+    ):
+        return self.validator.validate_memory_growth(
+            value,
+            f"{self.field}.memory"
+        )
+
+    def check_expansion(
+        self,
+        input_count,
+        output_count
+    ):
+        return self.validator.validate_expansion(
+            input_count,
+            output_count,
+            f"{self.field}.expansion"
+        )
+
+    def check_processing_time(self):
+        return self.validator.validate_processing_time(
+            self.started_at,
+            f"{self.field}.processing"
+        )
+
+    def get_usage(self):
+        return dict(self.usage)
 
 
 class SecurityValidator:
@@ -4385,6 +4605,474 @@ class SecurityValidator:
             field
         )
 
+    def _get_resource_limit(self, resource_type):
+        limits = {
+            "documents": self.policy.max_documents_per_operation,
+            "chunks": self.policy.max_chunks_per_operation,
+            "metadata_items": self.policy.max_metadata_items_per_operation,
+            "conversation_messages": self.policy.max_conversation_messages,
+            "retrieval_requests": self.policy.max_retrieval_requests,
+            "processing_items": self.policy.max_processing_items,
+            "memory_units": self.policy.max_memory_units
+        }
+        if resource_type not in limits:
+            raise ValueError(
+                "Unsupported security resource type"
+            )
+        return limits[resource_type]
+
+    def _validate_resource_count(
+        self,
+        count,
+        resource_type,
+        field=None
+    ):
+        if field is None:
+            field = resource_type
+        if not isinstance(count, int) or isinstance(count, bool) or count < 0:
+            error = self._record_failure(
+                f"{field} must be a non-negative integer",
+                field,
+                SecurityResourceError
+            )
+            return self._build_result(
+                None,
+                [str(error)]
+            )
+        limit = self._get_resource_limit(
+            resource_type
+        )
+        if count > limit:
+            error = self._record_failure(
+                f"{field} exceeds the maximum allowed resource count",
+                field,
+                SecurityResourceError
+            )
+            return self._build_result(
+                None,
+                [str(error)]
+            )
+        return ValidationResult(
+            valid=True,
+            value=count,
+            errors=[],
+            warnings=[],
+            trusted=False
+        )
+
+    def validate_document_count(
+        self,
+        count,
+        field="documents"
+    ):
+        return self._validate_resource_count(
+            count,
+            "documents",
+            field
+        )
+
+    def validate_chunk_count(
+        self,
+        count,
+        field="chunks"
+    ):
+        return self._validate_resource_count(
+            count,
+            "chunks",
+            field
+        )
+
+    def validate_metadata_count(
+        self,
+        count,
+        field="metadata_items"
+    ):
+        return self._validate_resource_count(
+            count,
+            "metadata_items",
+            field
+        )
+
+    def validate_conversation_message_count(
+        self,
+        count,
+        field="conversation_messages"
+    ):
+        return self._validate_resource_count(
+            count,
+            "conversation_messages",
+            field
+        )
+
+    def validate_retrieval_request_count(
+        self,
+        count,
+        field="retrieval_requests"
+    ):
+        return self._validate_resource_count(
+            count,
+            "retrieval_requests",
+            field
+        )
+
+    def validate_processing_item_count(
+        self,
+        count,
+        field="processing_items"
+    ):
+        return self._validate_resource_count(
+            count,
+            "processing_items",
+            field
+        )
+
+    def _estimate_memory_units(
+        self,
+        value,
+        depth=0,
+        seen=None
+    ):
+        if seen is None:
+            seen = set()
+        if depth > self.policy.max_nesting_depth:
+            return None, [
+                "resource input exceeds the maximum allowed nesting depth"
+            ]
+        if isinstance(value, (str, bytes, bytearray)):
+            return len(value), []
+        if value is None or isinstance(value, (bool, int, float)):
+            return 1, []
+        if isinstance(value, dict):
+            object_id = id(value)
+            if object_id in seen:
+                return None, [
+                    "resource input contains a recursive reference"
+                ]
+            seen.add(object_id)
+            units = 1
+            errors = []
+            for key, item in value.items():
+                key_units, key_errors = self._estimate_memory_units(
+                    str(key),
+                    depth + 1,
+                    seen
+                )
+                if key_errors:
+                    errors.extend(key_errors)
+                else:
+                    units += key_units
+                item_units, item_errors = self._estimate_memory_units(
+                    item,
+                    depth + 1,
+                    seen
+                )
+                if item_errors:
+                    errors.extend(item_errors)
+                else:
+                    units += item_units
+            seen.remove(object_id)
+            return units, errors
+        if isinstance(value, (list, tuple)):
+            object_id = id(value)
+            if object_id in seen:
+                return None, [
+                    "resource input contains a recursive reference"
+                ]
+            seen.add(object_id)
+            units = 1
+            errors = []
+            for item in value:
+                item_units, item_errors = self._estimate_memory_units(
+                    item,
+                    depth + 1,
+                    seen
+                )
+                if item_errors:
+                    errors.extend(item_errors)
+                else:
+                    units += item_units
+            seen.remove(object_id)
+            return units, errors
+        return 1, []
+
+    def validate_memory_growth(
+        self,
+        value,
+        field="memory"
+    ):
+        units, errors = self._estimate_memory_units(
+            value
+        )
+        if errors:
+            for message in errors:
+                self._record_failure(
+                    message,
+                    field,
+                    SecurityResourceError
+                )
+            return self._build_result(
+                None,
+                errors
+            )
+        if units > self.policy.max_memory_units:
+            error = self._record_failure(
+                f"{field} exceeds the maximum allowed memory growth",
+                field,
+                SecurityResourceError
+            )
+            return self._build_result(
+                None,
+                [str(error)]
+            )
+        return ValidationResult(
+            valid=True,
+            value=units,
+            errors=[],
+            warnings=[],
+            trusted=False
+        )
+
+    def validate_expansion(
+        self,
+        input_count,
+        output_count,
+        field="expansion"
+    ):
+        if not isinstance(input_count, int) or isinstance(input_count, bool) or input_count < 0:
+            error = self._record_failure(
+                f"{field}.input_count must be a non-negative integer",
+                field,
+                SecurityResourceError
+            )
+            return self._build_result(
+                None,
+                [str(error)]
+            )
+        if not isinstance(output_count, int) or isinstance(output_count, bool) or output_count < 0:
+            error = self._record_failure(
+                f"{field}.output_count must be a non-negative integer",
+                field,
+                SecurityResourceError
+            )
+            return self._build_result(
+                None,
+                [str(error)]
+            )
+        if output_count > self.policy.max_processing_items:
+            error = self._record_failure(
+                f"{field}.output_count exceeds the maximum processing items",
+                field,
+                SecurityResourceError
+            )
+            return self._build_result(
+                None,
+                [str(error)]
+            )
+        if input_count == 0:
+            if output_count > 0:
+                error = self._record_failure(
+                    f"{field} cannot expand from zero input items",
+                    field,
+                    SecurityResourceError
+                )
+                return self._build_result(
+                    None,
+                    [str(error)]
+                )
+            ratio = 1.0
+        else:
+            ratio = output_count / input_count
+            if ratio > self.policy.max_expansion_ratio:
+                error = self._record_failure(
+                    f"{field} exceeds the maximum allowed expansion ratio",
+                    field,
+                    SecurityResourceError
+                )
+                return self._build_result(
+                    None,
+                    [str(error)]
+                )
+        return ValidationResult(
+            valid=True,
+            value={
+                "input_count": input_count,
+                "output_count": output_count,
+                "ratio": ratio
+            },
+            errors=[],
+            warnings=[],
+            trusted=False
+        )
+
+    def validate_processing_time(
+        self,
+        start_time,
+        field="processing"
+    ):
+        if not isinstance(start_time, (int, float)) or isinstance(start_time, bool):
+            error = self._record_failure(
+                f"{field}.start_time must be a number",
+                field,
+                SecurityResourceError
+            )
+            return self._build_result(
+                None,
+                [str(error)]
+            )
+        if not math.isfinite(start_time):
+            error = self._record_failure(
+                f"{field}.start_time must be finite",
+                field,
+                SecurityResourceError
+            )
+            return self._build_result(
+                None,
+                [str(error)]
+            )
+        elapsed_ms = (time.monotonic() - start_time) * 1000
+        if elapsed_ms < 0:
+            error = self._record_failure(
+                f"{field}.start_time must not be in the future",
+                field,
+                SecurityResourceError
+            )
+            return self._build_result(
+                None,
+                [str(error)]
+            )
+        if elapsed_ms > self.policy.max_processing_time_ms:
+            error = self._record_failure(
+                f"{field} exceeds the maximum allowed processing time",
+                field,
+                SecurityResourceError
+            )
+            return self._build_result(
+                None,
+                [str(error)]
+            )
+        return ValidationResult(
+            valid=True,
+            value=elapsed_ms,
+            errors=[],
+            warnings=[],
+            trusted=False
+        )
+
+    def validate_workload(
+        self,
+        documents=0,
+        chunks=0,
+        metadata_items=0,
+        conversation_messages=0,
+        retrieval_requests=0,
+        processing_items=0,
+        memory_value=None,
+        start_time=None,
+        expansion=None,
+        field="workload"
+    ):
+        if not isinstance(field, str) or not field.strip():
+            raise ValueError(
+                "Security workload field must be a non-empty string"
+            )
+        checks = [
+            (
+                "documents",
+                documents
+            ),
+            (
+                "chunks",
+                chunks
+            ),
+            (
+                "metadata_items",
+                metadata_items
+            ),
+            (
+                "conversation_messages",
+                conversation_messages
+            ),
+            (
+                "retrieval_requests",
+                retrieval_requests
+            ),
+            (
+                "processing_items",
+                processing_items
+            )
+        ]
+        errors = []
+        for resource_type, count in checks:
+            result = self._validate_resource_count(
+                count,
+                resource_type,
+                f"{field}.{resource_type}"
+            )
+            if result.is_invalid():
+                errors.extend(
+                    result.errors
+                )
+        if memory_value is not None:
+            memory_result = self.validate_memory_growth(
+                memory_value,
+                f"{field}.memory"
+            )
+            if memory_result.is_invalid():
+                errors.extend(
+                    memory_result.errors
+                )
+        if start_time is not None:
+            processing_result = self.validate_processing_time(
+                start_time,
+                f"{field}.processing"
+            )
+            if processing_result.is_invalid():
+                errors.extend(
+                    processing_result.errors
+                )
+        if expansion is not None:
+            if not isinstance(expansion, (list, tuple)) or len(expansion) != 2:
+                raise ValueError(
+                    "Security workload expansion must contain input and output counts"
+                )
+            expansion_result = self.validate_expansion(
+                expansion[0],
+                expansion[1],
+                f"{field}.expansion"
+            )
+            if expansion_result.is_invalid():
+                errors.extend(
+                    expansion_result.errors
+                )
+        if errors:
+            return self._build_result(
+                None,
+                errors
+            )
+        return ValidationResult(
+            valid=True,
+            value={
+                "documents": documents,
+                "chunks": chunks,
+                "metadata_items": metadata_items,
+                "conversation_messages": conversation_messages,
+                "retrieval_requests": retrieval_requests,
+                "processing_items": processing_items
+            },
+            errors=[],
+            warnings=[],
+            trusted=False
+        )
+
+    def create_resource_budget(
+        self,
+        field="workload"
+    ):
+        return SecurityResourceBudget(
+            self,
+            field
+        )
+
     def get_identity_registry(self):
         return {
             f"{identity_type}:{identifier}": dict(metadata)
@@ -4444,6 +5132,17 @@ class SecurityValidator:
                 "reject_unexpected_serialized_fields": self.policy.reject_unexpected_serialized_fields,
                 "allow_non_finite_numbers": self.policy.allow_non_finite_numbers,
                 "serialization_version": self.policy.serialization_version
+            },
+            "resource_protection": {
+                "max_documents_per_operation": self.policy.max_documents_per_operation,
+                "max_chunks_per_operation": self.policy.max_chunks_per_operation,
+                "max_metadata_items_per_operation": self.policy.max_metadata_items_per_operation,
+                "max_conversation_messages": self.policy.max_conversation_messages,
+                "max_retrieval_requests": self.policy.max_retrieval_requests,
+                "max_processing_items": self.policy.max_processing_items,
+                "max_memory_units": self.policy.max_memory_units,
+                "max_expansion_ratio": self.policy.max_expansion_ratio,
+                "max_processing_time_ms": self.policy.max_processing_time_ms
             },
             "supported_trust_boundaries": self.get_trust_boundaries(),
             "trusted_boundaries": self.get_trusted_boundaries()

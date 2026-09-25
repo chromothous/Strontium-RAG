@@ -11058,6 +11058,80 @@ def full_test():
         print(red(e))
         print(red("Version 0.13.11 failed"))
 
+    try:
+        tests += 1
+        from classes.security import SecurityValidator, SecurityPolicy, ValidationResult, SecurityError, SecurityValidationError, SecurityPolicyError, SecuritySchemaError, SecurityContentError, SecuritySecretError, SecurityIdentityError, SecuritySerializationError, SecurityResourceError, SecurityResourceBudget, SecuritySchema, TrustBoundary
+        from classes.logger import Logger
+        from classes.error_handler import ErrorHandler
+        security_logger = Logger()
+        security_error_handler = ErrorHandler(security_logger)
+        security = SecurityValidator(security_logger, security_error_handler)
+        default_policy = SecurityPolicy()
+        assert default_policy.max_documents_per_operation == 100, "Security policy should bound documents per operation"
+        assert default_policy.max_chunks_per_operation == 1000, "Security policy should bound chunks per operation"
+        assert default_policy.max_metadata_items_per_operation == 1000, "Security policy should bound metadata items per operation"
+        assert default_policy.max_conversation_messages == 1000, "Security policy should bound conversation messages"
+        assert default_policy.max_retrieval_requests == 100, "Security policy should bound retrieval requests"
+        assert default_policy.max_processing_items == 10000, "Security policy should bound processing items"
+        assert default_policy.max_memory_units == 1000000, "Security policy should bound memory growth"
+        assert default_policy.max_expansion_ratio == 10.0, "Security policy should bound expansion ratio"
+        assert default_policy.max_processing_time_ms == 30000, "Security policy should bound processing time"
+        assert security.validate_document_count(100).is_valid() is True, "Document count at the limit should be accepted"
+        assert security.validate_document_count(101).is_valid() is False, "Document count above the limit should be rejected"
+        assert security.validate_chunk_count(1000).is_valid() is True, "Chunk count at the limit should be accepted"
+        assert security.validate_chunk_count(1001).is_valid() is False, "Chunk count above the limit should be rejected"
+        assert security.validate_metadata_count(1000).is_valid() is True, "Metadata count at the limit should be accepted"
+        assert security.validate_metadata_count(1001).is_valid() is False, "Metadata count above the limit should be rejected"
+        assert security.validate_conversation_message_count(1000).is_valid() is True, "Conversation message count at the limit should be accepted"
+        assert security.validate_conversation_message_count(1001).is_valid() is False, "Conversation message count above the limit should be rejected"
+        assert security.validate_retrieval_request_count(100).is_valid() is True, "Retrieval request count at the limit should be accepted"
+        assert security.validate_retrieval_request_count(101).is_valid() is False, "Retrieval request count above the limit should be rejected"
+        assert security.validate_processing_item_count(10000).is_valid() is True, "Processing item count at the limit should be accepted"
+        assert security.validate_processing_item_count(10001).is_valid() is False, "Processing item count above the limit should be rejected"
+        assert security.validate_memory_growth({"documents": ["a", "b", "c"]}).is_valid() is True, "Bounded memory growth should be accepted"
+        cyclic = []
+        cyclic.append(cyclic)
+        assert security.validate_memory_growth(cyclic).is_valid() is False, "Recursive input should be rejected"
+        assert security.validate_expansion(10, 100).is_valid() is True, "Expansion at the configured ratio should be accepted"
+        assert security.validate_expansion(10, 101).is_valid() is False, "Expansion above the configured ratio should be rejected"
+        assert security.validate_expansion(0, 0).is_valid() is True, "Zero input with zero output should be accepted"
+        assert security.validate_expansion(0, 1).is_valid() is False, "Expansion from zero input should be rejected"
+        short_logger = Logger()
+        short_handler = ErrorHandler(short_logger)
+        short_policy = SecurityPolicy(max_processing_time_ms=10)
+        short_security = SecurityValidator(short_logger, short_handler, short_policy)
+        assert short_security.validate_processing_time(-1).is_valid() is False, "Processing beyond the configured time limit should be rejected"
+        workload = security.validate_workload(documents=10, chunks=20, metadata_items=30, conversation_messages=40, retrieval_requests=5, processing_items=100, memory_value={"state": ["ok"]}, expansion=(10, 20))
+        assert workload.is_valid() is True, "Valid workload should pass the complete resource boundary"
+        rejected_workload = security.validate_workload(documents=101)
+        assert rejected_workload.is_valid() is False, "Workload should reject a resource count beyond policy"
+        budget = security.create_resource_budget("job")
+        assert isinstance(budget, SecurityResourceBudget), "Resource budget should use the security resource budget type"
+        assert budget.consume("documents", 50).is_valid() is True, "Budget should allow resource consumption within policy"
+        assert budget.consume("documents", 50).is_valid() is True, "Budget should accumulate resource usage within policy"
+        assert budget.consume("documents", 1).is_valid() is False, "Budget should reject cumulative usage above policy"
+        assert budget.get_usage()["documents"] == 100, "Budget should preserve accepted cumulative usage"
+        assert budget.check_memory({"a": "b"}).is_valid() is True, "Budget should validate memory growth"
+        assert budget.check_expansion(5, 50).is_valid() is True, "Budget should validate expansion at the limit"
+        assert budget.check_expansion(5, 51).is_valid() is False, "Budget should reject expansion above the limit"
+        assert budget.check_processing_time().is_valid() is True, "Budget should track processing time"
+        policy_copy = security.get_policy()
+        assert policy_copy["max_documents_per_operation"] == 100, "Security policy serialization should expose document limits"
+        assert policy_copy["max_memory_units"] == 1000000, "Security policy serialization should expose memory limits"
+        assert policy_copy["max_expansion_ratio"] == 10.0, "Security policy serialization should expose expansion limits"
+        state = security.get_security_state()
+        assert state["resource_protection"]["max_processing_items"] == 10000, "Security state should expose processing limits"
+        assert state["resource_protection"]["max_processing_time_ms"] == 30000, "Security state should expose processing time limits"
+        assert state["resource_protection"]["max_memory_units"] == 1000000, "Security state should expose memory limits"
+        assert any(diagnostic["category"] == "validation" and diagnostic["component"] == "security" for diagnostic in security_error_handler.get_diagnostics()), "Resource validation failures should remain integrated with security validation diagnostics"
+        assert SecurityResourceError("resource abuse").category == "resource", "SecurityResourceError should establish the resource exception category"
+        success += 1
+        print(green("Version 0.13.12 resource abuse protection is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.13.12 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

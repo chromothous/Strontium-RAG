@@ -591,3 +591,6 @@ Metadata and identity validation is online.
 
 Version 0.13.11
 Serialization and deserialization security is online.
+
+Version 0.13.12
+Resource abuse protection is online.
