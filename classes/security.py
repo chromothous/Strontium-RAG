@@ -1,4 +1,4 @@
-# Strontium RAG Security Validator — cumulative through 0.13.14
+# Strontium RAG Security Validator — cumulative through 0.13.16
 from classes.logger import Logger
 from classes.error_handler import ErrorHandler
 import os
@@ -139,6 +139,31 @@ class SecurityIsolationError(SecurityError):
                 )
         self.component = component
         self.boundary = boundary
+
+
+class SecurityPipelineError(SecurityError):
+    def __init__(
+        self,
+        message,
+        stage=None,
+        field=None
+    ):
+        super().__init__(
+            message,
+            category="pipeline"
+        )
+        if stage is not None:
+            if not isinstance(stage, str) or not stage.strip():
+                raise ValueError(
+                    "Security pipeline stage must be a non-empty string or None"
+                )
+        if field is not None:
+            if not isinstance(field, str) or not field.strip():
+                raise ValueError(
+                    "Security pipeline field must be a non-empty string or None"
+                )
+        self.stage = stage
+        self.field = field
 
 
 class SecurityResourceError(SecurityError):
@@ -1769,6 +1794,91 @@ class SecurityIsolationContext:
         }
 
 
+class SecurityPipelineResult(ValidationResult):
+    def __init__(
+        self,
+        valid,
+        value=None,
+        errors=None,
+        warnings=None,
+        trusted=False,
+        boundary=None,
+        source=None,
+        instructions_detected=False,
+        commands_detected=False,
+        sensitive=False,
+        stages=None,
+        isolation_context=None,
+        protected_state=None
+    ):
+        super().__init__(
+            valid=valid,
+            value=value,
+            errors=errors or [],
+            warnings=warnings or [],
+            trusted=trusted,
+            boundary=boundary,
+            source=source,
+            instructions_detected=instructions_detected,
+            commands_detected=commands_detected,
+            sensitive=sensitive
+        )
+        if stages is None:
+            stages = {}
+        if not isinstance(stages, dict):
+            raise ValueError(
+                "Security pipeline stages must be a dictionary"
+            )
+        normalized_stages = {}
+        for name, stage in stages.items():
+            if not isinstance(name, str) or not name.strip():
+                raise ValueError(
+                    "Security pipeline stage names must be non-empty strings"
+                )
+            if not isinstance(stage, dict):
+                raise ValueError(
+                    "Security pipeline stage data must be dictionaries"
+                )
+            normalized_stages[name.strip()] = copy.deepcopy(stage)
+        if isolation_context is not None and not isinstance(
+            isolation_context,
+            SecurityIsolationContext
+        ):
+            raise ValueError(
+                "Security pipeline isolation context must be a SecurityIsolationContext or None"
+            )
+        if protected_state is not None and not isinstance(protected_state, str):
+            raise ValueError(
+                "Security pipeline protected state must be a string or None"
+            )
+        self.stages = normalized_stages
+        self.isolation_context = isolation_context
+        self._protected_state = protected_state
+
+    def get_stage(self, stage):
+        if not isinstance(stage, str) or not stage.strip():
+            raise ValueError(
+                "Security pipeline stage must be a non-empty string"
+            )
+        return copy.deepcopy(
+            self.stages.get(stage.strip())
+        )
+
+    def get_protected_state(self):
+        return self._protected_state
+
+    def to_dict(self):
+        data = super().to_dict()
+        data["pipeline"] = {
+            "stages": copy.deepcopy(self.stages),
+            "has_protected_state": self._protected_state is not None,
+            "isolation_active": self.isolation_context is not None
+        }
+        if self.isolation_context is not None:
+            data["pipeline"]["isolation_context"] = self.isolation_context.to_dict()
+        return data
+
+
 class SecurityResourceBudget:
     RESOURCE_TYPES = (
         "documents",
@@ -1910,6 +2020,8 @@ class SecurityValidator:
             return "resource_abuse_prevented"
         if category is SecurityIsolationError:
             return "isolation_violation"
+        if category is SecurityPipelineError:
+            return "pipeline_violation"
         if category is SecurityPolicyError:
             return "policy_violation"
         if category is SecuritySchemaError:
@@ -6176,6 +6288,785 @@ class SecurityValidator:
             field
         )
 
+    def _validate_pipeline_source(self, source):
+        if not isinstance(source, str) or not source.strip():
+            raise ValueError(
+                "Security pipeline source must be a non-empty string"
+            )
+        if not SecurityContentSource.is_valid(source):
+            raise ValueError(
+                f"Security pipeline source is not supported: {source}"
+            )
+        return source.strip().lower()
+
+    def _validate_pipeline_component(self, component):
+        return self._validate_isolation_component(
+            component
+        )
+
+    def _pipeline_failure(
+        self,
+        stages,
+        value,
+        errors,
+        boundary,
+        source,
+        field,
+        trusted=False,
+        instructions_detected=False,
+        commands_detected=False,
+        sensitive=False,
+        isolation_context=None,
+        protected_state=None
+    ):
+        normalized_errors = [
+            str(error)
+            for error in errors
+        ]
+        return SecurityPipelineResult(
+            valid=False,
+            value=value,
+            errors=normalized_errors,
+            warnings=[],
+            trusted=trusted,
+            boundary=boundary,
+            source=source,
+            instructions_detected=instructions_detected,
+            commands_detected=commands_detected,
+            sensitive=sensitive,
+            stages=stages,
+            isolation_context=isolation_context,
+            protected_state=protected_state
+        )
+
+    def _normalize_pipeline_value(
+        self,
+        value,
+        field,
+        depth=0
+    ):
+        if depth > self.policy.max_nesting_depth:
+            error = self._record_failure(
+                f"{field} exceeds the maximum allowed nesting depth during normalization",
+                field,
+                SecurityPipelineError
+            )
+            return self._build_result(
+                value,
+                [str(error)]
+            )
+        if isinstance(value, str):
+            return self.validate_normalization_order(
+                value,
+                field
+            )
+        if isinstance(value, dict):
+            if len(value) > self.policy.max_collection_size:
+                error = self._record_failure(
+                    f"{field} contains too many fields during normalization",
+                    field,
+                    SecurityPipelineError
+                )
+                return self._build_result(
+                    value,
+                    [str(error)]
+                )
+            normalized = {}
+            errors = []
+            for key, item in value.items():
+                if not isinstance(key, str) or not key.strip():
+                    error = self._record_failure(
+                        f"{field} contains an invalid field name during normalization",
+                        field,
+                        SecurityPipelineError
+                    )
+                    errors.append(
+                        str(error)
+                    )
+                    continue
+                child_result = self._normalize_pipeline_value(
+                    item,
+                    f"{field}.{key}",
+                    depth + 1
+                )
+                if child_result.is_invalid():
+                    errors.extend(
+                        child_result.errors
+                    )
+                else:
+                    normalized[key] = child_result.value
+            return self._build_result(
+                normalized if not errors else value,
+                errors
+            )
+        if isinstance(value, list):
+            if len(value) > self.policy.max_collection_size:
+                error = self._record_failure(
+                    f"{field} contains too many items during normalization",
+                    field,
+                    SecurityPipelineError
+                )
+                return self._build_result(
+                    value,
+                    [str(error)]
+                )
+            normalized = []
+            errors = []
+            for index, item in enumerate(value):
+                child_result = self._normalize_pipeline_value(
+                    item,
+                    f"{field}[{index}]",
+                    depth + 1
+                )
+                if child_result.is_invalid():
+                    errors.extend(
+                        child_result.errors
+                    )
+                else:
+                    normalized.append(
+                        child_result.value
+                    )
+            return self._build_result(
+                normalized if not errors else value,
+                errors
+            )
+        if isinstance(value, tuple):
+            normalized = []
+            errors = []
+            if len(value) > self.policy.max_collection_size:
+                error = self._record_failure(
+                    f"{field} contains too many items during normalization",
+                    field,
+                    SecurityPipelineError
+                )
+                return self._build_result(
+                    value,
+                    [str(error)]
+                )
+            for index, item in enumerate(value):
+                child_result = self._normalize_pipeline_value(
+                    item,
+                    f"{field}[{index}]",
+                    depth + 1
+                )
+                if child_result.is_invalid():
+                    errors.extend(
+                        child_result.errors
+                    )
+                else:
+                    normalized.append(
+                        child_result.value
+                    )
+            return self._build_result(
+                tuple(normalized) if not errors else value,
+                errors
+            )
+        return self._build_result(
+            value
+        )
+
+    def _validate_pipeline_security_stage(
+        self,
+        value,
+        boundary,
+        source,
+        field,
+        schema=None
+    ):
+        if schema is not None and not isinstance(schema, SecuritySchema):
+            raise ValueError(
+                "Security pipeline schema must be a SecuritySchema or None"
+            )
+        if boundary in (
+            TrustBoundary.USER_QUERY,
+            TrustBoundary.DOCUMENT,
+            TrustBoundary.EXTERNAL_RESPONSE
+        ):
+            content_result = self.validate_content(
+                value,
+                source,
+                field,
+                boundary
+            )
+            if content_result.is_invalid():
+                return content_result
+            value = content_result.value
+            if schema is not None:
+                schema_result = self.validate_schema(
+                    value,
+                    schema,
+                    field
+                )
+                if schema_result.is_invalid():
+                    return schema_result
+            return content_result
+        if boundary == TrustBoundary.FILE_PATH:
+            return self.validate_safe_file_path(
+                value,
+                field
+            )
+        if boundary == TrustBoundary.URL:
+            return self.validate_url(
+                value,
+                field
+            )
+        if isinstance(value, dict):
+            mapping_result = self.validate_mapping(
+                value,
+                field
+            )
+            if mapping_result.is_invalid():
+                return mapping_result
+            if schema is not None:
+                return self.validate_schema(
+                    value,
+                    schema,
+                    field
+                )
+            return mapping_result
+        if isinstance(value, (list, tuple, set)):
+            collection_result = self.validate_collection(
+                value,
+                field
+            )
+            if collection_result.is_invalid():
+                return collection_result
+            if schema is not None:
+                return self.validate_schema(
+                    value,
+                    schema,
+                    field
+                )
+            return collection_result
+        if schema is not None:
+            return self.validate_schema(
+                value,
+                schema,
+                field
+            )
+        return self._build_result(
+            value
+        )
+
+    def _validate_pipeline_resource_stage(
+        self,
+        value,
+        boundary,
+        field
+    ):
+        checks = []
+        if isinstance(value, str):
+            if boundary == TrustBoundary.USER_QUERY:
+                checks.append(
+                    self.validate_query_size(
+                        value,
+                        field
+                    )
+                )
+            elif boundary == TrustBoundary.DOCUMENT:
+                checks.append(
+                    self.validate_document_size(
+                        len(value.encode(self.policy.encoding)),
+                        field
+                    )
+                )
+            elif boundary == TrustBoundary.CONVERSATION_STATE:
+                checks.append(
+                    self.validate_conversation_history_size(
+                        len(value.encode(self.policy.encoding)),
+                        field
+                    )
+                )
+            else:
+                checks.append(
+                    self.validate_size_limit(
+                        len(value.encode(self.policy.encoding)),
+                        self.policy.max_string_length,
+                        field,
+                        "pipeline string size"
+                    )
+                )
+        elif isinstance(value, bytes):
+            checks.append(
+                self.validate_document_size(
+                    len(value),
+                    field
+                )
+            )
+        else:
+            checks.append(
+                self.validate_complexity(
+                    value,
+                    field
+                )
+            )
+            if isinstance(value, dict):
+                if boundary == TrustBoundary.METADATA:
+                    checks.append(
+                        self.validate_metadata_count(
+                            len(value),
+                            field
+                        )
+                    )
+                elif boundary == TrustBoundary.CONVERSATION_STATE:
+                    checks.append(
+                        self.validate_conversation_message_count(
+                            len(value),
+                            field
+                        )
+                    )
+            elif isinstance(value, (list, tuple, set)):
+                if boundary == TrustBoundary.DOCUMENT:
+                    checks.append(
+                        self.validate_document_count(
+                            len(value),
+                            field
+                        )
+                    )
+                elif boundary == TrustBoundary.CONVERSATION_STATE:
+                    checks.append(
+                        self.validate_conversation_message_count(
+                            len(value),
+                            field
+                        )
+                    )
+                elif boundary == TrustBoundary.DOCUMENT:
+                    checks.append(
+                        self.validate_processing_item_count(
+                            len(value),
+                            field
+                        )
+                    )
+        checks.append(
+            self.validate_memory_growth(
+                value,
+                f"{field}.memory"
+            )
+        )
+        for check in checks:
+            if check.is_invalid():
+                return self._build_result(
+                    value,
+                    check.errors
+                )
+        return self._build_result(
+            value
+        )
+
+    def validate_security_pipeline(
+        self,
+        value,
+        boundary,
+        source,
+        field="input",
+        schema=None,
+        expected_type=None,
+        version=None,
+        component="api",
+        allowed_targets=None
+    ):
+        boundary = self._validate_trust_boundary(
+            boundary
+        )
+        source = self._validate_pipeline_source(
+            source
+        )
+        component = self._validate_pipeline_component(
+            component
+        )
+        if not isinstance(field, str) or not field.strip():
+            raise ValueError(
+                "Security pipeline field must be a non-empty string"
+            )
+        if expected_type is not None and not isinstance(expected_type, type):
+            raise ValueError(
+                "Security pipeline expected type must be a type or None"
+            )
+        if schema is not None and not isinstance(schema, SecuritySchema):
+            raise ValueError(
+                "Security pipeline schema must be a SecuritySchema or None"
+            )
+        stages = {}
+        boundary_result = self.validate_trust_boundary(
+            value,
+            boundary,
+            field
+        )
+        boundary_result.source = source
+        stages["boundary_validation"] = {
+            "valid": boundary_result.is_valid(),
+            "boundary": boundary,
+            "source": source
+        }
+        if boundary_result.is_invalid():
+            self._record_security_event(
+                "pipeline_rejected",
+                "Security pipeline rejected input at the boundary validation stage",
+                severity="error",
+                field=field,
+                details={
+                    "stage": "boundary_validation",
+                    "boundary": boundary,
+                    "source": source
+                }
+            )
+            return self._pipeline_failure(
+                stages,
+                value,
+                boundary_result.errors,
+                boundary,
+                source,
+                field
+            )
+        normalized_result = self._normalize_pipeline_value(
+            boundary_result.value,
+            field
+        )
+        stages["normalization"] = {
+            "valid": normalized_result.is_valid()
+        }
+        if normalized_result.is_invalid():
+            self._record_security_event(
+                "pipeline_rejected",
+                "Security pipeline rejected input during normalization",
+                severity="error",
+                field=field,
+                details={
+                    "stage": "normalization",
+                    "boundary": boundary
+                }
+            )
+            return self._pipeline_failure(
+                stages,
+                normalized_result.value,
+                normalized_result.errors,
+                boundary,
+                source,
+                field
+            )
+        security_result = self._validate_pipeline_security_stage(
+            normalized_result.value,
+            boundary,
+            source,
+            field,
+            schema
+        )
+        security_result.source = source
+        security_result.boundary = boundary
+        if SecurityContentSource.is_trusted_source(source):
+            security_result = self.mark_trusted(
+                security_result
+            )
+            security_result.source = source
+            security_result.boundary = boundary
+        stages["security_checks"] = {
+            "valid": security_result.is_valid(),
+            "instructions_detected": security_result.instructions_detected,
+            "commands_detected": security_result.commands_detected
+        }
+        if security_result.is_invalid():
+            self._record_security_event(
+                "pipeline_rejected",
+                "Security pipeline rejected input during security checks",
+                severity="error",
+                field=field,
+                details={
+                    "stage": "security_checks",
+                    "boundary": boundary,
+                    "source": source
+                }
+            )
+            return self._pipeline_failure(
+                stages,
+                security_result.value,
+                security_result.errors,
+                boundary,
+                source,
+                field,
+                instructions_detected=security_result.instructions_detected,
+                commands_detected=security_result.commands_detected,
+                sensitive=security_result.sensitive
+            )
+        resource_result = self._validate_pipeline_resource_stage(
+            security_result.value,
+            boundary,
+            field
+        )
+        stages["resource_limits"] = {
+            "valid": resource_result.is_valid()
+        }
+        if resource_result.is_invalid():
+            self._record_security_event(
+                "pipeline_rejected",
+                "Security pipeline rejected input at the resource limit stage",
+                severity="error",
+                field=field,
+                details={
+                    "stage": "resource_limits",
+                    "boundary": boundary
+                }
+            )
+            return self._pipeline_failure(
+                stages,
+                security_result.value,
+                resource_result.errors,
+                boundary,
+                source,
+                field,
+                instructions_detected=security_result.instructions_detected,
+                commands_detected=security_result.commands_detected,
+                sensitive=security_result.sensitive
+            )
+        isolation_result = self.create_isolation_context(
+            security_result,
+            component,
+            boundary,
+            allowed_targets
+        )
+        stages["safe_processing"] = {
+            "valid": isolation_result.is_valid(),
+            "component": component,
+            "isolation_created": isolation_result.is_valid()
+        }
+        if isolation_result.is_invalid():
+            self._record_security_event(
+                "pipeline_rejected",
+                "Security pipeline rejected input at the isolation stage",
+                severity="error",
+                field=field,
+                details={
+                    "stage": "safe_processing",
+                    "component": component,
+                    "boundary": boundary
+                }
+            )
+            return self._pipeline_failure(
+                stages,
+                security_result.value,
+                isolation_result.errors,
+                boundary,
+                source,
+                field,
+                instructions_detected=security_result.instructions_detected,
+                commands_detected=security_result.commands_detected,
+                sensitive=security_result.sensitive
+            )
+        isolation_context = isolation_result.value
+        validated_isolation = self.validate_isolation_context(
+            isolation_context,
+            component,
+            boundary,
+            require_trusted=False
+        )
+        if validated_isolation.is_invalid():
+            self.revoke_isolation_context(
+                isolation_context
+            )
+            stages["safe_processing"]["valid"] = False
+            return self._pipeline_failure(
+                stages,
+                security_result.value,
+                validated_isolation.errors,
+                boundary,
+                source,
+                field,
+                instructions_detected=security_result.instructions_detected,
+                commands_detected=security_result.commands_detected,
+                sensitive=security_result.sensitive
+            )
+        protected_result = self.serialize_safe(
+            security_result.value,
+            schema=schema,
+            version=version,
+            field=f"{field}.protected_state"
+        )
+        stages["protected_state"] = {
+            "valid": protected_result.is_valid(),
+            "serialization_format": "json" if protected_result.is_valid() else None
+        }
+        if protected_result.is_invalid():
+            self.revoke_isolation_context(
+                isolation_context
+            )
+            return self._pipeline_failure(
+                stages,
+                security_result.value,
+                protected_result.errors,
+                boundary,
+                source,
+                field,
+                instructions_detected=security_result.instructions_detected,
+                commands_detected=security_result.commands_detected,
+                sensitive=security_result.sensitive,
+                isolation_context=isolation_context
+            )
+        output_result = self.deserialize_safe(
+            protected_result.value,
+            expected_type=expected_type,
+            schema=schema,
+            expected_version=version,
+            field=f"{field}.safe_output"
+        )
+        stages["safe_output"] = {
+            "valid": output_result.is_valid(),
+            "type": type(output_result.value).__name__ if output_result.is_valid() else None
+        }
+        if output_result.is_invalid():
+            self.revoke_isolation_context(
+                isolation_context
+            )
+            return self._pipeline_failure(
+                stages,
+                security_result.value,
+                output_result.errors,
+                boundary,
+                source,
+                field,
+                instructions_detected=security_result.instructions_detected,
+                commands_detected=security_result.commands_detected,
+                sensitive=security_result.sensitive,
+                isolation_context=isolation_context,
+                protected_state=protected_result.value
+            )
+        trusted = bool(
+            security_result.trusted
+        )
+        if SecurityContentSource.is_trusted_source(source):
+            trusted = True
+        final_result = SecurityPipelineResult(
+            valid=True,
+            value=output_result.value,
+            errors=[],
+            warnings=list(output_result.warnings),
+            trusted=trusted,
+            boundary=boundary,
+            source=source,
+            instructions_detected=security_result.instructions_detected,
+            commands_detected=security_result.commands_detected,
+            sensitive=security_result.sensitive,
+            stages=stages,
+            isolation_context=isolation_context,
+            protected_state=protected_result.value
+        )
+        self._record_security_event(
+            "pipeline_completed",
+            "Security validation pipeline completed successfully",
+            severity="info",
+            field=field,
+            details={
+                "boundary": boundary,
+                "source": source,
+                "component": component,
+                "trusted": trusted,
+                "stages": list(stages.keys()),
+                "isolation_token": isolation_context.token_id
+            }
+        )
+        return final_result
+
+    def get_security_pipeline_state(
+        self,
+        result
+    ):
+        if not isinstance(result, SecurityPipelineResult):
+            raise ValueError(
+                "Security pipeline state requires a SecurityPipelineResult"
+            )
+        context = result.isolation_context
+        return {
+            "valid": result.is_valid(),
+            "trusted": result.is_trusted(),
+            "boundary": result.boundary,
+            "source": result.source,
+            "stages": copy.deepcopy(result.stages),
+            "isolation_active": context is not None,
+            "isolation_token": context.token_id if context is not None else None,
+            "has_protected_state": result.get_protected_state() is not None
+        }
+
+    def get_protected_pipeline_state(
+        self,
+        result,
+        component=None,
+        boundary=None
+    ):
+        if not isinstance(result, SecurityPipelineResult):
+            raise ValueError(
+                "Protected pipeline state requires a SecurityPipelineResult"
+            )
+        if result.is_invalid():
+            error = self._record_failure(
+                "Invalid security pipeline results cannot release protected state",
+                "pipeline",
+                SecurityPipelineError
+            )
+            return self._build_result(
+                None,
+                [str(error)]
+            )
+        context = result.isolation_context
+        if context is None:
+            error = self._record_failure(
+                "Security pipeline result has no active isolation context",
+                "pipeline",
+                SecurityPipelineError
+            )
+            return self._build_result(
+                None,
+                [str(error)]
+            )
+        validation = self.validate_isolation_context(
+            context,
+            component,
+            boundary,
+            require_trusted=False
+        )
+        if validation.is_invalid():
+            return self._build_result(
+                None,
+                validation.errors
+            )
+        return ValidationResult(
+            valid=True,
+            value=result.get_protected_state(),
+            errors=[],
+            warnings=[],
+            trusted=result.trusted,
+            boundary=result.boundary,
+            source=result.source,
+            instructions_detected=result.instructions_detected,
+            commands_detected=result.commands_detected,
+            sensitive=result.sensitive
+        )
+
+    def release_security_pipeline(
+        self,
+        result
+    ):
+        if not isinstance(result, SecurityPipelineResult):
+            raise ValueError(
+                "Security pipeline release requires a SecurityPipelineResult"
+            )
+        context = result.isolation_context
+        if context is None:
+            return False
+        released = self.revoke_isolation_context(
+            context
+        )
+        if released:
+            result.isolation_context = None
+            self._record_security_event(
+                "pipeline_released",
+                "Security validation pipeline isolation context released",
+                severity="info",
+                field="pipeline",
+                details={
+                    "boundary": result.boundary,
+                    "source": result.source
+                }
+            )
+        return released
+
     def get_identity_registry(self):
         return {
             f"{identity_type}:{identifier}": dict(metadata)
@@ -6395,6 +7286,19 @@ class SecurityValidator:
                 "max_memory_units": self.policy.max_memory_units,
                 "max_expansion_ratio": self.policy.max_expansion_ratio,
                 "max_processing_time_ms": self.policy.max_processing_time_ms
+            },
+            "pipeline_protection": {
+                "enabled": True,
+                "stages": [
+                    "boundary_validation",
+                    "normalization",
+                    "security_checks",
+                    "resource_limits",
+                    "safe_processing",
+                    "protected_state",
+                    "safe_output"
+                ],
+                "active_isolation_contexts": len(self._isolation_contexts)
             },
             "supported_trust_boundaries": self.get_trust_boundaries(),
             "trusted_boundaries": self.get_trusted_boundaries()
