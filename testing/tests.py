@@ -11263,6 +11263,80 @@ def full_test():
         print(red(e))
         print(red("Version 0.13.14 failed"))
 
+    try:
+        tests += 1
+        from classes.security import SecurityValidator, SecurityPolicy, SecurityIsolationError, SecurityIsolationContext, TrustBoundary
+        from classes.logger import Logger
+        from classes.error_handler import ErrorHandler
+        security_logger = Logger()
+        security_error_handler = ErrorHandler(security_logger)
+        security = SecurityValidator(security_logger, security_error_handler)
+        defaults = SecurityPolicy.secure_defaults()
+        assert defaults.enforce_isolation is True, "Secure defaults should enforce security isolation"
+        assert defaults.prevent_validation_bypass is True, "Secure defaults should prevent validation bypass"
+        assert defaults.preserve_trust_state is True, "Secure defaults should preserve trust state"
+        assert defaults.require_boundary_for_isolated_data is True, "Secure defaults should require explicit trust boundaries"
+        assert "ingestion" in defaults.allowed_isolation_components, "Secure defaults should expose ingestion as an allowed isolation component"
+        result = security.validate_trust_boundary("safe query", TrustBoundary.USER_QUERY, "query")
+        assert result.is_valid() is True, "Valid boundary input should pass validation"
+        assert result.is_trusted() is False, "Untrusted input should remain untrusted when entering isolation"
+        context_result = security.create_isolation_context(result, "ingestion", TrustBoundary.USER_QUERY, ("preprocessing", "chunking"))
+        assert context_result.is_valid() is True, "Valid data should receive an isolation context"
+        assert isinstance(context_result.value, SecurityIsolationContext), "Isolation validation should return a SecurityIsolationContext"
+        context = context_result.value
+        assert context.component == "ingestion", "Isolation context should preserve the source component"
+        assert context.boundary == TrustBoundary.USER_QUERY, "Isolation context should preserve the trust boundary"
+        assert context.trusted is False, "Isolation context should preserve the untrusted state"
+        assert context.allows_component("preprocessing") is True, "Isolation context should allow configured target components"
+        assert context.allows_component("generation") is False, "Isolation context should reject unconfigured target components"
+        validated_context = security.validate_isolation_context(context, "preprocessing", TrustBoundary.USER_QUERY)
+        assert validated_context.is_valid() is True, "Registered isolation context should validate for an allowed target"
+        transferred = security.handoff_isolated_value(result, context, "preprocessing", TrustBoundary.USER_QUERY)
+        assert transferred.is_valid() is True, "Valid isolated data should cross an approved component boundary"
+        assert transferred.is_trusted() is False, "Isolation handoff should preserve the original untrusted state"
+        assert transferred.boundary == TrustBoundary.USER_QUERY, "Isolation handoff should preserve the original boundary"
+        tampered = SecurityValidator(security_logger, security_error_handler).validate_trust_boundary("safe query", TrustBoundary.USER_QUERY, "query")
+        bypass = security.handoff_isolated_value(tampered, context, "preprocessing", TrustBoundary.USER_QUERY)
+        assert bypass.is_invalid() is True, "Validation bypass attempts should be rejected"
+        wrong_boundary = security.validate_isolation_context(context, "preprocessing", TrustBoundary.DOCUMENT)
+        assert wrong_boundary.is_invalid() is True, "Isolation boundary changes should be rejected"
+        trusted_source = security.mark_trusted(result)
+        trusted_context_result = security.create_isolation_context(trusted_source, "preprocessing", TrustBoundary.USER_QUERY, ("chunking",))
+        assert trusted_context_result.is_valid() is True, "Trusted validated data should enter isolation"
+        assert trusted_context_result.is_trusted() is True, "Trusted state should be preserved in isolation"
+        trusted_transfer = security.handoff_isolated_value(trusted_source, trusted_context_result.value, "chunking", TrustBoundary.USER_QUERY)
+        assert trusted_transfer.is_valid() is True, "Trusted isolated data should cross an approved component boundary"
+        assert trusted_transfer.is_trusted() is True, "Trusted state should remain trusted across an approved handoff"
+        revoked = security.revoke_isolation_context(context)
+        assert revoked is True, "Active isolation contexts should be revocable"
+        revoked_result = security.validate_isolation_context(context, "preprocessing", TrustBoundary.USER_QUERY)
+        assert revoked_result.is_invalid() is True, "Revoked isolation contexts should be rejected"
+        second_context_result = security.create_isolation_context(result, "ingestion", TrustBoundary.USER_QUERY, ("preprocessing",))
+        assert second_context_result.is_valid() is True, "A new isolation context should be creatable after revocation"
+        second_context = second_context_result.value
+        integrity = security.validate_isolation_integrity()
+        assert integrity.is_valid() is True, "Isolation registry integrity should validate"
+        state = security.get_isolation_state()
+        assert state["enabled"] is True, "Isolation state should report enforcement enabled"
+        assert state["prevent_validation_bypass"] is True, "Isolation state should report bypass protection"
+        assert state["preserve_trust_state"] is True, "Isolation state should report trust preservation"
+        assert state["active_context_count"] == 2, "Isolation state should report active contexts accurately"
+        security.apply_policy_configuration({"max_query_size": 9999})
+        stale = security.validate_isolation_context(second_context, "preprocessing", TrustBoundary.USER_QUERY)
+        assert stale.is_invalid() is True, "Policy changes should invalidate stale isolation contexts"
+        security_state = security.get_security_state()
+        assert "isolation_protection" in security_state, "Security state should expose isolation protection"
+        isolation_events = security.get_security_events()
+        assert any(event["event_type"] == "isolation_context_created" for event in isolation_events), "Isolation context creation should be audited"
+        assert any(event["event_type"] == "isolation_handoff" for event in isolation_events), "Isolation handoffs should be audited"
+        assert any(event["event_type"] == "isolation_violation" for event in isolation_events), "Isolation violations should be audited"
+        success += 1
+        print(green("Version 0.13.15 security isolation and boundary enforcement is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.13.15 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

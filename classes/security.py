@@ -1,4 +1,4 @@
-# Strontium RAG Security Validator — cumulative through 0.13.13
+# Strontium RAG Security Validator — cumulative through 0.13.14
 from classes.logger import Logger
 from classes.error_handler import ErrorHandler
 import os
@@ -7,6 +7,7 @@ import json
 import math
 import time
 import copy
+import uuid
 import tempfile
 import unicodedata
 import ipaddress
@@ -113,6 +114,31 @@ class SecuritySerializationError(SecurityError):
                     "Security serialization field must be a non-empty string or None"
                 )
         self.field = field
+
+
+class SecurityIsolationError(SecurityError):
+    def __init__(
+        self,
+        message,
+        component=None,
+        boundary=None
+    ):
+        super().__init__(
+            message,
+            category="isolation"
+        )
+        if component is not None:
+            if not isinstance(component, str) or not component.strip():
+                raise ValueError(
+                    "Security isolation component must be a non-empty string or None"
+                )
+        if boundary is not None:
+            if not isinstance(boundary, str) or not boundary.strip():
+                raise ValueError(
+                    "Security isolation boundary must be a non-empty string or None"
+                )
+        self.component = component
+        self.boundary = boundary
 
 
 class SecurityResourceError(SecurityError):
@@ -460,6 +486,25 @@ class SecurityPolicy:
     DEFAULT_SECURITY_AUDIT_LOGGING = True
     DEFAULT_MAX_SECURITY_EVENTS = 1000
     DEFAULT_REDACT_AUDIT_DATA = True
+    DEFAULT_ENFORCE_ISOLATION = True
+    DEFAULT_PREVENT_VALIDATION_BYPASS = True
+    DEFAULT_PRESERVE_TRUST_STATE = True
+    DEFAULT_REQUIRE_BOUNDARY_FOR_ISOLATED_DATA = True
+    DEFAULT_MAX_ISOLATION_CONTEXTS = 1000
+    DEFAULT_ALLOWED_ISOLATION_COMPONENTS = (
+        "ingestion",
+        "preprocessing",
+        "chunking",
+        "embedding",
+        "retrieval",
+        "context",
+        "generation",
+        "citation",
+        "conversation",
+        "evaluation",
+        "persistence",
+        "api",
+    )
     DEFAULT_ALLOWED_SCHEMES = (
         "https",
     )
@@ -524,6 +569,12 @@ class SecurityPolicy:
         security_audit_logging=DEFAULT_SECURITY_AUDIT_LOGGING,
         max_security_events=DEFAULT_MAX_SECURITY_EVENTS,
         redact_audit_data=DEFAULT_REDACT_AUDIT_DATA,
+        enforce_isolation=DEFAULT_ENFORCE_ISOLATION,
+        prevent_validation_bypass=DEFAULT_PREVENT_VALIDATION_BYPASS,
+        preserve_trust_state=DEFAULT_PRESERVE_TRUST_STATE,
+        require_boundary_for_isolated_data=DEFAULT_REQUIRE_BOUNDARY_FOR_ISOLATED_DATA,
+        max_isolation_contexts=DEFAULT_MAX_ISOLATION_CONTEXTS,
+        allowed_isolation_components=DEFAULT_ALLOWED_ISOLATION_COMPONENTS,
         allowed_schemes=None,
         allowed_file_types=None
     ):
@@ -947,6 +998,50 @@ class SecurityPolicy:
         self.security_audit_logging = security_audit_logging
         self.max_security_events = max_security_events
         self.redact_audit_data = redact_audit_data
+        if not isinstance(enforce_isolation, bool):
+            raise ValueError(
+                "Security enforce isolation must be a boolean"
+            )
+        if not isinstance(prevent_validation_bypass, bool):
+            raise ValueError(
+                "Security prevent validation bypass must be a boolean"
+            )
+        if not isinstance(preserve_trust_state, bool):
+            raise ValueError(
+                "Security preserve trust state must be a boolean"
+            )
+        if not isinstance(require_boundary_for_isolated_data, bool):
+            raise ValueError(
+                "Security require boundary for isolated data must be a boolean"
+            )
+        self.enforce_isolation = enforce_isolation
+        self.prevent_validation_bypass = prevent_validation_bypass
+        self.preserve_trust_state = preserve_trust_state
+        self.require_boundary_for_isolated_data = require_boundary_for_isolated_data
+        self.max_isolation_contexts = self._validate_positive_integer(
+            max_isolation_contexts,
+            "max isolation contexts"
+        )
+        if not isinstance(allowed_isolation_components, (list, tuple)):
+            raise ValueError(
+                "Security allowed isolation components must be a list or tuple"
+            )
+        if not allowed_isolation_components:
+            raise ValueError(
+                "Security allowed isolation components cannot be empty"
+            )
+        normalized_isolation_components = []
+        for component in allowed_isolation_components:
+            if not isinstance(component, str) or not component.strip():
+                raise ValueError(
+                    "Security isolation components must contain non-empty strings"
+                )
+            normalized_component = component.strip().lower()
+            if normalized_component not in normalized_isolation_components:
+                normalized_isolation_components.append(normalized_component)
+        self.allowed_isolation_components = tuple(
+            normalized_isolation_components
+        )
 
         if allowed_schemes is None:
             allowed_schemes = self.DEFAULT_ALLOWED_SCHEMES
@@ -1295,6 +1390,39 @@ class SecurityPolicy:
             raise ValueError(
                 "Security redact audit data must be a boolean"
             )
+        if not isinstance(self.enforce_isolation, bool):
+            raise ValueError(
+                "Security enforce isolation must be a boolean"
+            )
+        if not isinstance(self.prevent_validation_bypass, bool):
+            raise ValueError(
+                "Security prevent validation bypass must be a boolean"
+            )
+        if not isinstance(self.preserve_trust_state, bool):
+            raise ValueError(
+                "Security preserve trust state must be a boolean"
+            )
+        if not isinstance(self.require_boundary_for_isolated_data, bool):
+            raise ValueError(
+                "Security require boundary for isolated data must be a boolean"
+            )
+        self._validate_positive_integer(
+            self.max_isolation_contexts,
+            "max isolation contexts"
+        )
+        if not isinstance(self.allowed_isolation_components, tuple):
+            raise ValueError(
+                "Security allowed isolation components must be a tuple"
+            )
+        if not self.allowed_isolation_components:
+            raise ValueError(
+                "Security allowed isolation components cannot be empty"
+            )
+        for component in self.allowed_isolation_components:
+            if not isinstance(component, str) or not component.strip():
+                raise ValueError(
+                    "Security allowed isolation components must contain non-empty strings"
+                )
 
         if not self.allowed_schemes:
             raise ValueError(
@@ -1462,6 +1590,14 @@ class SecurityPolicy:
             "security_audit_logging": self.security_audit_logging,
             "max_security_events": self.max_security_events,
             "redact_audit_data": self.redact_audit_data,
+            "enforce_isolation": self.enforce_isolation,
+            "prevent_validation_bypass": self.prevent_validation_bypass,
+            "preserve_trust_state": self.preserve_trust_state,
+            "require_boundary_for_isolated_data": self.require_boundary_for_isolated_data,
+            "max_isolation_contexts": self.max_isolation_contexts,
+            "allowed_isolation_components": tuple(
+                self.allowed_isolation_components
+            ),
             "allowed_schemes": tuple(
                 self.allowed_schemes
             ),
@@ -1497,6 +1633,140 @@ class TrustBoundary:
     @classmethod
     def is_valid(cls, boundary):
         return boundary in cls.ALL
+
+
+class SecurityIsolationContext:
+    def __init__(
+        self,
+        token_id,
+        owner_id,
+        component,
+        boundary,
+        source,
+        trusted,
+        validation_id,
+        value_id,
+        created_at,
+        allowed_targets,
+        state_version
+    ):
+        if not isinstance(token_id, str) or not token_id.strip():
+            raise ValueError(
+                "Security isolation token id must be a non-empty string"
+            )
+        if not isinstance(owner_id, int) or isinstance(owner_id, bool):
+            raise ValueError(
+                "Security isolation owner id must be an integer"
+            )
+        if not isinstance(component, str) or not component.strip():
+            raise ValueError(
+                "Security isolation component must be a non-empty string"
+            )
+        if not TrustBoundary.is_valid(boundary):
+            raise ValueError(
+                f"Security isolation boundary is not supported: {boundary}"
+            )
+        if source is not None and not SecurityContentSource.is_valid(source):
+            raise ValueError(
+                f"Security isolation source is not supported: {source}"
+            )
+        if not isinstance(trusted, bool):
+            raise ValueError(
+                "Security isolation trusted flag must be a boolean"
+            )
+        if not isinstance(validation_id, int) or isinstance(validation_id, bool):
+            raise ValueError(
+                "Security isolation validation id must be an integer"
+            )
+        if not isinstance(value_id, int) or isinstance(value_id, bool):
+            raise ValueError(
+                "Security isolation value id must be an integer"
+            )
+        if not isinstance(created_at, (int, float)) or isinstance(created_at, bool):
+            raise ValueError(
+                "Security isolation creation time must be numeric"
+            )
+        if not isinstance(allowed_targets, (list, tuple, set)):
+            raise ValueError(
+                "Security isolation allowed targets must be a collection"
+            )
+        normalized_targets = []
+        for target in allowed_targets:
+            if not isinstance(target, str) or not target.strip():
+                raise ValueError(
+                    "Security isolation allowed targets must contain non-empty strings"
+                )
+            normalized_target = target.strip().lower()
+            if normalized_target not in normalized_targets:
+                normalized_targets.append(normalized_target)
+        if not normalized_targets:
+            raise ValueError(
+                "Security isolation allowed targets cannot be empty"
+            )
+        if not isinstance(state_version, int) or isinstance(state_version, bool) or state_version < 0:
+            raise ValueError(
+                "Security isolation state version must be a non-negative integer"
+            )
+        self._token_id = token_id.strip()
+        self._owner_id = owner_id
+        self._component = component.strip().lower()
+        self._boundary = boundary
+        self._source = source
+        self._trusted = trusted
+        self._validation_id = validation_id
+        self._value_id = value_id
+        self._created_at = float(created_at)
+        self._allowed_targets = tuple(normalized_targets)
+        self._state_version = state_version
+
+    @property
+    def token_id(self):
+        return self._token_id
+
+    @property
+    def component(self):
+        return self._component
+
+    @property
+    def boundary(self):
+        return self._boundary
+
+    @property
+    def source(self):
+        return self._source
+
+    @property
+    def trusted(self):
+        return self._trusted
+
+    @property
+    def created_at(self):
+        return self._created_at
+
+    @property
+    def allowed_targets(self):
+        return tuple(self._allowed_targets)
+
+    @property
+    def state_version(self):
+        return self._state_version
+
+    def allows_component(self, component):
+        if not isinstance(component, str) or not component.strip():
+            return False
+        return component.strip().lower() in self._allowed_targets
+
+    def to_dict(self):
+        return {
+            "token_id": self._token_id,
+            "component": self._component,
+            "boundary": self._boundary,
+            "source": self._source,
+            "trusted": self._trusted,
+            "created_at": self._created_at,
+            "allowed_targets": list(self._allowed_targets),
+            "state_version": self._state_version
+        }
 
 
 class SecurityResourceBudget:
@@ -1620,6 +1890,9 @@ class SecurityValidator:
         self._identity_registry = {}
         self._security_events = []
         self._security_event_sequence = 0
+        self._isolation_contexts = {}
+        self._revoked_isolation_contexts = set()
+        self._security_state_version = 0
 
     def _infer_security_event_type(
         self,
@@ -1635,6 +1908,8 @@ class SecurityValidator:
             return "serialization_rejected"
         if category is SecurityResourceError:
             return "resource_abuse_prevented"
+        if category is SecurityIsolationError:
+            return "isolation_violation"
         if category is SecurityPolicyError:
             return "policy_violation"
         if category is SecuritySchemaError:
@@ -2283,6 +2558,469 @@ class SecurityValidator:
         if not isinstance(value, ValidationResult):
             return False
         return value.is_trusted()
+
+    def _validate_isolation_component(
+        self,
+        component
+    ):
+        if not isinstance(component, str) or not component.strip():
+            raise ValueError(
+                "Security isolation component must be a non-empty string"
+            )
+        normalized_component = component.strip().lower()
+        if normalized_component not in self.policy.allowed_isolation_components:
+            raise SecurityIsolationError(
+                f"Security isolation component is not allowed: {normalized_component}",
+                normalized_component
+            )
+        return normalized_component
+
+    def create_isolation_context(
+        self,
+        result,
+        component,
+        boundary=None,
+        allowed_targets=None
+    ):
+        component = self._validate_isolation_component(
+            component
+        )
+        if not isinstance(result, ValidationResult):
+            raise ValueError(
+                "Security isolation context requires a ValidationResult"
+            )
+        if allowed_targets is None:
+            allowed_targets = self.policy.allowed_isolation_components
+        if not isinstance(allowed_targets, (list, tuple, set)):
+            raise ValueError(
+                "Security isolation allowed targets must be a collection"
+            )
+        normalized_targets = []
+        for target in allowed_targets:
+            normalized_target = self._validate_isolation_component(
+                target
+            )
+            if normalized_target not in normalized_targets:
+                normalized_targets.append(normalized_target)
+        if not normalized_targets:
+            raise ValueError(
+                "Security isolation allowed targets cannot be empty"
+            )
+        if boundary is None:
+            boundary = result.boundary
+        if boundary is None and self.policy.require_boundary_for_isolated_data:
+            error = self._record_failure(
+                "Isolated data requires an explicit trust boundary",
+                "boundary",
+                SecurityIsolationError
+            )
+            return self._build_result(
+                result.value,
+                [str(error)]
+            )
+        if boundary is None or not TrustBoundary.is_valid(boundary):
+            if boundary is None:
+                message = "Security isolation boundary cannot be None"
+            else:
+                message = f"Security isolation boundary is not supported: {boundary}"
+            error = self._record_failure(
+                message,
+                "boundary",
+                SecurityIsolationError
+            )
+            return self._build_result(
+                result.value,
+                [str(error)]
+            )
+        if result.boundary is not None and result.boundary != boundary:
+            error = self._record_failure(
+                "Validation result does not belong to the requested isolation boundary",
+                "boundary",
+                SecurityIsolationError
+            )
+            return self._build_result(
+                result.value,
+                [str(error)]
+            )
+        if not result.is_valid():
+            error = self._record_failure(
+                "Invalid validation results cannot enter an isolation boundary",
+                "isolation",
+                SecurityIsolationError
+            )
+            return self._build_result(
+                result.value,
+                [str(error)]
+            )
+        if len(self._isolation_contexts) >= self.policy.max_isolation_contexts:
+            error = self._record_failure(
+                "Security isolation context limit has been reached",
+                "isolation",
+                SecurityIsolationError
+            )
+            return self._build_result(
+                result.value,
+                [str(error)]
+            )
+        token_id = uuid.uuid4().hex
+        context = SecurityIsolationContext(
+            token_id=token_id,
+            owner_id=id(self),
+            component=component,
+            boundary=boundary,
+            source=result.source,
+            trusted=result.trusted,
+            validation_id=id(result),
+            value_id=id(result.value),
+            created_at=time.time(),
+            allowed_targets=normalized_targets,
+            state_version=self._security_state_version
+        )
+        self._isolation_contexts[token_id] = context
+        self._record_security_event(
+            "isolation_context_created",
+            "Security isolation context created",
+            severity="info",
+            field=component,
+            details={
+                "token_id": token_id,
+                "boundary": boundary,
+                "trusted": result.trusted,
+                "source": result.source,
+                "allowed_targets": normalized_targets
+            }
+        )
+        return ValidationResult(
+            valid=True,
+            value=context,
+            errors=list(result.errors),
+            warnings=list(result.warnings),
+            trusted=result.trusted,
+            boundary=boundary,
+            source=result.source,
+            instructions_detected=result.instructions_detected,
+            commands_detected=result.commands_detected,
+            sensitive=result.sensitive
+        )
+
+    def validate_isolation_context(
+        self,
+        context,
+        component=None,
+        boundary=None,
+        require_trusted=False
+    ):
+        if not isinstance(context, SecurityIsolationContext):
+            raise ValueError(
+                "Security isolation validation requires a SecurityIsolationContext"
+            )
+        if component is not None:
+            component = self._validate_isolation_component(
+                component
+            )
+        if boundary is not None and not TrustBoundary.is_valid(boundary):
+            raise ValueError(
+                f"Security isolation boundary is not supported: {boundary}"
+            )
+        registered = self._isolation_contexts.get(
+            context.token_id
+        )
+        if registered is None:
+            error = self._record_failure(
+                "Security isolation context is not registered",
+                "isolation",
+                SecurityIsolationError
+            )
+            return self._build_result(
+                context,
+                [str(error)]
+            )
+        if context._owner_id != id(self):
+            error = self._record_failure(
+                "Security isolation context belongs to another security validator",
+                "isolation",
+                SecurityIsolationError
+            )
+            return self._build_result(
+                context,
+                [str(error)]
+            )
+        if context.token_id in self._revoked_isolation_contexts:
+            error = self._record_failure(
+                "Security isolation context has been revoked",
+                "isolation",
+                SecurityIsolationError
+            )
+            return self._build_result(
+                context,
+                [str(error)]
+            )
+        if context.state_version != self._security_state_version:
+            error = self._record_failure(
+                "Security isolation context is stale",
+                "isolation",
+                SecurityIsolationError
+            )
+            return self._build_result(
+                context,
+                [str(error)]
+            )
+        if not self.policy.enforce_isolation:
+            return ValidationResult(
+                valid=True,
+                value=context,
+                errors=[],
+                warnings=["Security isolation enforcement is disabled"],
+                trusted=context.trusted,
+                boundary=context.boundary,
+                source=context.source
+            )
+        if component is not None and not context.allows_component(component):
+            error = self._record_failure(
+                f"Security isolation context does not allow target component: {component}",
+                component,
+                SecurityIsolationError
+            )
+            return self._build_result(
+                context,
+                [str(error)]
+            )
+        if boundary is not None and context.boundary != boundary:
+            error = self._record_failure(
+                "Security isolation context boundary mismatch",
+                "boundary",
+                SecurityIsolationError
+            )
+            return self._build_result(
+                context,
+                [str(error)]
+            )
+        if require_trusted and not context.trusted:
+            error = self._record_failure(
+                "Security isolation context is not trusted",
+                "isolation",
+                SecurityIsolationError
+            )
+            return self._build_result(
+                context,
+                [str(error)]
+            )
+        return ValidationResult(
+            valid=True,
+            value=context,
+            errors=[],
+            warnings=[],
+            trusted=context.trusted,
+            boundary=context.boundary,
+            source=context.source
+        )
+
+    def handoff_isolated_value(
+        self,
+        result,
+        context,
+        target_component,
+        boundary=None
+    ):
+        target_component = self._validate_isolation_component(
+            target_component
+        )
+        if not isinstance(result, ValidationResult):
+            raise ValueError(
+                "Security isolation handoff requires a ValidationResult"
+            )
+        context_result = self.validate_isolation_context(
+            context,
+            component=target_component,
+            boundary=boundary
+        )
+        if context_result.is_invalid():
+            return self._build_result(
+                result.value,
+                list(context_result.errors)
+            )
+        if self.policy.prevent_validation_bypass:
+            if id(result) != context._validation_id:
+                error = self._record_failure(
+                    "Security isolation handoff detected a validation bypass",
+                    target_component,
+                    SecurityIsolationError
+                )
+                return self._build_result(
+                    result.value,
+                    [str(error)]
+                )
+            if id(result.value) != context._value_id:
+                error = self._record_failure(
+                    "Security isolation handoff detected a value substitution",
+                    target_component,
+                    SecurityIsolationError
+                )
+                return self._build_result(
+                    result.value,
+                    [str(error)]
+                )
+            if result.is_valid() is not True:
+                error = self._record_failure(
+                    "Invalid validation result cannot cross an isolation boundary",
+                    target_component,
+                    SecurityIsolationError
+                )
+                return self._build_result(
+                    result.value,
+                    [str(error)]
+                )
+            if result.trusted != context.trusted:
+                error = self._record_failure(
+                    "Security isolation handoff detected a trust-state change",
+                    target_component,
+                    SecurityIsolationError
+                )
+                return self._build_result(
+                    result.value,
+                    [str(error)]
+                )
+            if result.boundary != context.boundary:
+                error = self._record_failure(
+                    "Security isolation handoff detected a boundary change",
+                    target_component,
+                    SecurityIsolationError
+                )
+                return self._build_result(
+                    result.value,
+                    [str(error)]
+                )
+            if result.source != context.source:
+                error = self._record_failure(
+                    "Security isolation handoff detected a source change",
+                    target_component,
+                    SecurityIsolationError
+                )
+                return self._build_result(
+                    result.value,
+                    [str(error)]
+                )
+        transferred = ValidationResult(
+            valid=True,
+            value=result.value,
+            errors=list(result.errors),
+            warnings=list(result.warnings),
+            trusted=context.trusted if self.policy.preserve_trust_state else result.trusted,
+            boundary=context.boundary,
+            source=context.source,
+            instructions_detected=result.instructions_detected,
+            commands_detected=result.commands_detected,
+            sensitive=result.sensitive
+        )
+        self._record_security_event(
+            "isolation_handoff",
+            "Security isolation context handed off",
+            severity="info",
+            field=target_component,
+            details={
+                "token_id": context.token_id,
+                "source_component": context.component,
+                "target_component": target_component,
+                "boundary": context.boundary,
+                "trusted": transferred.trusted
+            }
+        )
+        return transferred
+
+    def revoke_isolation_context(
+        self,
+        context
+    ):
+        if not isinstance(context, SecurityIsolationContext):
+            raise ValueError(
+                "Security isolation revocation requires a SecurityIsolationContext"
+            )
+        if context.token_id not in self._isolation_contexts:
+            return False
+        self._revoked_isolation_contexts.add(
+            context.token_id
+        )
+        self._isolation_contexts.pop(
+            context.token_id,
+            None
+        )
+        self._record_security_event(
+            "isolation_context_revoked",
+            "Security isolation context revoked",
+            severity="info",
+            field=context.component,
+            details={
+                "token_id": context.token_id,
+                "boundary": context.boundary
+            }
+        )
+        return True
+
+    def get_isolation_contexts(self):
+        return [
+            context.to_dict()
+            for context in self._isolation_contexts.values()
+        ]
+
+    def validate_isolation_integrity(
+        self
+    ):
+        errors = []
+        token_ids = list(self._isolation_contexts.keys())
+        if len(token_ids) != len(set(token_ids)):
+            errors.append("Security isolation context token ids are not unique")
+        if len(token_ids) > self.policy.max_isolation_contexts:
+            errors.append("Security isolation context count exceeds configured maximum")
+        for token_id, context in self._isolation_contexts.items():
+            if token_id != context.token_id:
+                errors.append("Security isolation context registry key mismatch")
+            if context._owner_id != id(self):
+                errors.append("Security isolation context owner mismatch")
+            if context.state_version != self._security_state_version:
+                errors.append("Security isolation context state version mismatch")
+            if not TrustBoundary.is_valid(context.boundary):
+                errors.append("Security isolation context boundary is invalid")
+            if not context.component or context.component not in self.policy.allowed_isolation_components:
+                errors.append("Security isolation context component is not allowed")
+            for target in context.allowed_targets:
+                if target not in self.policy.allowed_isolation_components:
+                    errors.append("Security isolation context contains an invalid target component")
+                    break
+        if errors:
+            for message in errors:
+                self._record_security_event(
+                    "isolation_integrity_failure",
+                    message,
+                    severity="critical",
+                    field="isolation"
+                )
+            return self._build_result(
+                None,
+                errors
+            )
+        return ValidationResult(
+            valid=True,
+            value=True,
+            errors=[],
+            warnings=[],
+            trusted=True,
+            boundary=TrustBoundary.CONFIGURATION
+        )
+
+    def get_isolation_state(self):
+        return {
+            "enabled": self.policy.enforce_isolation,
+            "prevent_validation_bypass": self.policy.prevent_validation_bypass,
+            "preserve_trust_state": self.policy.preserve_trust_state,
+            "require_boundary_for_isolated_data": self.policy.require_boundary_for_isolated_data,
+            "max_contexts": self.policy.max_isolation_contexts,
+            "active_context_count": len(self._isolation_contexts),
+            "revoked_context_count": len(self._revoked_isolation_contexts),
+            "security_state_version": self._security_state_version,
+            "allowed_components": list(
+                self.policy.allowed_isolation_components
+            )
+        }
 
     def validate_schema(
         self,
@@ -5503,6 +6241,9 @@ class SecurityValidator:
             return result
         previous_policy = self.policy
         self.policy = result.value
+        self._security_state_version += 1
+        self._isolation_contexts.clear()
+        self._revoked_isolation_contexts.clear()
         differences = previous_policy.configuration_diff(
             self.policy
         )
@@ -5539,6 +6280,9 @@ class SecurityValidator:
             policy
         )
         self.policy = policy
+        self._security_state_version += 1
+        self._isolation_contexts.clear()
+        self._revoked_isolation_contexts.clear()
         self._record_security_event(
             "policy_replaced",
             "Security policy replaced successfully",
@@ -5557,6 +6301,9 @@ class SecurityValidator:
             default_policy
         )
         self.policy = default_policy
+        self._security_state_version += 1
+        self._isolation_contexts.clear()
+        self._revoked_isolation_contexts.clear()
         self._record_security_event(
             "policy_reset",
             "Security policy reset to secure defaults",
@@ -5637,6 +6384,7 @@ class SecurityValidator:
                     self.policy.to_dict().keys()
                 )
             },
+            "isolation_protection": self.get_isolation_state(),
             "resource_protection": {
                 "max_documents_per_operation": self.policy.max_documents_per_operation,
                 "max_chunks_per_operation": self.policy.max_chunks_per_operation,
