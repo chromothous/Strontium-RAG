@@ -1,6 +1,7 @@
 from classes.logger import Logger
 from classes.error_handler import ErrorHandler
 import os
+import re
 import tempfile
 import unicodedata
 import ipaddress
@@ -44,6 +45,24 @@ class SecurityValidationError(SecurityError):
             if not isinstance(field, str) or not field.strip():
                 raise ValueError(
                     "Security validation field must be a non-empty string or None"
+                )
+        self.field = field
+
+
+class SecuritySecretError(SecurityError):
+    def __init__(
+        self,
+        message,
+        field=None
+    ):
+        super().__init__(
+            message,
+            category="secret"
+        )
+        if field is not None:
+            if not isinstance(field, str) or not field.strip():
+                raise ValueError(
+                    "Security secret field must be a non-empty string or None"
                 )
         self.field = field
 
@@ -190,7 +209,8 @@ class ValidationResult:
         boundary=None,
         source=None,
         instructions_detected=False,
-        commands_detected=False
+        commands_detected=False,
+        sensitive=False
     ):
         if not isinstance(valid, bool):
             raise ValueError(
@@ -234,6 +254,10 @@ class ValidationResult:
             raise ValueError(
                 "Validation result commands_detected flag must be a boolean"
             )
+        if not isinstance(sensitive, bool):
+            raise ValueError(
+                "Validation result sensitive flag must be a boolean"
+            )
         if trusted and not valid:
             raise ValueError(
                 "Invalid validation results cannot be trusted"
@@ -248,6 +272,7 @@ class ValidationResult:
         self.source = source
         self.instructions_detected = instructions_detected
         self.commands_detected = commands_detected
+        self.sensitive = sensitive
 
     def is_valid(self):
         return self.valid is True
@@ -261,17 +286,21 @@ class ValidationResult:
     def is_untrusted(self):
         return self.trusted is False
 
+    def is_sensitive(self):
+        return self.sensitive is True
+
     def to_dict(self):
         return {
             "valid": self.valid,
-            "value": self.value,
+            "value": "[REDACTED]" if self.sensitive else self.value,
             "errors": list(self.errors),
             "warnings": list(self.warnings),
             "trusted": self.trusted,
             "boundary": self.boundary,
             "source": self.source,
             "instructions_detected": self.instructions_detected,
-            "commands_detected": self.commands_detected
+            "commands_detected": self.commands_detected,
+            "sensitive": self.sensitive
         }
 
 
@@ -310,6 +339,24 @@ class SecurityPolicy:
         "user",
         "retrieved",
         "external",
+    )
+    DEFAULT_REDACT_SECRETS = True
+    DEFAULT_ALLOW_EMPTY_SECRETS = False
+    DEFAULT_MIN_SECRET_LENGTH = 8
+    DEFAULT_SENSITIVE_FIELD_NAMES = (
+        "api_key",
+        "apikey",
+        "access_token",
+        "auth_token",
+        "authorization",
+        "password",
+        "passwd",
+        "secret",
+        "token",
+        "private_key",
+        "client_secret",
+        "credential",
+        "credentials",
     )
     DEFAULT_ALLOWED_SCHEMES = (
         "https",
@@ -350,6 +397,10 @@ class SecurityPolicy:
         reject_suspicious_instructions=DEFAULT_REJECT_SUSPICIOUS_INSTRUCTIONS,
         reject_embedded_commands=DEFAULT_REJECT_EMBEDDED_COMMANDS,
         allowed_content_sources=DEFAULT_ALLOWED_CONTENT_SOURCES,
+        redact_secrets=DEFAULT_REDACT_SECRETS,
+        allow_empty_secrets=DEFAULT_ALLOW_EMPTY_SECRETS,
+        min_secret_length=DEFAULT_MIN_SECRET_LENGTH,
+        sensitive_field_names=DEFAULT_SENSITIVE_FIELD_NAMES,
         allowed_schemes=None,
         allowed_file_types=None
     ):
@@ -578,6 +629,47 @@ class SecurityPolicy:
         self.allowed_content_sources = tuple(
             normalized_content_sources
         )
+        if not isinstance(redact_secrets, bool):
+            raise ValueError(
+                "Security redact_secrets must be a boolean"
+            )
+        if not isinstance(allow_empty_secrets, bool):
+            raise ValueError(
+                "Security allow_empty_secrets must be a boolean"
+            )
+        if not isinstance(min_secret_length, int) or isinstance(min_secret_length, bool):
+            raise ValueError(
+                "Security min secret length must be an integer"
+            )
+        if min_secret_length < 1:
+            raise ValueError(
+                "Security min secret length must be positive"
+            )
+        if sensitive_field_names is None:
+            sensitive_field_names = self.DEFAULT_SENSITIVE_FIELD_NAMES
+        if not isinstance(sensitive_field_names, (list, tuple)):
+            raise ValueError(
+                "Security sensitive field names must be a list or tuple"
+            )
+        if not sensitive_field_names:
+            raise ValueError(
+                "Security sensitive field names cannot be empty"
+            )
+        normalized_sensitive_fields = []
+        for field_name in sensitive_field_names:
+            if not isinstance(field_name, str) or not field_name.strip():
+                raise ValueError(
+                    "Security sensitive field names must contain non-empty strings"
+                )
+            normalized_sensitive_fields.append(
+                field_name.strip().lower()
+            )
+        self.redact_secrets = redact_secrets
+        self.allow_empty_secrets = allow_empty_secrets
+        self.min_secret_length = min_secret_length
+        self.sensitive_field_names = tuple(
+            normalized_sensitive_fields
+        )
 
         if allowed_schemes is None:
             allowed_schemes = self.DEFAULT_ALLOWED_SCHEMES
@@ -784,6 +876,30 @@ class SecurityPolicy:
                 raise ValueError(
                     f"Security content source is not supported: {content_source}"
                 )
+        if not isinstance(self.redact_secrets, bool):
+            raise ValueError(
+                "Security redact_secrets must be a boolean"
+            )
+        if not isinstance(self.allow_empty_secrets, bool):
+            raise ValueError(
+                "Security allow_empty_secrets must be a boolean"
+            )
+        if not isinstance(self.min_secret_length, int) or isinstance(self.min_secret_length, bool):
+            raise ValueError(
+                "Security min secret length must be an integer"
+            )
+        if self.min_secret_length < 1:
+            raise ValueError(
+                "Security min secret length must be positive"
+            )
+        if not isinstance(self.sensitive_field_names, tuple):
+            raise ValueError(
+                "Security sensitive field names must be a tuple"
+            )
+        if not self.sensitive_field_names:
+            raise ValueError(
+                "Security sensitive field names cannot be empty"
+            )
 
         if not self.allowed_schemes:
             raise ValueError(
@@ -838,6 +954,12 @@ class SecurityPolicy:
             "reject_embedded_commands": self.reject_embedded_commands,
             "allowed_content_sources": tuple(
                 self.allowed_content_sources
+            ),
+            "redact_secrets": self.redact_secrets,
+            "allow_empty_secrets": self.allow_empty_secrets,
+            "min_secret_length": self.min_secret_length,
+            "sensitive_field_names": tuple(
+                self.sensitive_field_names
             ),
             "allowed_schemes": tuple(
                 self.allowed_schemes
@@ -1235,7 +1357,8 @@ class SecurityValidator:
             boundary=result.boundary,
             source=result.source,
             instructions_detected=result.instructions_detected,
-            commands_detected=result.commands_detected
+            commands_detected=result.commands_detected,
+            sensitive=result.sensitive
         )
 
     def promote_boundary(
@@ -1271,7 +1394,8 @@ class SecurityValidator:
             boundary=boundary,
             source=result.source,
             instructions_detected=result.instructions_detected,
-            commands_detected=result.commands_detected
+            commands_detected=result.commands_detected,
+            sensitive=result.sensitive
         )
         self._trusted_boundaries.add(
             boundary
@@ -2840,6 +2964,328 @@ class SecurityValidator:
             "commands_detected": result.commands_detected
         }
 
+    def _is_sensitive_field(
+        self,
+        field
+    ):
+        if not isinstance(field, str):
+            return False
+        normalized = field.strip().lower()
+        normalized = normalized.replace(
+            "-",
+            "_"
+        )
+        normalized = normalized.replace(
+            " ",
+            "_"
+        )
+        return normalized in self.policy.sensitive_field_names
+
+    def redact_secret(
+        self,
+        value
+    ):
+        if value is None:
+            return None
+        if not self.policy.redact_secrets:
+            return value
+        return "[REDACTED]"
+
+    def redact_text(
+        self,
+        value,
+        secrets=None
+    ):
+        if not isinstance(value, str):
+            raise ValueError(
+                "Security redaction text must be a string"
+            )
+        redacted = value
+        if not self.policy.redact_secrets:
+            return redacted
+        if secrets is not None:
+            if not isinstance(secrets, (list, tuple, set)):
+                raise ValueError(
+                    "Security redaction secrets must be a collection"
+                )
+            normalized_secrets = []
+            for secret in secrets:
+                if isinstance(secret, str) and secret:
+                    normalized_secrets.append(
+                        secret
+                    )
+            for secret in sorted(
+                normalized_secrets,
+                key=len,
+                reverse=True
+            ):
+                redacted = redacted.replace(
+                    secret,
+                    "[REDACTED]"
+                )
+        patterns = (
+            r"(?i)(api[_-]?key\s*[:=]\s*)([^\s,;]+)",
+            r"(?i)(access[_-]?token\s*[:=]\s*)([^\s,;]+)",
+            r"(?i)(auth(?:orization)?\s*[:=]\s*)([^\s,;]+)",
+            r"(?i)(password\s*[:=]\s*)([^\s,;]+)",
+            r"(?i)(secret\s*[:=]\s*)([^\s,;]+)",
+            r"(?i)(client[_-]?secret\s*[:=]\s*)([^\s,;]+)",
+            r"(?i)(private[_-]?key\s*[:=]\s*)([^\s,;]+)",
+            r"(?i)(bearer\s+)([^\s,;]+)"
+        )
+        for pattern in patterns:
+            redacted = re.sub(
+                pattern,
+                r"\1[REDACTED]",
+                redacted
+            )
+        return redacted
+
+    def sanitize_for_logging(
+        self,
+        value,
+        secrets=None
+    ):
+        if isinstance(value, str):
+            return self.redact_text(
+                value,
+                secrets
+            )
+        if isinstance(value, dict):
+            return self.sanitize_metadata(
+                value,
+                secrets
+            )
+        if isinstance(value, list):
+            return [
+                self.sanitize_for_logging(
+                    item,
+                    secrets
+                )
+                for item in value
+            ]
+        if isinstance(value, tuple):
+            return tuple(
+                self.sanitize_for_logging(
+                    item,
+                    secrets
+                )
+                for item in value
+            )
+        if isinstance(value, set):
+            return {
+                self.sanitize_for_logging(
+                    item,
+                    secrets
+                )
+                for item in value
+            }
+        return value
+
+    def sanitize_metadata(
+        self,
+        metadata,
+        secrets=None
+    ):
+        if not isinstance(metadata, dict):
+            raise ValueError(
+                "Security metadata sanitization requires a dictionary"
+            )
+        sanitized = {}
+        for key, value in metadata.items():
+            if self._is_sensitive_field(
+                str(key)
+            ):
+                sanitized[key] = self.redact_secret(
+                    value
+                )
+                continue
+            sanitized[key] = self.sanitize_for_logging(
+                value,
+                secrets
+            )
+        return sanitized
+
+    def sanitize_configuration(
+        self,
+        configuration,
+        secrets=None
+    ):
+        if not isinstance(configuration, dict):
+            raise ValueError(
+                "Security configuration sanitization requires a dictionary"
+            )
+        return self.sanitize_metadata(
+            configuration,
+            secrets
+        )
+
+    def validate_secret(
+        self,
+        value,
+        field="secret",
+        required=True,
+        min_length=None
+    ):
+        if not isinstance(field, str) or not field.strip():
+            raise ValueError(
+                "Security secret field must be a non-empty string"
+            )
+        if min_length is None:
+            min_length = self.policy.min_secret_length
+        if not isinstance(min_length, int) or isinstance(min_length, bool) or min_length < 1:
+            raise ValueError(
+                "Security secret minimum length must be a positive integer"
+            )
+        if not isinstance(value, str):
+            error = self._record_failure(
+                f"{field} must be a string",
+                field,
+                SecuritySecretError
+            )
+            return ValidationResult(
+                valid=False,
+                value=value,
+                errors=[str(error)],
+                trusted=False,
+                sensitive=True
+            )
+        if not value and (
+            required
+            or not self.policy.allow_empty_secrets
+        ):
+            error = self._record_failure(
+                f"{field} cannot be empty",
+                field,
+                SecuritySecretError
+            )
+            return ValidationResult(
+                valid=False,
+                value=value,
+                errors=[str(error)],
+                trusted=False,
+                sensitive=True
+            )
+        if value and len(value) < min_length:
+            error = self._record_failure(
+                f"{field} is shorter than the minimum secret length",
+                field,
+                SecuritySecretError
+            )
+            return ValidationResult(
+                valid=False,
+                value=value,
+                errors=[str(error)],
+                trusted=False,
+                sensitive=True
+            )
+        if value and len(value) > self.policy.max_string_length:
+            error = self._record_failure(
+                f"{field} exceeds the maximum secret length",
+                field,
+                SecuritySecretError
+            )
+            return ValidationResult(
+                valid=False,
+                value=value,
+                errors=[str(error)],
+                trusted=False,
+                sensitive=True
+            )
+        if value != value.strip():
+            error = self._record_failure(
+                f"{field} contains leading or trailing whitespace",
+                field,
+                SecuritySecretError
+            )
+            return ValidationResult(
+                valid=False,
+                value=value,
+                errors=[str(error)],
+                trusted=False,
+                sensitive=True
+            )
+        return ValidationResult(
+            valid=True,
+            value=value,
+            errors=[],
+            warnings=[],
+            trusted=False,
+            sensitive=True
+        )
+
+    def validate_api_key(
+        self,
+        value,
+        field="api_key"
+    ):
+        return self.validate_secret(
+            value,
+            field,
+            required=True
+        )
+
+    def validate_environment_secret(
+        self,
+        name,
+        value=None
+    ):
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError(
+                "Security environment secret name must be a non-empty string"
+            )
+        normalized_name = name.strip()
+        if value is None:
+            value = os.getenv(
+                normalized_name
+            )
+        return self.validate_secret(
+            value,
+            f"environment:{normalized_name}",
+            required=True
+        )
+
+    def require_secret(
+        self,
+        result,
+        field="secret"
+    ):
+        if not isinstance(result, ValidationResult):
+            raise ValueError(
+                "Security secret result must be a ValidationResult"
+            )
+        if not result.is_sensitive():
+            raise SecuritySecretError(
+                f"Security result for {field} is not marked as sensitive",
+                field
+            )
+        if not result.is_valid():
+            raise SecuritySecretError(
+                f"Security secret validation failed for {field}",
+                field
+            )
+        return result.value
+
+    def get_secret_status(
+        self,
+        name,
+        value=None
+    ):
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError(
+                "Security secret status name must be a non-empty string"
+            )
+        result = self.validate_environment_secret(
+            name,
+            value
+        )
+        return {
+            "name": name.strip(),
+            "present": result.value is not None and result.value != "",
+            "valid": result.is_valid(),
+            "sensitive": True
+        }
+
     def get_policy(self):
         return self.policy.to_dict()
 
@@ -2863,6 +3309,14 @@ class SecurityValidator:
             "untrusted_content_sources": list(
                 SecurityContentSource.UNTRUSTED
             ),
+            "secret_protection": {
+                "redact_secrets": self.policy.redact_secrets,
+                "allow_empty_secrets": self.policy.allow_empty_secrets,
+                "min_secret_length": self.policy.min_secret_length,
+                "sensitive_field_names": list(
+                    self.policy.sensitive_field_names
+                )
+            },
             "supported_trust_boundaries": self.get_trust_boundaries(),
             "trusted_boundaries": self.get_trusted_boundaries()
         }

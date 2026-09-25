@@ -10733,6 +10733,165 @@ def full_test():
         print(red(e))
         print(red("Version 0.13.8 failed"))
 
+    try:
+        tests += 1
+        from classes.security import SecurityValidator, SecurityPolicy, ValidationResult, SecurityError, SecurityValidationError, SecurityPolicyError, SecuritySchemaError, SecurityContentError, SecuritySecretError, SecuritySchema, TrustBoundary
+        from classes.logger import Logger
+        from classes.error_handler import ErrorHandler
+        security_logger = Logger()
+        security_error_handler = ErrorHandler(security_logger)
+        security = SecurityValidator(security_logger, security_error_handler)
+        default_policy = SecurityPolicy()
+        assert default_policy.redact_secrets is True, "Security policy should redact secrets by default"
+        assert default_policy.allow_empty_secrets is False, "Security policy should reject empty secrets by default"
+        assert default_policy.min_secret_length == 8, "Security policy should enforce a minimum secret length by default"
+        assert "api_key" in default_policy.sensitive_field_names, "Security policy should recognize API keys as sensitive fields"
+        assert "password" in default_policy.sensitive_field_names, "Security policy should recognize passwords as sensitive fields"
+        valid_secret = security.validate_secret("super-secret-key", "api_key")
+        assert isinstance(valid_secret, ValidationResult), "Secret validation should return a ValidationResult"
+        assert valid_secret.is_valid() is True, "Secret validation should accept a valid secret"
+        assert valid_secret.is_untrusted() is True, "Validated secrets should remain untrusted until explicitly promoted"
+        assert valid_secret.is_sensitive() is True, "Validated secrets should be marked as sensitive"
+        assert valid_secret.value == "super-secret-key", "Secret validation should preserve the secret for controlled internal use"
+        secret_dict = valid_secret.to_dict()
+        assert secret_dict["value"] == "[REDACTED]", "Sensitive validation serialization should never expose the secret"
+        valid_api_key = security.validate_api_key("sk-test-123456789", "api_key")
+        assert valid_api_key.is_valid() is True, "API key validation should accept a sufficiently long secret"
+        too_short = security.validate_secret("short", "api_key")
+        assert too_short.is_valid() is False, "Secret validation should reject secrets below the minimum length"
+        empty_secret = security.validate_secret("", "api_key")
+        assert empty_secret.is_valid() is False, "Secret validation should reject empty secrets by default"
+        whitespace_secret = security.validate_secret(" secret ", "api_key")
+        assert whitespace_secret.is_valid() is False, "Secret validation should reject leading and trailing secret whitespace"
+        non_string_secret = security.validate_secret(12345678, "api_key")
+        assert non_string_secret.is_valid() is False, "Secret validation should reject non-string secret values"
+        missing_environment = security.validate_environment_secret("STRONTIUM_MISSING_SECRET")
+        assert missing_environment.is_valid() is False, "Environment secret validation should reject missing secrets by default"
+        present_environment = security.validate_environment_secret("STRONTIUM_TEST_SECRET", "environment-secret-value")
+        assert present_environment.is_valid() is True, "Environment secret validation should accept a supplied valid secret"
+        status_missing = security.get_secret_status("STRONTIUM_MISSING_SECRET")
+        assert status_missing["present"] is False, "Secret status should report a missing environment secret without exposing a value"
+        assert status_missing["valid"] is False, "Secret status should report a missing environment secret as invalid"
+        status_present = security.get_secret_status("STRONTIUM_TEST_SECRET", "environment-secret-value")
+        assert status_present["present"] is True, "Secret status should report a supplied environment secret as present"
+        assert status_present["valid"] is True, "Secret status should report a supplied valid environment secret as valid"
+        required_secret = security.require_secret(valid_secret, "api_key")
+        assert required_secret == "super-secret-key", "Secret requirement should return the secret only for controlled internal use"
+        redacted_secret = security.redact_secret("super-secret-key")
+        assert redacted_secret == "[REDACTED]", "Secret redaction should return a fixed redaction marker"
+        redacted_text = security.redact_text("api_key=super-secret-key password=hunter2 Bearer token-value", ["super-secret-key", "hunter2", "token-value"])
+        assert "super-secret-key" not in redacted_text, "Text redaction should remove explicit secret values"
+        assert "hunter2" not in redacted_text, "Text redaction should remove password values"
+        assert "token-value" not in redacted_text, "Text redaction should remove bearer token values"
+        assert "[REDACTED]" in redacted_text, "Text redaction should insert the redaction marker"
+        metadata = {
+            "source": "example.txt",
+            "api_key": "super-secret-key",
+            "nested": {
+                "password": "hunter2",
+                "safe": "visible"
+            },
+            "items": [
+                {
+                    "access_token": "token-value",
+                    "name": "document"
+                }
+            ]
+        }
+        sanitized_metadata = security.sanitize_metadata(metadata)
+        assert sanitized_metadata["api_key"] == "[REDACTED]", "Metadata sanitization should redact API keys"
+        assert sanitized_metadata["nested"]["password"] == "[REDACTED]", "Metadata sanitization should redact nested passwords"
+        assert sanitized_metadata["nested"]["safe"] == "visible", "Metadata sanitization should preserve non-sensitive metadata"
+        assert sanitized_metadata["items"][0]["access_token"] == "[REDACTED]", "Metadata sanitization should redact sensitive values inside collections"
+        assert metadata["api_key"] == "super-secret-key", "Metadata sanitization should not mutate the original metadata"
+        configuration = {
+            "model": "mistral",
+            "api_key": "super-secret-key",
+            "client_secret": "client-secret-value"
+        }
+        sanitized_configuration = security.sanitize_configuration(configuration)
+        assert sanitized_configuration["model"] == "mistral", "Configuration sanitization should preserve non-sensitive configuration"
+        assert sanitized_configuration["api_key"] == "[REDACTED]", "Configuration sanitization should redact API keys"
+        assert sanitized_configuration["client_secret"] == "[REDACTED]", "Configuration sanitization should redact client secrets"
+        logging_value = security.sanitize_for_logging(
+            {
+                "authorization": "Bearer secret-token",
+                "message": "api_key=super-secret-key"
+            },
+            ["secret-token", "super-secret-key"]
+        )
+        assert logging_value["authorization"] == "[REDACTED]", "Logging sanitization should redact authorization metadata"
+        assert "super-secret-key" not in logging_value["message"], "Logging sanitization should redact secret values from messages"
+        trusted_secret = security.mark_trusted(valid_secret)
+        assert trusted_secret.is_trusted() is True, "Trusted secret promotion should establish trusted state"
+        assert trusted_secret.is_sensitive() is True, "Trusted secret promotion should preserve sensitive state"
+        trusted_secret_dict = trusted_secret.to_dict()
+        assert trusted_secret_dict["value"] == "[REDACTED]", "Trusted sensitive values should remain redacted during serialization"
+        try:
+            security.require_secret(
+                SecurityValidator(security_logger, security_error_handler).validate_string("normal value", "input"),
+                "api_key"
+            )
+            assert False, "Security should reject non-sensitive validation results as secrets"
+        except SecuritySecretError:
+            pass
+        try:
+            SecuritySecretError("secret failure", "")
+            assert False, "Security secret errors should reject empty field names"
+        except ValueError:
+            pass
+        try:
+            SecurityPolicy(min_secret_length=0)
+            assert False, "Security policy should reject a zero minimum secret length"
+        except ValueError:
+            pass
+        try:
+            SecurityPolicy(redact_secrets="yes")
+            assert False, "Security policy should reject non-boolean secret redaction settings"
+        except ValueError:
+            pass
+        try:
+            SecurityPolicy(allow_empty_secrets="yes")
+            assert False, "Security policy should reject non-boolean empty-secret settings"
+        except ValueError:
+            pass
+        try:
+            SecurityPolicy(sensitive_field_names=[""])
+            assert False, "Security policy should reject empty sensitive field names"
+        except ValueError:
+            pass
+        safe_policy = SecurityPolicy(
+            redact_secrets=False,
+            allow_empty_secrets=True,
+            min_secret_length=3
+        )
+        safe_policy_security = SecurityValidator(
+            Logger(),
+            ErrorHandler(Logger()),
+            safe_policy
+        )
+        optional_secret = safe_policy_security.validate_secret("", "optional_secret", required=False)
+        assert optional_secret.is_valid() is True, "Explicitly configured optional secret fields should allow empty values"
+        unredacted = safe_policy_security.redact_secret("visible-secret")
+        assert unredacted == "visible-secret", "Explicitly disabling secret redaction should preserve the configured behavior"
+        policy_copy = security.get_policy()
+        assert policy_copy["redact_secrets"] is True, "Security policy serialization should expose secret redaction"
+        assert policy_copy["allow_empty_secrets"] is False, "Security policy serialization should expose empty-secret policy"
+        assert policy_copy["min_secret_length"] == 8, "Security policy serialization should expose minimum secret length"
+        assert "sensitive_field_names" in policy_copy, "Security policy serialization should expose sensitive field names"
+        state = security.get_security_state()
+        assert state["secret_protection"]["redact_secrets"] is True, "Security state should report secret redaction"
+        assert state["secret_protection"]["allow_empty_secrets"] is False, "Security state should report secure empty-secret defaults"
+        diagnostics = security_error_handler.get_diagnostics()
+        assert any(diagnostic["category"] == "validation" and diagnostic["component"] == "security" for diagnostic in diagnostics), "Secret validation failures should remain integrated with security validation diagnostics"
+        assert SecuritySecretError("secret failure").category == "secret", "SecuritySecretError should establish the secret exception category"
+        success += 1
+        print(green("Version 0.13.9 secret and credential protection is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.13.9 failed"))
+
 
 
     if failure > 0:

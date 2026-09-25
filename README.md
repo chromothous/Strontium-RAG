@@ -582,3 +582,6 @@ URL and external resource validation is online.
 
 Version 0.13.8
 Content and injection defense is online.
+
+Version 0.13.9
+Secret and credential portection is online.
