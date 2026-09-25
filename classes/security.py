@@ -1308,6 +1308,87 @@ class SecurityPolicy:
 
         return True
 
+    @classmethod
+    def from_dict(
+        cls,
+        configuration,
+        fallback=None,
+        strict=True
+    ):
+        if not isinstance(configuration, dict):
+            raise SecurityPolicyError(
+                "Security policy configuration must be a dictionary"
+            )
+        if fallback is not None and not isinstance(fallback, cls):
+            raise SecurityPolicyError(
+                "Security policy fallback must be a SecurityPolicy or None"
+            )
+        if not isinstance(strict, bool):
+            raise SecurityPolicyError(
+                "Security policy strict configuration mode must be a boolean"
+            )
+        if fallback is None:
+            base_configuration = cls().to_dict()
+        else:
+            fallback.validate()
+            base_configuration = fallback.to_dict()
+        supported_fields = set(base_configuration.keys())
+        unknown_fields = [
+            field
+            for field in configuration
+            if field not in supported_fields
+        ]
+        if unknown_fields and strict:
+            unknown_fields_text = ", ".join(
+                sorted(
+                    str(field)
+                    for field in unknown_fields
+                )
+            )
+            raise SecurityPolicyError(
+                f"Security policy configuration contains unsupported fields: {unknown_fields_text}"
+            )
+        for field, value in configuration.items():
+            if field in supported_fields:
+                base_configuration[field] = value
+        try:
+            policy = cls(**base_configuration)
+            policy.validate()
+            return policy
+        except (ValueError, TypeError, SecurityError) as exception:
+            if isinstance(exception, SecurityPolicyError):
+                raise
+            raise SecurityPolicyError(
+                f"Security policy configuration is invalid: {exception}"
+            )
+
+    @classmethod
+    def secure_defaults(cls):
+        policy = cls()
+        policy.validate()
+        return policy
+
+    def configuration_diff(
+        self,
+        other
+    ):
+        if not isinstance(other, SecurityPolicy):
+            raise SecurityPolicyError(
+                "Security policy comparison requires a SecurityPolicy"
+            )
+        self.validate()
+        other.validate()
+        current = self.to_dict()
+        comparison = other.to_dict()
+        return {
+            field: {
+                "current": current[field],
+                "other": comparison[field]
+            }
+            for field in current
+            if current[field] != comparison[field]
+        }
+
     def to_dict(self):
         return {
             "max_string_length": self.max_string_length,
@@ -5366,7 +5447,129 @@ class SecurityValidator:
             ), metadata in self._identity_registry.items()
         }
 
+    def validate_policy_configuration(
+        self,
+        configuration,
+        fallback=None,
+        strict=True
+    ):
+        if fallback is None:
+            fallback = self.policy
+        try:
+            candidate = SecurityPolicy.from_dict(
+                configuration,
+                fallback=fallback,
+                strict=strict
+            )
+        except SecurityPolicyError as exception:
+            self._record_security_event(
+                "policy_violation",
+                str(exception),
+                severity="error",
+                field="policy_configuration",
+                details={
+                    "operation": "validate_policy_configuration"
+                }
+            )
+            return self._build_result(
+                None,
+                [str(exception)]
+            )
+        return ValidationResult(
+            valid=True,
+            value=candidate,
+            errors=[],
+            warnings=[],
+            trusted=False
+        )
+
+    def apply_policy_configuration(
+        self,
+        configuration,
+        fallback_to_current=True,
+        strict=True
+    ):
+        if not isinstance(fallback_to_current, bool):
+            raise ValueError(
+                "Security policy fallback mode must be a boolean"
+            )
+        fallback = self.policy if fallback_to_current else SecurityPolicy.secure_defaults()
+        result = self.validate_policy_configuration(
+            configuration,
+            fallback=fallback,
+            strict=strict
+        )
+        if result.is_invalid():
+            return result
+        previous_policy = self.policy
+        self.policy = result.value
+        differences = previous_policy.configuration_diff(
+            self.policy
+        )
+        self._record_security_event(
+            "policy_configuration_applied",
+            "Security policy configuration applied successfully",
+            severity="info",
+            field="policy_configuration",
+            details={
+                "changed_fields": sorted(differences.keys()),
+                "fallback_to_current": fallback_to_current,
+                "strict": strict
+            }
+        )
+        return ValidationResult(
+            valid=True,
+            value=self.policy,
+            errors=[],
+            warnings=[],
+            trusted=False
+        )
+
+    def set_policy(
+        self,
+        policy
+    ):
+        if not isinstance(policy, SecurityPolicy):
+            raise ValueError(
+                "Security validator policy must be a SecurityPolicy"
+            )
+        policy.validate()
+        previous_policy = self.policy
+        differences = previous_policy.configuration_diff(
+            policy
+        )
+        self.policy = policy
+        self._record_security_event(
+            "policy_replaced",
+            "Security policy replaced successfully",
+            severity="info",
+            field="policy",
+            details={
+                "changed_fields": sorted(differences.keys())
+            }
+        )
+        return self.policy
+
+    def reset_policy(self):
+        default_policy = SecurityPolicy.secure_defaults()
+        previous_policy = self.policy
+        differences = previous_policy.configuration_diff(
+            default_policy
+        )
+        self.policy = default_policy
+        self._record_security_event(
+            "policy_reset",
+            "Security policy reset to secure defaults",
+            severity="info",
+            field="policy",
+            details={
+                "changed_fields": sorted(differences.keys())
+            }
+        )
+        return self.policy
+
     def get_policy(self):
+        self.policy.validate()
         return self.policy.to_dict()
 
     def get_security_state(self):
@@ -5426,6 +5629,13 @@ class SecurityValidator:
                     event["event_type"]
                     for event in self._security_events
                 })
+            },
+            "policy_configuration": {
+                "secure_defaults_available": True,
+                "configuration_valid": True,
+                "supported_fields": sorted(
+                    self.policy.to_dict().keys()
+                )
             },
             "resource_protection": {
                 "max_documents_per_operation": self.policy.max_documents_per_operation,

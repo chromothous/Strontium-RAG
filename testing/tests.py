@@ -11204,6 +11204,65 @@ def full_test():
         print(red(e))
         print(red("Version 0.13.13 failed"))
 
+    try:
+        tests += 1
+        from classes.security import SecurityValidator, SecurityPolicy, SecurityPolicyError
+        from classes.logger import Logger
+        from classes.error_handler import ErrorHandler
+        security_logger = Logger()
+        security_error_handler = ErrorHandler(security_logger)
+        security = SecurityValidator(security_logger, security_error_handler)
+        defaults = SecurityPolicy.secure_defaults()
+        assert defaults.max_query_size == 10000, "Secure defaults should preserve the default query limit"
+        assert defaults.allowed_file_types == (".txt",), "Secure defaults should preserve the default file type restriction"
+        partial = SecurityPolicy.from_dict({"max_query_size": 2048, "max_documents_per_operation": 25}, fallback=defaults)
+        assert partial.max_query_size == 2048, "Policy configuration should override fallback values"
+        assert partial.max_documents_per_operation == 25, "Policy configuration should override resource limits"
+        assert partial.max_chunk_size == defaults.max_chunk_size, "Policy configuration should preserve unspecified fallback values"
+        result = security.apply_policy_configuration({"max_query_size": 4096, "allowed_file_types": (".txt", ".md")})
+        assert result.is_valid() is True, "Valid policy configuration should be applied"
+        assert security.policy.max_query_size == 4096, "Applied policy should update configured limits"
+        assert security.policy.allowed_file_types == (".txt", ".md"), "Applied policy should update file type restrictions"
+        assert security.policy.max_documents_per_operation == defaults.max_documents_per_operation, "Applied partial configuration should preserve omitted values"
+        previous_policy = security.policy
+        invalid = security.apply_policy_configuration({"max_query_size": 0})
+        assert invalid.is_invalid() is True, "Invalid policy configuration should be rejected"
+        assert security.policy is previous_policy, "Rejected policy configuration must not partially replace the active policy"
+        unknown = security.apply_policy_configuration({"not_a_policy_field": True})
+        assert unknown.is_invalid() is True, "Unknown policy fields should be rejected in strict mode"
+        assert security.policy is previous_policy, "Unknown configuration must not replace the active policy"
+        fallback_result = security.apply_policy_configuration({"max_query_size": 1234}, fallback_to_current=False)
+        assert fallback_result.is_valid() is True, "Configuration should be applicable against secure defaults"
+        assert security.policy.max_query_size == 1234, "Explicit configuration should override secure defaults"
+        assert security.policy.allowed_file_types == (".txt",), "Secure-default fallback should restore omitted restrictions"
+        replacement = SecurityPolicy(max_query_size=7777, max_chunks_per_operation=77)
+        returned = security.set_policy(replacement)
+        assert returned is replacement, "Explicit policy replacement should return the active policy"
+        assert security.policy.max_query_size == 7777, "Explicit policy replacement should be active"
+        assert security.policy.max_chunks_per_operation == 77, "Explicit policy replacement should preserve configured resource limits"
+        security.reset_policy()
+        assert security.policy.max_query_size == 10000, "Policy reset should restore the secure default query limit"
+        assert security.policy.allowed_file_types == (".txt",), "Policy reset should restore secure default file restrictions"
+        state = security.get_security_state()
+        assert state["policy_configuration"]["secure_defaults_available"] is True, "Security state should expose secure-default availability"
+        assert state["policy_configuration"]["configuration_valid"] is True, "Active policy should be reported as valid"
+        assert "max_query_size" in state["policy_configuration"]["supported_fields"], "Security state should expose supported policy fields"
+        policy_events = security.get_security_events()
+        assert any(event["event_type"] == "policy_configuration_applied" for event in policy_events), "Successful policy application should be audited"
+        assert any(event["event_type"] == "policy_violation" for event in policy_events), "Rejected policy configuration should be audited"
+        assert any(event["event_type"] == "policy_reset" for event in policy_events), "Policy reset should be audited"
+        try:
+            SecurityPolicy.from_dict({"not_a_policy_field": True})
+            raise AssertionError("Unknown policy fields should raise SecurityPolicyError in strict mode")
+        except SecurityPolicyError:
+            pass
+        success += 1
+        print(green("Version 0.13.14 security configuration and secure defaults is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.13.14 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

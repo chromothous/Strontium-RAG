@@ -597,3 +597,6 @@ Resource abuse protection is online.
 
 Version 0.13.13
 Security event logging and auditability is online.
+
+Version 0.13.14
+Security configuration and secure defaults is online.
