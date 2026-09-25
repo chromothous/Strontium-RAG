@@ -10989,6 +10989,75 @@ def full_test():
         print(red(e))
         print(red("Version 0.13.10 failed"))
 
+    try:
+        tests += 1
+        from classes.security import SecurityValidator, SecurityPolicy, ValidationResult, SecurityError, SecurityValidationError, SecurityPolicyError, SecuritySchemaError, SecurityContentError, SecuritySecretError, SecurityIdentityError, SecuritySerializationError, SecuritySchema, TrustBoundary
+        from classes.logger import Logger
+        from classes.error_handler import ErrorHandler
+        security_logger = Logger()
+        security_error_handler = ErrorHandler(security_logger)
+        security = SecurityValidator(security_logger, security_error_handler)
+        default_policy = SecurityPolicy()
+        assert default_policy.max_serialized_size == 1000000, "Security policy should provide a bounded serialized size"
+        assert default_policy.allowed_serialization_formats == ("json",), "Security policy should allow JSON serialization by default"
+        assert default_policy.reject_unexpected_serialized_fields is True, "Security policy should reject unexpected serialized fields by default"
+        assert default_policy.allow_non_finite_numbers is False, "Security policy should reject non-finite numbers by default"
+        assert default_policy.serialization_version == "1", "Security policy should define a serialization version"
+        schema = SecuritySchema({"name": {"type": str, "required": True}, "count": {"type": int, "required": True}})
+        serialized = security.serialize_safe({"name": "Noah", "count": 3}, schema=schema, version="1")
+        assert isinstance(serialized, ValidationResult), "Safe serialization should return a ValidationResult"
+        assert serialized.is_valid() is True, "Safe serialization should accept JSON-compatible data"
+        assert isinstance(serialized.value, str), "Safe serialization should return a JSON string"
+        assert '"format":"json"' in serialized.value, "Serialized data should declare its JSON format"
+        assert '"version":"1"' in serialized.value, "Serialized data should declare its schema version"
+        restored = security.deserialize_safe(serialized.value, expected_type=dict, schema=schema, expected_version="1")
+        assert restored.is_valid() is True, "Safe deserialization should accept a valid serialization envelope"
+        assert restored.value == {"name": "Noah", "count": 3}, "Safe deserialization should restore the original value"
+        byte_restored = security.deserialize_safe(serialized.value.encode("utf-8"), expected_type=dict, schema=schema, expected_version="1")
+        assert byte_restored.is_valid() is True, "Safe deserialization should accept encoded bytes"
+        unsupported = security.serialize_safe(object())
+        assert unsupported.is_valid() is False, "Safe serialization should reject unsupported object types"
+        non_finite = security.serialize_safe({"value": float("nan")})
+        assert non_finite.is_valid() is False, "Safe serialization should reject non-finite numbers by default"
+        malformed = security.deserialize_safe('{"format":"json","version":"1","data":')
+        assert malformed.is_valid() is False, "Safe deserialization should reject malformed JSON"
+        wrong_version = security.deserialize_safe(serialized.value, expected_version="2")
+        assert wrong_version.is_valid() is False, "Safe deserialization should reject incompatible serialization versions"
+        wrong_type = security.deserialize_safe(serialized.value, expected_type=list)
+        assert wrong_type.is_valid() is False, "Safe deserialization should reject unexpected top-level data types"
+        unexpected = security.deserialize_safe('{"format":"json","version":"1","data":{},"extra":true}')
+        assert unexpected.is_valid() is False, "Safe deserialization should reject unexpected envelope fields"
+        missing_version = security.deserialize_safe('{"format":"json","data":{}}')
+        assert missing_version.is_valid() is False, "Safe deserialization should reject missing serialization versions"
+        schema_violation_payload = '{"format":"json","version":"1","data":{"count":3,"extra":"bad","name":"Noah"}}'
+        schema_violation = security.deserialize_safe(schema_violation_payload, expected_type=dict, schema=schema, expected_version="1")
+        assert schema_violation.is_valid() is False, "Safe deserialization should reject data that violates the declared schema"
+        oversized_policy = SecurityPolicy(max_serialized_size=20)
+        oversized_security = SecurityValidator(Logger(), ErrorHandler(Logger()), oversized_policy)
+        oversized = oversized_security.serialize_safe({"value": "x" * 100})
+        assert oversized.is_valid() is False, "Safe serialization should enforce the configured serialized size limit"
+        state_serialized = security.serialize_state({"state": "ok"}, version="7")
+        assert state_serialized.is_valid() is True, "State serialization should use the safe serialization boundary"
+        state_restored = security.deserialize_state(state_serialized.value, expected_type=dict, expected_version="7")
+        assert state_restored.is_valid() is True, "State deserialization should use the safe serialization boundary"
+        assert state_restored.value == {"state": "ok"}, "State deserialization should preserve persisted state"
+        policy_copy = security.get_policy()
+        assert policy_copy["max_serialized_size"] == 1000000, "Security policy serialization should expose serialized size limits"
+        assert policy_copy["allowed_serialization_formats"] == ("json",), "Security policy serialization should expose allowed serialization formats"
+        assert policy_copy["serialization_version"] == "1", "Security policy serialization should expose the serialization version"
+        state = security.get_security_state()
+        assert state["serialization_protection"]["max_serialized_size"] == 1000000, "Security state should expose serialized size protection"
+        assert state["serialization_protection"]["reject_unexpected_serialized_fields"] is True, "Security state should expose strict envelope handling"
+        assert state["serialization_protection"]["serialization_version"] == "1", "Security state should expose the serialization version"
+        assert any(diagnostic["category"] == "validation" and diagnostic["component"] == "security" for diagnostic in security_error_handler.get_diagnostics()), "Serialization validation failures should remain integrated with security validation diagnostics"
+        assert SecuritySerializationError("serialization failure").category == "serialization", "SecuritySerializationError should establish the serialization exception category"
+        success += 1
+        print(green("Version 0.13.11 serialization and deserialization security is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.13.11 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

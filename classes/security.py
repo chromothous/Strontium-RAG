@@ -2,6 +2,8 @@ from classes.logger import Logger
 from classes.error_handler import ErrorHandler
 import os
 import re
+import json
+import math
 import tempfile
 import unicodedata
 import ipaddress
@@ -90,6 +92,24 @@ class SecurityIdentityError(SecurityError):
                 )
         self.identity_type = identity_type
         self.identifier = identifier
+
+
+class SecuritySerializationError(SecurityError):
+    def __init__(
+        self,
+        message,
+        field=None
+    ):
+        super().__init__(
+            message,
+            category="serialization"
+        )
+        if field is not None:
+            if not isinstance(field, str) or not field.strip():
+                raise ValueError(
+                    "Security serialization field must be a non-empty string or None"
+                )
+        self.field = field
 
 
 class SecurityPolicyError(SecurityError):
@@ -393,6 +413,13 @@ class SecurityPolicy:
         "conversation",
         "session",
     )
+    DEFAULT_MAX_SERIALIZED_SIZE = 1000000
+    DEFAULT_ALLOWED_SERIALIZATION_FORMATS = (
+        "json",
+    )
+    DEFAULT_REJECT_UNEXPECTED_SERIALIZED_FIELDS = True
+    DEFAULT_ALLOW_NON_FINITE_NUMBERS = False
+    DEFAULT_SERIALIZATION_VERSION = "1"
     DEFAULT_ALLOWED_SCHEMES = (
         "https",
     )
@@ -440,6 +467,11 @@ class SecurityPolicy:
         reject_identity_whitespace=DEFAULT_REJECT_IDENTITY_WHITESPACE,
         identity_pattern=DEFAULT_IDENTITY_PATTERN,
         allowed_identity_types=DEFAULT_ALLOWED_IDENTITY_TYPES,
+        max_serialized_size=DEFAULT_MAX_SERIALIZED_SIZE,
+        allowed_serialization_formats=DEFAULT_ALLOWED_SERIALIZATION_FORMATS,
+        reject_unexpected_serialized_fields=DEFAULT_REJECT_UNEXPECTED_SERIALIZED_FIELDS,
+        allow_non_finite_numbers=DEFAULT_ALLOW_NON_FINITE_NUMBERS,
+        serialization_version=DEFAULT_SERIALIZATION_VERSION,
         allowed_schemes=None,
         allowed_file_types=None
     ):
@@ -755,6 +787,55 @@ class SecurityPolicy:
             normalized_identity_types
         )
 
+        if not isinstance(max_serialized_size, int) or isinstance(max_serialized_size, bool):
+            raise ValueError(
+                "Security max serialized size must be an integer"
+            )
+        if max_serialized_size < 1:
+            raise ValueError(
+                "Security max serialized size must be positive"
+            )
+        if not isinstance(allowed_serialization_formats, (list, tuple)):
+            raise ValueError(
+                "Security allowed serialization formats must be a list or tuple"
+            )
+        if not allowed_serialization_formats:
+            raise ValueError(
+                "Security allowed serialization formats cannot be empty"
+            )
+        normalized_serialization_formats = []
+        for serialization_format in allowed_serialization_formats:
+            if not isinstance(serialization_format, str) or not serialization_format.strip():
+                raise ValueError(
+                    "Security serialization formats must contain non-empty strings"
+                )
+            normalized_serialization_formats.append(
+                serialization_format.strip().lower()
+            )
+        if not isinstance(reject_unexpected_serialized_fields, bool):
+            raise ValueError(
+                "Security reject_unexpected_serialized_fields must be a boolean"
+            )
+        if not isinstance(allow_non_finite_numbers, bool):
+            raise ValueError(
+                "Security allow_non_finite_numbers must be a boolean"
+            )
+        if not isinstance(serialization_version, str) or not serialization_version.strip():
+            raise ValueError(
+                "Security serialization version must be a non-empty string"
+            )
+        if len(serialization_version) > max_field_length:
+            raise ValueError(
+                "Security serialization version exceeds the maximum field length"
+            )
+        self.max_serialized_size = max_serialized_size
+        self.allowed_serialization_formats = tuple(
+            normalized_serialization_formats
+        )
+        self.reject_unexpected_serialized_fields = reject_unexpected_serialized_fields
+        self.allow_non_finite_numbers = allow_non_finite_numbers
+        self.serialization_version = serialization_version.strip()
+
         if allowed_schemes is None:
             allowed_schemes = self.DEFAULT_ALLOWED_SCHEMES
         if allowed_file_types is None:
@@ -1014,6 +1095,38 @@ class SecurityPolicy:
             raise ValueError(
                 "Security allowed identity types cannot be empty"
             )
+        if not isinstance(self.max_serialized_size, int) or isinstance(self.max_serialized_size, bool):
+            raise ValueError(
+                "Security max serialized size must be an integer"
+            )
+        if self.max_serialized_size < 1:
+            raise ValueError(
+                "Security max serialized size must be positive"
+            )
+        if not isinstance(self.allowed_serialization_formats, tuple):
+            raise ValueError(
+                "Security allowed serialization formats must be a tuple"
+            )
+        if not self.allowed_serialization_formats:
+            raise ValueError(
+                "Security allowed serialization formats cannot be empty"
+            )
+        if not isinstance(self.reject_unexpected_serialized_fields, bool):
+            raise ValueError(
+                "Security reject_unexpected_serialized_fields must be a boolean"
+            )
+        if not isinstance(self.allow_non_finite_numbers, bool):
+            raise ValueError(
+                "Security allow_non_finite_numbers must be a boolean"
+            )
+        if not isinstance(self.serialization_version, str) or not self.serialization_version.strip():
+            raise ValueError(
+                "Security serialization version must be a non-empty string"
+            )
+        if len(self.serialization_version) > self.max_field_length:
+            raise ValueError(
+                "Security serialization version exceeds the maximum field length"
+            )
 
         if not self.allowed_schemes:
             raise ValueError(
@@ -1081,6 +1194,13 @@ class SecurityPolicy:
             "allowed_identity_types": tuple(
                 self.allowed_identity_types
             ),
+            "max_serialized_size": self.max_serialized_size,
+            "allowed_serialization_formats": tuple(
+                self.allowed_serialization_formats
+            ),
+            "reject_unexpected_serialized_fields": self.reject_unexpected_serialized_fields,
+            "allow_non_finite_numbers": self.allow_non_finite_numbers,
+            "serialization_version": self.serialization_version,
             "allowed_schemes": tuple(
                 self.allowed_schemes
             ),
@@ -3814,6 +3934,457 @@ class SecurityValidator:
             "chunk_identity"
         )
 
+    def _validate_serializable_value(
+        self,
+        value,
+        path="value",
+        depth=0
+    ):
+        if depth > self.policy.max_nesting_depth:
+            return [
+                f"{path} exceeds the maximum allowed nesting depth"
+            ]
+        if value is None or isinstance(value, bool) or isinstance(value, int):
+            return []
+        if isinstance(value, float):
+            if not self.policy.allow_non_finite_numbers and not math.isfinite(value):
+                return [
+                    f"{path} contains a non-finite number"
+                ]
+            return []
+        if isinstance(value, str):
+            if len(value) > self.policy.max_field_length:
+                return [
+                    f"{path} exceeds the maximum allowed field length"
+                ]
+            return []
+        if isinstance(value, (list, tuple)):
+            if len(value) > self.policy.max_collection_size:
+                return [
+                    f"{path} exceeds the maximum allowed collection size"
+                ]
+            errors = []
+            for index, item in enumerate(value):
+                errors.extend(
+                    self._validate_serializable_value(
+                        item,
+                        f"{path}[{index}]",
+                        depth + 1
+                    )
+                )
+            return errors
+        if isinstance(value, dict):
+            if len(value) > self.policy.max_collection_size:
+                return [
+                    f"{path} exceeds the maximum allowed collection size"
+                ]
+            errors = []
+            for key, item in value.items():
+                if not isinstance(key, str):
+                    errors.append(
+                        f"{path} contains a non-string object key"
+                    )
+                    continue
+                if len(key) > self.policy.max_field_length:
+                    errors.append(
+                        f"{path}.{key} exceeds the maximum allowed field length"
+                    )
+                    continue
+                errors.extend(
+                    self._validate_serializable_value(
+                        item,
+                        f"{path}.{key}",
+                        depth + 1
+                    )
+                )
+            return errors
+        return [
+            f"{path} contains an unsupported serialization type: {type(value).__name__}"
+        ]
+
+    def _validate_serialization_version(
+        self,
+        version,
+        field="version"
+    ):
+        if not isinstance(version, str) or not version.strip():
+            error = self._record_failure(
+                f"{field} must be a non-empty string",
+                field,
+                SecuritySerializationError
+            )
+            return None, [str(error)]
+        normalized = version.strip()
+        if len(normalized) > self.policy.max_field_length:
+            error = self._record_failure(
+                f"{field} exceeds the maximum allowed field length",
+                field,
+                SecuritySerializationError
+            )
+            return None, [str(error)]
+        return normalized, []
+
+    def serialize_safe(
+        self,
+        value,
+        schema=None,
+        version=None,
+        field="serialized"
+    ):
+        if not isinstance(field, str) or not field.strip():
+            raise ValueError(
+                "Security serialization field must be a non-empty string"
+            )
+        if schema is not None and not isinstance(schema, SecuritySchema):
+            raise ValueError(
+                "Security serialization schema must be a SecuritySchema or None"
+            )
+        if "json" not in self.policy.allowed_serialization_formats:
+            error = self._record_failure(
+                "JSON serialization is not allowed by the security policy",
+                field,
+                SecuritySerializationError
+            )
+            return self._build_result(
+                None,
+                [str(error)]
+            )
+        if schema is not None:
+            schema_result = self.validate_schema(
+                value,
+                schema,
+                field
+            )
+            if schema_result.is_invalid():
+                return schema_result
+        structure_errors = self._validate_serializable_value(
+            value,
+            field
+        )
+        if structure_errors:
+            for message in structure_errors:
+                self._record_failure(
+                    message,
+                    field,
+                    SecuritySerializationError
+                )
+            return self._build_result(
+                None,
+                structure_errors
+            )
+        if version is None:
+            version = self.policy.serialization_version
+        normalized_version, version_errors = self._validate_serialization_version(
+            version
+        )
+        if version_errors:
+            return self._build_result(
+                None,
+                version_errors
+            )
+        payload = {
+            "format": "json",
+            "version": normalized_version,
+            "data": value
+        }
+        try:
+            serialized = json.dumps(
+                payload,
+                ensure_ascii=False,
+                allow_nan=self.policy.allow_non_finite_numbers,
+                sort_keys=True,
+                separators=(
+                    ",",
+                    ":"
+                )
+            )
+            serialized_size = len(
+                serialized.encode(
+                    self.policy.encoding
+                )
+            )
+        except (TypeError, ValueError, UnicodeError, OverflowError) as exception:
+            error = self._record_failure(
+                f"{field} could not be safely serialized: {exception}",
+                field,
+                SecuritySerializationError
+            )
+            return self._build_result(
+                None,
+                [str(error)]
+            )
+        if serialized_size > self.policy.max_serialized_size:
+            error = self._record_failure(
+                f"{field} exceeds the maximum serialized size",
+                field,
+                SecuritySerializationError
+            )
+            return self._build_result(
+                None,
+                [str(error)]
+            )
+        return ValidationResult(
+            valid=True,
+            value=serialized,
+            errors=[],
+            warnings=[],
+            trusted=False
+        )
+
+    def _parse_safe_serialized_data(
+        self,
+        data,
+        field="serialized"
+    ):
+        if isinstance(data, bytes):
+            raw_data = data
+            try:
+                data = data.decode(
+                    self.policy.encoding
+                )
+            except (UnicodeDecodeError, LookupError) as exception:
+                error = self._record_failure(
+                    f"{field} contains invalid encoded data: {exception}",
+                    field,
+                    SecuritySerializationError
+                )
+                return None, [str(error)]
+        elif isinstance(data, str):
+            try:
+                raw_data = data.encode(
+                    self.policy.encoding
+                )
+            except (UnicodeEncodeError, LookupError) as exception:
+                error = self._record_failure(
+                    f"{field} could not be encoded safely: {exception}",
+                    field,
+                    SecuritySerializationError
+                )
+                return None, [str(error)]
+        else:
+            error = self._record_failure(
+                f"{field} must be a string or bytes",
+                field,
+                SecuritySerializationError
+            )
+            return None, [str(error)]
+        if len(raw_data) > self.policy.max_serialized_size:
+            error = self._record_failure(
+                f"{field} exceeds the maximum serialized size",
+                field,
+                SecuritySerializationError
+            )
+            return None, [str(error)]
+        return data, []
+
+    def deserialize_safe(
+        self,
+        data,
+        expected_type=None,
+        schema=None,
+        expected_version=None,
+        field="serialized"
+    ):
+        if not isinstance(field, str) or not field.strip():
+            raise ValueError(
+                "Security serialization field must be a non-empty string"
+            )
+        if expected_type is not None and not isinstance(expected_type, type):
+            raise ValueError(
+                "Security expected serialization type must be a type or None"
+            )
+        if schema is not None and not isinstance(schema, SecuritySchema):
+            raise ValueError(
+                "Security deserialization schema must be a SecuritySchema or None"
+            )
+        raw_data, parse_errors = self._parse_safe_serialized_data(
+            data,
+            field
+        )
+        if parse_errors:
+            return self._build_result(
+                None,
+                parse_errors
+            )
+        def reject_constant(value):
+            raise ValueError(
+                f"non-finite JSON constant is not allowed: {value}"
+            )
+        try:
+            if self.policy.allow_non_finite_numbers:
+                parsed = json.loads(
+                    raw_data
+                )
+            else:
+                parsed = json.loads(
+                    raw_data,
+                    parse_constant=reject_constant
+                )
+        except (TypeError, ValueError, json.JSONDecodeError) as exception:
+            error = self._record_failure(
+                f"{field} contains malformed or unsafe JSON: {exception}",
+                field,
+                SecuritySerializationError
+            )
+            return self._build_result(
+                None,
+                [str(error)]
+            )
+        if not isinstance(parsed, dict):
+            error = self._record_failure(
+                f"{field} must contain a serialization envelope",
+                field,
+                SecuritySerializationError
+            )
+            return self._build_result(
+                None,
+                [str(error)]
+            )
+        expected_envelope_fields = {
+            "format",
+            "version",
+            "data"
+        }
+        envelope_fields = set(parsed.keys())
+        missing_fields = expected_envelope_fields - envelope_fields
+        unexpected_fields = envelope_fields - expected_envelope_fields
+        errors = []
+        for missing in sorted(missing_fields):
+            errors.append(
+                f"{field} is missing required serialization field: {missing}"
+            )
+        if self.policy.reject_unexpected_serialized_fields:
+            for unexpected in sorted(unexpected_fields):
+                errors.append(
+                    f"{field} contains unexpected serialization field: {unexpected}"
+                )
+        if errors:
+            for message in errors:
+                self._record_failure(
+                    message,
+                    field,
+                    SecuritySerializationError
+                )
+            return self._build_result(
+                None,
+                errors
+            )
+        serialization_format = parsed.get(
+            "format"
+        )
+        if not isinstance(serialization_format, str) or serialization_format.strip().lower() not in self.policy.allowed_serialization_formats:
+            error = self._record_failure(
+                f"{field} uses a serialization format that is not allowed",
+                field,
+                SecuritySerializationError
+            )
+            return self._build_result(
+                None,
+                [str(error)]
+            )
+        normalized_version, version_errors = self._validate_serialization_version(
+            parsed.get("version"),
+            f"{field}.version"
+        )
+        if version_errors:
+            return self._build_result(
+                None,
+                version_errors
+            )
+        if expected_version is not None:
+            expected_normalized, expected_errors = self._validate_serialization_version(
+                expected_version,
+                f"{field}.expected_version"
+            )
+            if expected_errors:
+                return self._build_result(
+                    None,
+                    expected_errors
+                )
+            if normalized_version != expected_normalized:
+                error = self._record_failure(
+                    f"{field} version is incompatible with the expected version",
+                    field,
+                    SecuritySerializationError
+                )
+                return self._build_result(
+                    None,
+                    [str(error)]
+                )
+        value = parsed.get(
+            "data"
+        )
+        structure_errors = self._validate_serializable_value(
+            value,
+            f"{field}.data"
+        )
+        if structure_errors:
+            for message in structure_errors:
+                self._record_failure(
+                    message,
+                    field,
+                    SecuritySerializationError
+                )
+            return self._build_result(
+                None,
+                structure_errors
+            )
+        if expected_type is not None and not isinstance(value, expected_type):
+            error = self._record_failure(
+                f"{field}.data must be of type {expected_type.__name__}",
+                field,
+                SecuritySerializationError
+            )
+            return self._build_result(
+                None,
+                [str(error)]
+            )
+        if schema is not None:
+            schema_result = self.validate_schema(
+                value,
+                schema,
+                f"{field}.data"
+            )
+            if schema_result.is_invalid():
+                return schema_result
+        return ValidationResult(
+            valid=True,
+            value=value,
+            errors=[],
+            warnings=[],
+            trusted=False
+        )
+
+    def serialize_state(
+        self,
+        value,
+        schema=None,
+        version=None,
+        field="state"
+    ):
+        return self.serialize_safe(
+            value,
+            schema,
+            version,
+            field
+        )
+
+    def deserialize_state(
+        self,
+        data,
+        expected_type=None,
+        schema=None,
+        expected_version=None,
+        field="state"
+    ):
+        return self.deserialize_safe(
+            data,
+            expected_type,
+            schema,
+            expected_version,
+            field
+        )
+
     def get_identity_registry(self):
         return {
             f"{identity_type}:{identifier}": dict(metadata)
@@ -3864,6 +4435,15 @@ class SecurityValidator:
                 "registered_identity_count": len(
                     self._identity_registry
                 )
+            },
+            "serialization_protection": {
+                "max_serialized_size": self.policy.max_serialized_size,
+                "allowed_serialization_formats": list(
+                    self.policy.allowed_serialization_formats
+                ),
+                "reject_unexpected_serialized_fields": self.policy.reject_unexpected_serialized_fields,
+                "allow_non_finite_numbers": self.policy.allow_non_finite_numbers,
+                "serialization_version": self.policy.serialization_version
             },
             "supported_trust_boundaries": self.get_trust_boundaries(),
             "trusted_boundaries": self.get_trusted_boundaries()

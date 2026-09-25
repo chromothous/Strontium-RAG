@@ -588,3 +588,6 @@ Secret and credential portection is online.
 
 Version 0.13.10
 Metadata and identity validation is online.
+
+Version 0.13.11
+Serialization and deserialization security is online.
