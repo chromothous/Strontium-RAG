@@ -10485,7 +10485,9 @@ def full_test():
                 symlink_result = security.validate_safe_file_path(str(symlink), "file_path")
                 assert symlink_result.is_valid() is False, "Path validation should reject symbolic links when configured to do so"
             permissive_policy = SecurityPolicy(allowed_path_roots=[str(root)], protected_paths=[], reject_parent_traversal=True, reject_symlinks=False)
-            permissive_security = SecurityValidator(Logger(), ErrorHandler(Logger()), permissive_policy)
+            permissive_logger = Logger()
+            permissive_error_handler = ErrorHandler(permissive_logger)
+            permissive_security = SecurityValidator(permissive_logger, permissive_error_handler, permissive_policy)
             if symlink_available:
                 permissive_symlink_result = permissive_security.validate_safe_file_path(str(symlink), "file_path")
                 assert permissive_symlink_result.is_valid() is True, "Path validation should permit symbolic links when explicitly configured to do so"
@@ -10519,7 +10521,9 @@ def full_test():
             assert False, "Security policy should reject empty allowed path roots"
         except ValueError:
             pass
-        security = SecurityValidator(Logger(), ErrorHandler(Logger()))
+        empty_path_logger = Logger()
+        empty_path_error_handler = ErrorHandler(empty_path_logger)
+        security = SecurityValidator(empty_path_logger, empty_path_error_handler)
         empty_path_result = security.validate_path("", "file_path")
         assert empty_path_result.is_valid() is False, "Security path validation should reject empty paths"
         policy_copy = security.get_policy()
@@ -10579,13 +10583,17 @@ def full_test():
         invalid_credentials = security.validate_url("https://user:password@example.com/api", "url")
         assert invalid_credentials.is_valid() is False, "URL validation should reject embedded URL credentials by default"
         allowed_host_policy = SecurityPolicy(allowed_hosts=["api.example.com"])
-        allowed_host_security = SecurityValidator(Logger(), ErrorHandler(Logger()), allowed_host_policy)
+        allowed_host_logger = Logger()
+        allowed_host_error_handler = ErrorHandler(allowed_host_logger)
+        allowed_host_security = SecurityValidator(allowed_host_logger, allowed_host_error_handler, allowed_host_policy)
         allowed_host = allowed_host_security.validate_url("https://api.example.com/v1", "url")
         assert allowed_host.is_valid() is True, "URL validation should accept an explicitly allowed host"
         rejected_host = allowed_host_security.validate_url("https://other.example.com/v1", "url")
         assert rejected_host.is_valid() is False, "URL validation should reject hosts outside an explicit host allowlist"
         blocked_host_policy = SecurityPolicy(blocked_hosts=["blocked.example.com"])
-        blocked_host_security = SecurityValidator(Logger(), ErrorHandler(Logger()), blocked_host_policy)
+        blocked_host_logger = Logger()
+        blocked_host_error_handler = ErrorHandler(blocked_host_logger)
+        blocked_host_security = SecurityValidator(blocked_host_logger, blocked_host_error_handler, blocked_host_policy)
         blocked_host = blocked_host_security.validate_url("https://blocked.example.com/v1", "url")
         assert blocked_host.is_valid() is False, "URL validation should reject explicitly blocked hosts"
         redirect_ok = security.validate_redirect_target("https://example.com/new", "https://example.com/old", "redirect")
@@ -10991,7 +10999,7 @@ def full_test():
 
     try:
         tests += 1
-        from classes.security import SecurityValidator, SecurityPolicy, ValidationResult, SecurityError, SecurityValidationError, SecurityPolicyError, SecuritySchemaError, SecurityContentError, SecuritySecretError, SecurityIdentityError, SecuritySerializationError, SecuritySchema, TrustBoundary
+        from classes.security import SecurityValidator, SecurityPolicy, SecuritySerializationError
         from classes.logger import Logger
         from classes.error_handler import ErrorHandler
         security_logger = Logger()
@@ -11033,7 +11041,9 @@ def full_test():
         schema_violation = security.deserialize_safe(schema_violation_payload, expected_type=dict, schema=schema, expected_version="1")
         assert schema_violation.is_valid() is False, "Safe deserialization should reject data that violates the declared schema"
         oversized_policy = SecurityPolicy(max_serialized_size=20)
-        oversized_security = SecurityValidator(Logger(), ErrorHandler(Logger()), oversized_policy)
+        oversized_logger = Logger()
+        oversized_error_handler = ErrorHandler(oversized_logger)
+        oversized_security = SecurityValidator(oversized_logger, oversized_error_handler, oversized_policy)
         oversized = oversized_security.serialize_safe({"value": "x" * 100})
         assert oversized.is_valid() is False, "Safe serialization should enforce the configured serialized size limit"
         state_serialized = security.serialize_state({"state": "ok"}, version="7")
@@ -11060,7 +11070,7 @@ def full_test():
 
     try:
         tests += 1
-        from classes.security import SecurityValidator, SecurityPolicy, ValidationResult, SecurityError, SecurityValidationError, SecurityPolicyError, SecuritySchemaError, SecurityContentError, SecuritySecretError, SecurityIdentityError, SecuritySerializationError, SecurityResourceError, SecurityResourceBudget, SecuritySchema, TrustBoundary
+        from classes.security import SecurityValidator, SecurityPolicy, SecurityResourceError, SecurityResourceBudget
         from classes.logger import Logger
         from classes.error_handler import ErrorHandler
         security_logger = Logger()
@@ -11096,11 +11106,20 @@ def full_test():
         assert security.validate_expansion(10, 101).is_valid() is False, "Expansion above the configured ratio should be rejected"
         assert security.validate_expansion(0, 0).is_valid() is True, "Zero input with zero output should be accepted"
         assert security.validate_expansion(0, 1).is_valid() is False, "Expansion from zero input should be rejected"
+        import time
         short_logger = Logger()
         short_handler = ErrorHandler(short_logger)
         short_policy = SecurityPolicy(max_processing_time_ms=10)
         short_security = SecurityValidator(short_logger, short_handler, short_policy)
-        assert short_security.validate_processing_time(-1).is_valid() is False, "Processing beyond the configured time limit should be rejected"
+        current_time = time.monotonic()
+        within_limit = short_security.validate_processing_time(current_time)
+        assert within_limit.is_valid() is True, "Processing started now should be within the configured time limit"
+        expired_time = time.monotonic() - 0.011
+        beyond_limit = short_security.validate_processing_time(expired_time)
+        assert beyond_limit.is_valid() is False, "Processing beyond the configured time limit should be rejected"
+        future_time = time.monotonic() + 1
+        future_result = short_security.validate_processing_time(future_time)
+        assert future_result.is_valid() is False, "Processing start times in the future should be rejected"
         workload = security.validate_workload(documents=10, chunks=20, metadata_items=30, conversation_messages=40, retrieval_requests=5, processing_items=100, memory_value={"state": ["ok"]}, expansion=(10, 20))
         assert workload.is_valid() is True, "Valid workload should pass the complete resource boundary"
         rejected_workload = security.validate_workload(documents=101)
@@ -11265,7 +11284,7 @@ def full_test():
 
     try:
         tests += 1
-        from classes.security import SecurityValidator, SecurityPolicy, SecurityIsolationError, SecurityIsolationContext, TrustBoundary
+        from classes.security import SecurityValidator, SecurityPolicy, SecurityIsolationContext, TrustBoundary
         from classes.logger import Logger
         from classes.error_handler import ErrorHandler
         security_logger = Logger()
