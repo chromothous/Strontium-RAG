@@ -594,3 +594,6 @@ Serialization and deserialization security is online.
 
 Version 0.13.12
 Resource abuse protection is online.
+
+Version 0.13.13
+Security event logging and auditability is online.

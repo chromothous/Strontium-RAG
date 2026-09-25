@@ -1,3 +1,4 @@
+# Strontium RAG Security Validator — cumulative through 0.13.13
 from classes.logger import Logger
 from classes.error_handler import ErrorHandler
 import os
@@ -5,6 +6,7 @@ import re
 import json
 import math
 import time
+import copy
 import tempfile
 import unicodedata
 import ipaddress
@@ -455,6 +457,9 @@ class SecurityPolicy:
     DEFAULT_MAX_MEMORY_UNITS = 1000000
     DEFAULT_MAX_EXPANSION_RATIO = 10.0
     DEFAULT_MAX_PROCESSING_TIME_MS = 30000
+    DEFAULT_SECURITY_AUDIT_LOGGING = True
+    DEFAULT_MAX_SECURITY_EVENTS = 1000
+    DEFAULT_REDACT_AUDIT_DATA = True
     DEFAULT_ALLOWED_SCHEMES = (
         "https",
     )
@@ -516,6 +521,9 @@ class SecurityPolicy:
         max_memory_units=DEFAULT_MAX_MEMORY_UNITS,
         max_expansion_ratio=DEFAULT_MAX_EXPANSION_RATIO,
         max_processing_time_ms=DEFAULT_MAX_PROCESSING_TIME_MS,
+        security_audit_logging=DEFAULT_SECURITY_AUDIT_LOGGING,
+        max_security_events=DEFAULT_MAX_SECURITY_EVENTS,
+        redact_audit_data=DEFAULT_REDACT_AUDIT_DATA,
         allowed_schemes=None,
         allowed_file_types=None
     ):
@@ -920,6 +928,25 @@ class SecurityPolicy:
             max_processing_time_ms,
             "max processing time"
         )
+        if not isinstance(security_audit_logging, bool):
+            raise ValueError(
+                "Security audit logging must be a boolean"
+            )
+        if not isinstance(max_security_events, int) or isinstance(max_security_events, bool):
+            raise ValueError(
+                "Security max security events must be an integer"
+            )
+        if max_security_events < 1:
+            raise ValueError(
+                "Security max security events must be positive"
+            )
+        if not isinstance(redact_audit_data, bool):
+            raise ValueError(
+                "Security redact audit data must be a boolean"
+            )
+        self.security_audit_logging = security_audit_logging
+        self.max_security_events = max_security_events
+        self.redact_audit_data = redact_audit_data
 
         if allowed_schemes is None:
             allowed_schemes = self.DEFAULT_ALLOWED_SCHEMES
@@ -1252,6 +1279,22 @@ class SecurityPolicy:
             self.max_processing_time_ms,
             "max processing time"
         )
+        if not isinstance(self.security_audit_logging, bool):
+            raise ValueError(
+                "Security audit logging must be a boolean"
+            )
+        if not isinstance(self.max_security_events, int) or isinstance(self.max_security_events, bool):
+            raise ValueError(
+                "Security max security events must be an integer"
+            )
+        if self.max_security_events < 1:
+            raise ValueError(
+                "Security max security events must be positive"
+            )
+        if not isinstance(self.redact_audit_data, bool):
+            raise ValueError(
+                "Security redact audit data must be a boolean"
+            )
 
         if not self.allowed_schemes:
             raise ValueError(
@@ -1335,6 +1378,9 @@ class SecurityPolicy:
             "max_memory_units": self.max_memory_units,
             "max_expansion_ratio": self.max_expansion_ratio,
             "max_processing_time_ms": self.max_processing_time_ms,
+            "security_audit_logging": self.security_audit_logging,
+            "max_security_events": self.max_security_events,
+            "redact_audit_data": self.redact_audit_data,
             "allowed_schemes": tuple(
                 self.allowed_schemes
             ),
@@ -1491,6 +1537,230 @@ class SecurityValidator:
         self.policy = policy
         self._trusted_boundaries = set()
         self._identity_registry = {}
+        self._security_events = []
+        self._security_event_sequence = 0
+
+    def _infer_security_event_type(
+        self,
+        exception_type=SecurityValidationError,
+        field=None
+    ):
+        category = getattr(exception_type, "__mro__", (SecurityValidationError,))[0]
+        if category is SecuritySecretError:
+            return "secret_exposure_prevented"
+        if category is SecurityIdentityError:
+            return "identity_violation"
+        if category is SecuritySerializationError:
+            return "serialization_rejected"
+        if category is SecurityResourceError:
+            return "resource_abuse_prevented"
+        if category is SecurityPolicyError:
+            return "policy_violation"
+        if category is SecuritySchemaError:
+            return "schema_violation"
+        if category is SecurityContentError:
+            return "suspicious_content"
+        if isinstance(field, str):
+            normalized_field = field.strip().lower()
+            filesystem_terms = (
+                "path",
+                "file",
+                "directory",
+                "filesystem",
+                "temp"
+            )
+            external_terms = (
+                "url",
+                "uri",
+                "endpoint",
+                "host",
+                "external",
+                "provider"
+            )
+            if any(term in normalized_field for term in filesystem_terms):
+                return "filesystem_resource_blocked"
+            if any(term in normalized_field for term in external_terms):
+                return "external_resource_blocked"
+        return "validation_failure"
+
+    def _audit_safe_value(
+        self,
+        value
+    ):
+        if isinstance(value, str):
+            return self.redact_text(value) if self.policy.redact_audit_data else value
+        if value is None or isinstance(value, (bool, int)):
+            return value
+        if isinstance(value, float):
+            if math.isfinite(value):
+                return value
+            return "[NON_FINITE]"
+        if isinstance(value, dict):
+            sanitized = {}
+            for key, item in value.items():
+                normalized_key = str(key)
+                if self._is_sensitive_field(normalized_key):
+                    sanitized[normalized_key] = "[REDACTED]"
+                else:
+                    sanitized[normalized_key] = self._audit_safe_value(item)
+            return sanitized
+        if isinstance(value, (list, tuple, set)):
+            return [
+                self._audit_safe_value(item)
+                for item in value
+            ]
+        return f"[UNSAFE:{type(value).__name__}]"
+
+    def _record_security_event(
+        self,
+        event_type,
+        message,
+        severity="warning",
+        field=None,
+        details=None
+    ):
+        if not isinstance(event_type, str) or not event_type.strip():
+            raise ValueError(
+                "Security event type must be a non-empty string"
+            )
+        if not isinstance(message, str) or not message.strip():
+            raise ValueError(
+                "Security event message must be a non-empty string"
+            )
+        if not isinstance(severity, str) or not severity.strip():
+            raise ValueError(
+                "Security event severity must be a non-empty string"
+            )
+        severity = severity.strip().lower()
+        if severity not in ("info", "warning", "error", "critical"):
+            raise ValueError(
+                "Security event severity must be info, warning, error, or critical"
+            )
+        if field is not None and (not isinstance(field, str) or not field.strip()):
+            raise ValueError(
+                "Security event field must be a non-empty string or None"
+            )
+        if details is not None and not isinstance(details, dict):
+            raise ValueError(
+                "Security event details must be a dictionary or None"
+            )
+        sanitized_message = (
+            self.redact_text(message)
+            if self.policy.redact_audit_data
+            else message
+        )
+        sanitized_field = (
+            self.redact_text(field)
+            if field is not None and self.policy.redact_audit_data
+            else field
+        )
+        sanitized_details = (
+            self._audit_safe_value(details)
+            if details is not None
+            else {}
+        )
+        self._security_event_sequence += 1
+        event = {
+            "event_id": f"security-{self._security_event_sequence:08d}",
+            "timestamp": time.time(),
+            "event_type": event_type.strip().lower(),
+            "severity": severity,
+            "message": sanitized_message,
+            "field": sanitized_field,
+            "details": sanitized_details
+        }
+        if self.policy.security_audit_logging:
+            self._security_events.append(event)
+            while len(self._security_events) > self.policy.max_security_events:
+                self._security_events.pop(0)
+            rendered = (
+                f"Security audit [{event['event_type']}] {event['message']}"
+            )
+            if event["field"] is not None:
+                rendered += f" field={event['field']}"
+            if severity in ("error", "critical"):
+                self.logger.error(rendered)
+            else:
+                self.logger.info(rendered)
+        return copy.deepcopy(event)
+
+    def record_security_event(
+        self,
+        event_type,
+        message,
+        severity="warning",
+        field=None,
+        details=None
+    ):
+        return self._record_security_event(
+            event_type,
+            message,
+            severity,
+            field,
+            details
+        )
+
+    def get_security_events(
+        self,
+        event_type=None,
+        severity=None,
+        limit=None
+    ):
+        if event_type is not None and (not isinstance(event_type, str) or not event_type.strip()):
+            raise ValueError(
+                "Security event type filter must be a non-empty string or None"
+            )
+        if severity is not None:
+            if not isinstance(severity, str) or not severity.strip():
+                raise ValueError(
+                    "Security event severity filter must be a non-empty string or None"
+                )
+            severity = severity.strip().lower()
+            if severity not in ("info", "warning", "error", "critical"):
+                raise ValueError(
+                    "Security event severity filter must be info, warning, error, or critical"
+                )
+        if limit is not None:
+            if not isinstance(limit, int) or isinstance(limit, bool) or limit < 1:
+                raise ValueError(
+                    "Security event limit must be a positive integer or None"
+                )
+        events = list(self._security_events)
+        if event_type is not None:
+            normalized_type = event_type.strip().lower()
+            events = [
+                event for event in events
+                if event["event_type"] == normalized_type
+            ]
+        if severity is not None:
+            events = [
+                event for event in events
+                if event["severity"] == severity
+            ]
+        if limit is not None:
+            events = events[-limit:]
+        return copy.deepcopy(events)
+
+    def get_security_event_summary(self):
+        counts = {}
+        severity_counts = {}
+        for event in self._security_events:
+            event_type = event["event_type"]
+            severity = event["severity"]
+            counts[event_type] = counts.get(event_type, 0) + 1
+            severity_counts[severity] = severity_counts.get(severity, 0) + 1
+        return {
+            "enabled": self.policy.security_audit_logging,
+            "event_count": len(self._security_events),
+            "max_events": self.policy.max_security_events,
+            "by_type": counts,
+            "by_severity": severity_counts
+        }
+
+    def clear_security_events(self):
+        count = len(self._security_events)
+        self._security_events.clear()
+        return count
 
     def _record_failure(
         self,
@@ -1498,8 +1768,22 @@ class SecurityValidator:
         field=None,
         exception_type=SecurityValidationError
     ):
-        self.logger.error(
-            f"Security validation rejected input: {message}"
+        event_type = self._infer_security_event_type(
+            exception_type,
+            field
+        )
+        self._record_security_event(
+            event_type,
+            message,
+            severity="error",
+            field=field,
+            details={
+                "security_category": getattr(
+                    exception_type,
+                    "category",
+                    "validation"
+                )
+            }
         )
 
         if self.error_handler is not None:
@@ -1510,7 +1794,7 @@ class SecurityValidator:
                 operation="validate",
                 details={
                     "field": field,
-                    "security_event": "validation_failure"
+                    "security_event": event_type
                 }
             )
 
@@ -5132,6 +5416,16 @@ class SecurityValidator:
                 "reject_unexpected_serialized_fields": self.policy.reject_unexpected_serialized_fields,
                 "allow_non_finite_numbers": self.policy.allow_non_finite_numbers,
                 "serialization_version": self.policy.serialization_version
+            },
+            "audit_logging": {
+                "enabled": self.policy.security_audit_logging,
+                "max_events": self.policy.max_security_events,
+                "redact_audit_data": self.policy.redact_audit_data,
+                "event_count": len(self._security_events),
+                "event_types": sorted({
+                    event["event_type"]
+                    for event in self._security_events
+                })
             },
             "resource_protection": {
                 "max_documents_per_operation": self.policy.max_documents_per_operation,

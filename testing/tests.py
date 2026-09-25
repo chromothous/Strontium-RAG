@@ -11132,6 +11132,78 @@ def full_test():
         print(red(e))
         print(red("Version 0.13.12 failed"))
 
+    try:
+        tests += 1
+        from classes.security import SecurityValidator, SecurityPolicy, SecuritySerializationError, SecurityResourceError
+        from classes.logger import Logger
+        from classes.error_handler import ErrorHandler
+        security_logger = Logger()
+        security_error_handler = ErrorHandler(security_logger)
+        security = SecurityValidator(security_logger, security_error_handler)
+        default_policy = SecurityPolicy()
+        assert default_policy.security_audit_logging is True, "Security audit logging should be enabled by default"
+        assert default_policy.max_security_events == 1000, "Security audit events should have a bounded retention limit"
+        assert default_policy.redact_audit_data is True, "Security audit data should be redacted by default"
+        assert security.get_security_event_summary()["event_count"] == 0, "Security audit log should begin empty"
+        invalid_input = security.validate_string(123, field="input")
+        assert invalid_input.is_invalid() is True, "Invalid input should still be rejected"
+        validation_events = security.get_security_events(event_type="validation_failure")
+        assert len(validation_events) == 1, "Validation failure should create an audit event"
+        assert validation_events[0]["severity"] == "error", "Validation audit events should be errors"
+        assert validation_events[0]["field"] == "input", "Validation audit events should preserve the validated field"
+        assert len(security_error_handler.get_diagnostics()) >= 1, "Security failures should remain integrated with ErrorHandler"
+        secret_result = security.validate_secret("short", field="api_key")
+        assert secret_result.is_invalid() is True, "Invalid secrets should still be rejected"
+        secret_events = security.get_security_events(event_type="secret_exposure_prevented")
+        assert len(secret_events) >= 1, "Secret protection failures should be audited"
+        assert security.validate_path("../etc/passwd", field="file_path").is_invalid() is True, "Unsafe paths should remain rejected"
+        filesystem_events = security.get_security_events(event_type="filesystem_resource_blocked")
+        assert len(filesystem_events) >= 1, "Blocked filesystem resources should be audited"
+        assert security.validate_url("http://example.com", field="url").is_invalid() is True, "Disallowed external URLs should remain rejected"
+        external_events = security.get_security_events(event_type="external_resource_blocked")
+        assert len(external_events) >= 1, "Blocked external resources should be audited"
+        event = security.record_security_event("secret_exposure_prevented", "api_key=super-secret-value", severity="warning", field="api_key", details={"password": "another-secret", "safe": "visible"})
+        assert event["message"] == "api_key=[REDACTED]", "Audit event messages should redact secret values"
+        assert event["details"]["password"] == "[REDACTED]", "Audit event details should redact sensitive fields"
+        assert event["details"]["safe"] == "visible", "Non-sensitive audit details should remain observable"
+        fetched_events = security.get_security_events(limit=1)
+        assert fetched_events[0]["event_id"] == event["event_id"], "Audit retrieval should preserve event identity"
+        fetched_events[0]["details"]["safe"] = "mutated"
+        assert security.get_security_events(limit=1)[0]["details"]["safe"] == "visible", "Audit retrieval should return isolated event copies"
+        constrained_logger = Logger()
+        constrained_handler = ErrorHandler(constrained_logger)
+        constrained_security = SecurityValidator(constrained_logger, constrained_handler, SecurityPolicy(max_security_events=2))
+        constrained_security.record_security_event("one", "first", severity="info")
+        constrained_security.record_security_event("two", "second", severity="warning")
+        constrained_security.record_security_event("three", "third", severity="error")
+        retained_events = constrained_security.get_security_events()
+        assert len(retained_events) == 2, "Audit retention should enforce the configured event limit"
+        assert [event["event_type"] for event in retained_events] == ["two", "three"], "Audit retention should discard the oldest event"
+        summary = constrained_security.get_security_event_summary()
+        assert summary["event_count"] == 2, "Audit summary should report retained events"
+        assert summary["by_type"] == {"two": 1, "three": 1}, "Audit summary should categorize events by type"
+        assert constrained_security.clear_security_events() == 2, "Audit clearing should report the number of removed events"
+        assert constrained_security.get_security_event_summary()["event_count"] == 0, "Audit clearing should empty the event store"
+        disabled_logger = Logger()
+        disabled_handler = ErrorHandler(disabled_logger)
+        disabled_security = SecurityValidator(disabled_logger, disabled_handler, SecurityPolicy(security_audit_logging=False))
+        disabled_event = disabled_security.record_security_event("disabled_test", "event", severity="info")
+        assert disabled_event["event_type"] == "disabled_test", "Disabled audit logging should still return the structured event"
+        assert disabled_security.get_security_events() == [], "Disabled audit logging should not retain events"
+        state = security.get_security_state()
+        assert state["audit_logging"]["enabled"] is True, "Security state should expose audit logging status"
+        assert state["audit_logging"]["max_events"] == 1000, "Security state should expose audit retention limits"
+        assert state["audit_logging"]["redact_audit_data"] is True, "Security state should expose audit redaction policy"
+        assert "validation_failure" in state["audit_logging"]["event_types"], "Security state should expose observed event categories"
+        assert SecuritySerializationError("serialization failure").category == "serialization", "Serialization failures should retain their security category"
+        assert SecurityResourceError("resource abuse").category == "resource", "Resource failures should retain their security category"
+        success += 1
+        print(green("Version 0.13.13 security event logging and auditability is online."))
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.13.13 failed"))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
