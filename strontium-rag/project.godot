@@ -11,4 +11,15 @@ config_version=5
 [application]
 
 config/name="Strontium-RAG"
+run/main_scene="uid://dk4l056p010i3"
 config/features=PackedStringArray("4.5", "Forward Plus")
+
+[autoload]
+
+ApplicationState="*res://state/app_state.gd"
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/stretch/mode="canvas_items"

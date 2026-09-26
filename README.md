@@ -612,3 +612,6 @@ Rewrote tests file to be more security sound and test features better.
 
 Version 0.15.0
 UI Architecture Foundation
+
+Version 0.15.0.2
+UI Architecture Foundation Part 2
