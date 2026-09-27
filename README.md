@@ -627,3 +627,6 @@ Window and Application shell is online.
 
 Version 0.15.4
 Strontium Splash screen is online.
+
+Version 0.15.5
+Startup & Initialization Pipeline
