@@ -11,6 +11,7 @@ signal shutdown_started
 @onready var navigation_service: Node = $NavigationService
 @onready var screen_registry: ScreenRegistry = $ScreenRegistry
 @onready var debug_service: DebugService = $DebugService
+@onready var ui_root: Control = $UIRoot
 @onready var content_root: Control = $UIRoot/ContentRoot
 @onready var modal_root: Control = $UIRoot/ModalRoot
 @onready var header: StrontiumHeader = (
@@ -24,12 +25,17 @@ signal shutdown_started
 )
 
 
+var theme_service: StrontiumThemeService
+
+
 func _ready() -> void:
 	application_window.close_requested.connect(
 		_on_close_requested
 	)
 
 	modal_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	_initialize_theme_service()
 
 	navigation_service.navigation_changed.connect(
 		_on_navigation_changed
@@ -46,6 +52,23 @@ func _ready() -> void:
 	)
 
 	start_application()
+
+
+func _initialize_theme_service() -> void:
+	theme_service = StrontiumThemeService.new()
+	theme_service.name = "ThemeService"
+
+	add_child(theme_service)
+
+	theme_service.configure(
+		ui_root
+	)
+
+	theme_service.initialize()
+
+	debug_service.write(
+        "Global Strontium theme applied."
+	)
 
 
 func start_application() -> void:

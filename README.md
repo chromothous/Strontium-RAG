@@ -618,3 +618,6 @@ UI Architecture Foundation Part 2 is online.
 
 Version 0.15.1
 Strontium Visual Design System is online.
+
+Version 0.15.2
+Global System Theme is online.
