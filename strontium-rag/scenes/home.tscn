@@ -1,6 +1,8 @@
-[gd_scene load_steps=2 format=3 uid="uid://b5k1bdp7gyg3n"]
+[gd_scene load_steps=4 format=3 uid="uid://b5k1bdp7gyg3n"]
 
 [ext_resource type="Script" uid="uid://duvxunwcfckmo" path="res://ui/home.gd" id="1_krot7"]
+[ext_resource type="Script" uid="uid://c0e6ip0h37nnw" path="res://components/strontium_heading.gd" id="2_u4wd2"]
+[ext_resource type="Script" uid="uid://chknpiy0ulthj" path="res://components/strontium_card.gd" id="3_w18ys"]
 
 [node name="Home" type="Control"]
 layout_mode = 3
@@ -19,7 +21,20 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="Label" type="Label" parent="HomeContainer"]
+[node name="HomeTitle" type="Label" parent="HomeContainer"]
 layout_mode = 2
-text = "STRONTIUM RAG
-HOME"
+text = "STRONTIUM RAG"
+horizontal_alignment = 1
+script = ExtResource("2_u4wd2")
+level = 3
+metadata/_custom_type_script = "uid://c0e6ip0h37nnw"
+
+[node name="TestCard" type="PanelContainer" parent="HomeContainer"]
+layout_mode = 2
+script = ExtResource("3_w18ys")
+padding = 45
+metadata/_custom_type_script = "uid://chknpiy0ulthj"
+
+[node name="CardLabel" type="Label" parent="HomeContainer/TestCard"]
+layout_mode = 2
+text = "STRONTIUM RAG"

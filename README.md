@@ -611,7 +611,10 @@ Version 0.14.0
 Rewrote tests file to be more security sound and test features better.
 
 Version 0.15.0
-UI Architecture Foundation
+UI Architecture Foundation is online.
 
 Version 0.15.0.2
-UI Architecture Foundation Part 2
+UI Architecture Foundation Part 2 is online.
+
+Version 0.15.1
+Strontium Visual Design System is online.
