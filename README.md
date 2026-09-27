@@ -629,4 +629,7 @@ Version 0.15.4
 Strontium Splash screen is online.
 
 Version 0.15.5
-Startup & Initialization Pipeline
+Startup & Initialization Pipeline is online.
+
+Version 0.15.6
+Navigation framework is online.
