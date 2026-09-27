@@ -1,4 +1,4 @@
-[gd_scene load_steps=12 format=3 uid="uid://dk4l056p010i3"]
+[gd_scene load_steps=13 format=3 uid="uid://dk4l056p010i3"]
 
 [ext_resource type="Script" uid="uid://frtbtyxvqkyp" path="res://app/application.gd" id="1_l1xxi"]
 [ext_resource type="Script" uid="uid://byppvsamy26l0" path="res://services/application_service.gd" id="2_jfi41"]
@@ -6,6 +6,7 @@
 [ext_resource type="Script" uid="uid://c2luktiovxo5j" path="res://services/screen_registry.gd" id="4_701q5"]
 [ext_resource type="Script" uid="uid://84ydyjnvke0i" path="res://debug/debug_service.gd" id="5_y61cr"]
 [ext_resource type="Theme" uid="uid://cd7m4bxvo2jvj" path="res://theme/strontium_theme.tres" id="6_sio0l"]
+[ext_resource type="Script" uid="uid://de7hlyahbirts" path="res://app/application_shell.gd" id="7_qjajm"]
 [ext_resource type="Script" uid="uid://cflmd0mux1cgr" path="res://components/strontium_header.gd" id="7_qkduu"]
 [ext_resource type="Script" uid="uid://7qk5e1jgfrxd" path="res://components/strontium_navigation.gd" id="8_w0kom"]
 [ext_resource type="Script" uid="uid://clkhkw7bkul5q" path="res://components/strontium_workspace.gd" id="9_v3ldb"]
@@ -37,6 +38,7 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 theme = ExtResource("6_sio0l")
+script = ExtResource("7_qjajm")
 
 [node name="BackgroundRoot" type="Panel" parent="UIRoot"]
 layout_mode = 1
