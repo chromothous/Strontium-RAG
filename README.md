@@ -636,3 +636,6 @@ Navigation framework is online.
 
 Version 0.15.7
 Reusable UI Component Library is online.
+
+Version 0.15.8
+Home / Command Center is online.
