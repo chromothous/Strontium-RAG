@@ -106,6 +106,7 @@ func _auto_configure() -> void:
 			destination_value,
 			""
 		)
+
 	elif destination_value is String:
 		var destination_string: String = str(
 			destination_value
@@ -121,6 +122,7 @@ func _auto_configure() -> void:
 				destination_string,
 				""
 			)
+
 	else:
 		display_destination(
 			ScreenRegistry.HOME,
@@ -290,6 +292,19 @@ func _build_code_screen(
 
 			return ingestion
 
+		ScreenRegistry.KNOWLEDGE_BASE:
+			var knowledge_base: StrontiumKnowledgeBase = (
+				StrontiumKnowledgeBase.new()
+			)
+
+			knowledge_base.name = "KnowledgeBase"
+
+			knowledge_base.set_anchors_and_offsets_preset(
+				Control.PRESET_FULL_RECT
+			)
+
+			return knowledge_base
+
 	return null
 
 
@@ -361,6 +376,7 @@ func _build_registered_workspace(
 	)
 
 	var panel: PanelContainer = PanelContainer.new()
+
 	panel.name = "RegisteredWorkspace"
 
 	panel.position = Vector2(
@@ -496,6 +512,7 @@ func _show_destination_error(
 		return
 
 	var panel: PanelContainer = PanelContainer.new()
+
 	panel.name = "DestinationError"
 
 	panel.position = Vector2(

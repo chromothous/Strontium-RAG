@@ -642,3 +642,6 @@ Home / Command Center is online.
 
 Version 0.15.9
 Document Ingestion UI is online.
+
+Version 0.15.10
+Knowledge Base UI is online.
