@@ -639,3 +639,6 @@ Reusable UI Component Library is online.
 
 Version 0.15.8
 Home / Command Center is online.
+
+Version 0.15.9
+Document Ingestion UI is online.

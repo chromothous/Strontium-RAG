@@ -1,8 +1,10 @@
 class_name StrontiumWorkspace
 extends Control
 
+
 signal destination_displayed(destination_id: String)
 signal destination_failed(destination_id: String, detail: String)
+
 
 const SCREEN_HOST_NAME: String = "ScreenHost"
 const SCROLL_CONTAINER_NAME: String = "WorkspaceScrollContainer"
@@ -10,6 +12,7 @@ const SCROLL_CONTAINER_NAME: String = "WorkspaceScrollContainer"
 const WORKSPACE_MIN_HEIGHT: float = 1100.0
 const SCROLLBAR_WIDTH: float = 10.0
 const CONTENT_MARGIN: float = 32.0
+
 
 var navigation_service: NavigationService = null
 var screen_registry: ScreenRegistry = null
@@ -22,7 +25,10 @@ var current_screen: Node = null
 
 
 func _ready() -> void:
-	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(
+		Control.PRESET_FULL_RECT
+	)
+
 	mouse_filter = Control.MOUSE_FILTER_PASS
 
 	_build_workspace()
@@ -36,30 +42,40 @@ func _build_workspace() -> void:
 
 	scroll_container = ScrollContainer.new()
 	scroll_container.name = SCROLL_CONTAINER_NAME
+
 	scroll_container.set_anchors_and_offsets_preset(
 		Control.PRESET_FULL_RECT
 	)
+
 	scroll_container.horizontal_scroll_mode = (
 		ScrollContainer.SCROLL_MODE_DISABLED
 	)
+
 	scroll_container.vertical_scroll_mode = (
 		ScrollContainer.SCROLL_MODE_AUTO
 	)
+
 	scroll_container.follow_focus = true
 	scroll_container.mouse_filter = Control.MOUSE_FILTER_PASS
+
 	add_child(scroll_container)
 
 	screen_host = Control.new()
 	screen_host.name = SCREEN_HOST_NAME
 	screen_host.position = Vector2.ZERO
+
 	screen_host.custom_minimum_size = Vector2(
 		0.0,
 		WORKSPACE_MIN_HEIGHT
 	)
+
 	screen_host.mouse_filter = Control.MOUSE_FILTER_PASS
+
 	scroll_container.add_child(screen_host)
 
-	call_deferred("_synchronize_workspace_size")
+	call_deferred(
+		"_synchronize_workspace_size"
+	)
 
 	_style_scrollbar()
 
@@ -91,7 +107,9 @@ func _auto_configure() -> void:
 			""
 		)
 	elif destination_value is String:
-		var destination_string: String = str(destination_value)
+		var destination_string: String = str(
+			destination_value
+		)
 
 		if destination_string.is_empty():
 			display_destination(
@@ -120,7 +138,9 @@ func configure(
 	if registry != null:
 		screen_registry = registry
 
-	call_deferred("_auto_configure")
+	call_deferred(
+		"_auto_configure"
+	)
 
 
 func _find_navigation_service() -> NavigationService:
@@ -213,10 +233,32 @@ func display_destination(
 			destination_id,
 			"Screen registry is unavailable."
 		)
+
 		return false
 
-	var scene_path: String = screen_registry.get_scene_path(
+	var code_screen: Control = _build_code_screen(
 		destination_id
+	)
+
+	if code_screen != null:
+		screen_host.add_child(
+			code_screen
+		)
+
+		current_screen = code_screen
+
+		_update_screen_host_size()
+
+		destination_displayed.emit(
+			destination_id
+		)
+
+		return true
+
+	var scene_path: String = (
+		screen_registry.get_scene_path(
+			destination_id
+		)
 	)
 
 	if not scene_path.is_empty():
@@ -231,6 +273,26 @@ func display_destination(
 	)
 
 
+func _build_code_screen(
+	destination_id: String
+) -> Control:
+	match destination_id:
+		ScreenRegistry.INGEST:
+			var ingestion: StrontiumIngestion = (
+				StrontiumIngestion.new()
+			)
+
+			ingestion.name = "Ingestion"
+
+			ingestion.set_anchors_and_offsets_preset(
+				Control.PRESET_FULL_RECT
+			)
+
+			return ingestion
+
+	return null
+
+
 func _load_destination_scene(
 	destination_id: String,
 	scene_path: String
@@ -240,6 +302,7 @@ func _load_destination_scene(
 			destination_id,
 			"Scene does not exist: %s" % scene_path
 		)
+
 		return false
 
 	var packed_scene: PackedScene = load(
@@ -251,6 +314,7 @@ func _load_destination_scene(
 			destination_id,
 			"Unable to load scene: %s" % scene_path
 		)
+
 		return false
 
 	var instance: Node = packed_scene.instantiate()
@@ -260,9 +324,12 @@ func _load_destination_scene(
 			destination_id,
 			"Unable to instantiate scene: %s" % scene_path
 		)
+
 		return false
 
-	screen_host.add_child(instance)
+	screen_host.add_child(
+		instance
+	)
 
 	current_screen = instance
 
@@ -313,9 +380,12 @@ func _build_registered_workspace(
 	panel.custom_minimum_size = panel.size
 	panel.mouse_filter = Control.MOUSE_FILTER_PASS
 
-	screen_host.add_child(panel)
+	screen_host.add_child(
+		panel
+	)
 
 	var content: VBoxContainer = VBoxContainer.new()
+
 	content.position = Vector2(
 		28.0,
 		28.0
@@ -331,47 +401,81 @@ func _build_registered_workspace(
 		14
 	)
 
-	panel.add_child(content)
+	panel.add_child(
+		content
+	)
 
 	var title_label: Label = Label.new()
-	title_label.text = title_text.to_upper()
+
+	title_label.text = (
+		title_text.to_upper()
+	)
+
 	title_label.add_theme_font_size_override(
 		"font_size",
 		28
 	)
+
 	title_label.add_theme_color_override(
 		"font_color",
 		StrontiumTokens.TEXT_PRIMARY
 	)
-	title_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	content.add_child(title_label)
+
+	title_label.mouse_filter = (
+		Control.MOUSE_FILTER_IGNORE
+	)
+
+	content.add_child(
+		title_label
+	)
 
 	var subtitle_label: Label = Label.new()
+
 	subtitle_label.text = subtitle
+
 	subtitle_label.add_theme_font_size_override(
 		"font_size",
 		14
 	)
+
 	subtitle_label.add_theme_color_override(
 		"font_color",
 		StrontiumTokens.TEXT_SECONDARY
 	)
-	subtitle_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	subtitle_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	content.add_child(subtitle_label)
+
+	subtitle_label.autowrap_mode = (
+		TextServer.AUTOWRAP_WORD_SMART
+	)
+
+	subtitle_label.mouse_filter = (
+		Control.MOUSE_FILTER_IGNORE
+	)
+
+	content.add_child(
+		subtitle_label
+	)
 
 	var status_label: Label = Label.new()
+
 	status_label.text = "WORKSPACE INITIALIZED"
+
 	status_label.add_theme_font_size_override(
 		"font_size",
 		12
 	)
+
 	status_label.add_theme_color_override(
 		"font_color",
 		StrontiumTokens.TEXT_SECONDARY
 	)
-	status_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	content.add_child(status_label)
+
+	status_label.mouse_filter = (
+		Control.MOUSE_FILTER_IGNORE
+	)
+
+	content.add_child(
+		status_label
+	)
 
 	current_screen = panel
 
@@ -408,9 +512,12 @@ func _show_destination_error(
 
 	panel.custom_minimum_size = panel.size
 
-	screen_host.add_child(panel)
+	screen_host.add_child(
+		panel
+	)
 
 	var content: VBoxContainer = VBoxContainer.new()
+
 	content.position = Vector2(
 		24.0,
 		24.0
@@ -426,36 +533,57 @@ func _show_destination_error(
 		12
 	)
 
-	panel.add_child(content)
+	panel.add_child(
+		content
+	)
 
 	var title_label: Label = Label.new()
+
 	title_label.text = "DESTINATION UNAVAILABLE"
+
 	title_label.add_theme_font_size_override(
 		"font_size",
 		24
 	)
+
 	title_label.add_theme_color_override(
 		"font_color",
 		StrontiumTokens.TEXT_PRIMARY
 	)
-	content.add_child(title_label)
+
+	content.add_child(
+		title_label
+	)
 
 	var destination_label: Label = Label.new()
+
 	destination_label.text = destination_id
+
 	destination_label.add_theme_color_override(
 		"font_color",
 		StrontiumTokens.TEXT_SECONDARY
 	)
-	content.add_child(destination_label)
+
+	content.add_child(
+		destination_label
+	)
 
 	var detail_label: Label = Label.new()
+
 	detail_label.text = detail
-	detail_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+
+	detail_label.autowrap_mode = (
+		TextServer.AUTOWRAP_WORD_SMART
+	)
+
 	detail_label.add_theme_color_override(
 		"font_color",
 		StrontiumTokens.TEXT_SECONDARY
 	)
-	content.add_child(detail_label)
+
+	content.add_child(
+		detail_label
+	)
 
 	current_screen = panel
 
@@ -485,8 +613,13 @@ func _update_screen_host_size() -> void:
 	if screen_host == null:
 		return
 
-	var required_width: float = screen_container_width()
-	var required_height: float = WORKSPACE_MIN_HEIGHT
+	var required_width: float = (
+		screen_container_width()
+	)
+
+	var required_height: float = (
+		WORKSPACE_MIN_HEIGHT
+	)
 
 	screen_host.custom_minimum_size = Vector2(
 		required_width,
