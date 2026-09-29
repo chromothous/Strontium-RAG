@@ -645,3 +645,6 @@ Document Ingestion UI is online.
 
 Version 0.15.10
 Knowledge Base UI is online.
+
+Version 0.15.11
+Document Detail and Inspection UI is online.

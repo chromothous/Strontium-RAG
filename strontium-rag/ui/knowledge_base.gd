@@ -26,6 +26,8 @@ var selected_document_index: int = -1
 
 var search_query: String = ""
 
+var document_detail: StrontiumDocumentDetail = null
+
 
 var search_field: LineEdit = null
 var document_list: VBoxContainer = null
@@ -645,7 +647,7 @@ func _build_details_panel(
 	)
 
 	selected_details_label = _create_detail_label(
-		"Document details are unavailable until knowledge base data is supplied."
+		"Select a document to inspect its complete structure."
 	)
 
 	selected_details_label.autowrap_mode = (
@@ -862,8 +864,8 @@ func _render_document_list() -> void:
 		child.queue_free()
 
 	document_count_label.text = (
-		"%d document(s)" %
-		filtered_documents.size()
+		"%d document(s)"
+		% filtered_documents.size()
 	)
 
 	if filtered_documents.is_empty():
@@ -1064,23 +1066,45 @@ func _select_document(
 		selected_metadata_label.text = (
 			"Metadata: %s"
 			% str(metadata)
-		)
-
-	var details: String = str(
-		selected_document.get(
-			"details",
-			""
-		)
 	)
 
-	if details.is_empty():
-		selected_details_label.text = "Document details supplied by the knowledge-base provider will appear here."
-	else:
-		selected_details_label.text = details
+	selected_details_label.text = "Select DOCUMENT INSPECTION to examine identity, preprocessing, chunks, boundaries, processing information, and errors."
+
+	_show_document_detail()
 
 	document_selected.emit(
 		selected_document
 	)
+
+
+func _show_document_detail() -> void:
+	if document_detail != null:
+		if is_instance_valid(document_detail):
+			document_detail.queue_free()
+
+	document_detail = StrontiumDocumentDetail.new()
+
+	document_detail.name = "DocumentDetail"
+
+	document_detail.set_anchors_and_offsets_preset(
+		Control.PRESET_FULL_RECT
+	)
+
+	document_detail.closed.connect(
+		_on_document_detail_closed
+	)
+
+	add_child(
+		document_detail
+	)
+
+	document_detail.set_document(
+		selected_document
+	)
+
+
+func _on_document_detail_closed() -> void:
+	document_detail = null
 
 
 func _set_state(
