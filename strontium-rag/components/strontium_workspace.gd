@@ -33,7 +33,9 @@ func _ready() -> void:
 
 	_build_workspace()
 
-	call_deferred("_auto_configure")
+	call_deferred(
+		"_auto_configure"
+	)
 
 
 func _build_workspace() -> void:
@@ -41,7 +43,10 @@ func _build_workspace() -> void:
 		child.queue_free()
 
 	scroll_container = ScrollContainer.new()
-	scroll_container.name = SCROLL_CONTAINER_NAME
+
+	scroll_container.name = (
+		SCROLL_CONTAINER_NAME
+	)
 
 	scroll_container.set_anchors_and_offsets_preset(
 		Control.PRESET_FULL_RECT
@@ -56,12 +61,19 @@ func _build_workspace() -> void:
 	)
 
 	scroll_container.follow_focus = true
-	scroll_container.mouse_filter = Control.MOUSE_FILTER_PASS
 
-	add_child(scroll_container)
+	scroll_container.mouse_filter = (
+		Control.MOUSE_FILTER_PASS
+	)
+
+	add_child(
+		scroll_container
+	)
 
 	screen_host = Control.new()
+
 	screen_host.name = SCREEN_HOST_NAME
+
 	screen_host.position = Vector2.ZERO
 
 	screen_host.custom_minimum_size = Vector2(
@@ -69,9 +81,13 @@ func _build_workspace() -> void:
 		WORKSPACE_MIN_HEIGHT
 	)
 
-	screen_host.mouse_filter = Control.MOUSE_FILTER_PASS
+	screen_host.mouse_filter = (
+		Control.MOUSE_FILTER_PASS
+	)
 
-	scroll_container.add_child(screen_host)
+	scroll_container.add_child(
+		screen_host
+	)
 
 	call_deferred(
 		"_synchronize_workspace_size"
@@ -108,8 +124,8 @@ func _auto_configure() -> void:
 		)
 
 	elif destination_value is String:
-		var destination_string: String = str(
-			destination_value
+		var destination_string: String = (
+			str(destination_value)
 		)
 
 		if destination_string.is_empty():
@@ -146,13 +162,17 @@ func configure(
 
 
 func _find_navigation_service() -> NavigationService:
-	var current_scene: Node = get_tree().current_scene
+	var current_scene: Node = (
+		get_tree().current_scene
+	)
 
 	if current_scene == null:
 		return null
 
-	var node: Node = current_scene.get_node_or_null(
-		"NavigationService"
+	var node: Node = (
+		current_scene.get_node_or_null(
+			"NavigationService"
+		)
 	)
 
 	if node is NavigationService:
@@ -162,13 +182,17 @@ func _find_navigation_service() -> NavigationService:
 
 
 func _find_screen_registry() -> ScreenRegistry:
-	var current_scene: Node = get_tree().current_scene
+	var current_scene: Node = (
+		get_tree().current_scene
+	)
 
 	if current_scene == null:
 		return null
 
-	var node: Node = current_scene.get_node_or_null(
-		"ScreenRegistry"
+	var node: Node = (
+		current_scene.get_node_or_null(
+			"ScreenRegistry"
+		)
 	)
 
 	if node is ScreenRegistry:
@@ -200,18 +224,22 @@ func display_destination(
 	if destination is Dictionary:
 		var definition: Dictionary = destination
 
-		var raw_id: Variant = definition.get(
-			"id",
-			""
+		var raw_id: Variant = (
+			definition.get(
+				"id",
+				""
+			)
 		)
 
 		if raw_id is String:
 			destination_id = raw_id
 
 		if resolved_title.is_empty():
-			var raw_title: Variant = definition.get(
-				"title",
-				""
+			var raw_title: Variant = (
+				definition.get(
+					"title",
+					""
+				)
 			)
 
 			if raw_title is String:
@@ -238,8 +266,10 @@ func display_destination(
 
 		return false
 
-	var code_screen: Control = _build_code_screen(
-		destination_id
+	var code_screen: Control = (
+		_build_code_screen(
+			destination_id
+		)
 	)
 
 	if code_screen != null:
@@ -305,6 +335,19 @@ func _build_code_screen(
 
 			return knowledge_base
 
+		ScreenRegistry.CHAT:
+			var chat: StrontiumChat = (
+				StrontiumChat.new()
+			)
+
+			chat.name = "Chat"
+
+			chat.set_anchors_and_offsets_preset(
+				Control.PRESET_FULL_RECT
+			)
+
+			return chat
+
 	return null
 
 
@@ -312,7 +355,9 @@ func _load_destination_scene(
 	destination_id: String,
 	scene_path: String
 ) -> bool:
-	if not ResourceLoader.exists(scene_path):
+	if not ResourceLoader.exists(
+		scene_path
+	):
 		_show_destination_error(
 			destination_id,
 			"Scene does not exist: %s" % scene_path
@@ -332,7 +377,9 @@ func _load_destination_scene(
 
 		return false
 
-	var instance: Node = packed_scene.instantiate()
+	var instance: Node = (
+		packed_scene.instantiate()
+	)
 
 	if instance == null:
 		_show_destination_error(
@@ -371,8 +418,10 @@ func _build_registered_workspace(
 			destination_id
 		)
 
-	var subtitle: String = screen_registry.get_subtitle(
-		destination_id
+	var subtitle: String = (
+		screen_registry.get_subtitle(
+			destination_id
+		)
 	)
 
 	var panel: PanelContainer = PanelContainer.new()
@@ -394,7 +443,10 @@ func _build_registered_workspace(
 	)
 
 	panel.custom_minimum_size = panel.size
-	panel.mouse_filter = Control.MOUSE_FILTER_PASS
+
+	panel.mouse_filter = (
+		Control.MOUSE_FILTER_PASS
+	)
 
 	screen_host.add_child(
 		panel
@@ -473,7 +525,9 @@ func _build_registered_workspace(
 
 	var status_label: Label = Label.new()
 
-	status_label.text = "WORKSPACE INITIALIZED"
+	status_label.text = (
+		"WORKSPACE INITIALIZED"
+	)
 
 	status_label.add_theme_font_size_override(
 		"font_size",
@@ -556,7 +610,9 @@ func _show_destination_error(
 
 	var title_label: Label = Label.new()
 
-	title_label.text = "DESTINATION UNAVAILABLE"
+	title_label.text = (
+		"DESTINATION UNAVAILABLE"
+	)
 
 	title_label.add_theme_font_size_override(
 		"font_size",
@@ -614,7 +670,9 @@ func _show_destination_error(
 
 func _clear_current_screen() -> void:
 	if current_screen != null:
-		if is_instance_valid(current_screen):
+		if is_instance_valid(
+			current_screen
+		):
 			current_screen.queue_free()
 
 	current_screen = null
@@ -768,7 +826,9 @@ func navigate_to(
 	destination_id: String
 ) -> bool:
 	if navigation_service == null:
-		navigation_service = _find_navigation_service()
+		navigation_service = (
+			_find_navigation_service()
+		)
 
 	if navigation_service == null:
 		return false
@@ -799,7 +859,9 @@ func get_scroll_container() -> ScrollContainer:
 	return scroll_container
 
 
-func _notification(what: int) -> void:
+func _notification(
+	what: int
+) -> void:
 	if what != NOTIFICATION_RESIZED:
 		return
 

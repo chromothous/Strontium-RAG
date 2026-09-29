@@ -648,3 +648,6 @@ Knowledge Base UI is online.
 
 Version 0.15.11
 Document Detail and Inspection UI is online.
+
+Version 0.15.12
+Chat UI is online.
