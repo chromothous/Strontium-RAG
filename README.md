@@ -651,3 +651,6 @@ Document Detail and Inspection UI is online.
 
 Version 0.15.12
 Chat UI is online.
+
+Version 0.15.13
+Citation and Source UI are online.

@@ -6,6 +6,7 @@ signal query_submitted(query: String)
 signal message_added(message: Dictionary)
 signal conversation_cleared()
 signal source_selected(source: Dictionary)
+signal citation_expanded(citation: Dictionary)
 
 
 const CONTENT_MARGIN: int = 32
@@ -39,7 +40,9 @@ func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_PASS
 
 	_build_interface()
-	_set_state(STATE_READY)
+	_set_state(
+		STATE_READY
+	)
 
 
 func _build_interface() -> void:
@@ -657,7 +660,7 @@ func _create_message_card(
 	if role == ROLE_ASSISTANT:
 		if sources is Array:
 			if not sources.is_empty():
-				_add_sources(
+				_add_citations(
 					content,
 					sources
 				)
@@ -665,13 +668,13 @@ func _create_message_card(
 	return card
 
 
-func _add_sources(
+func _add_citations(
 	parent: VBoxContainer,
 	sources: Array
 ) -> void:
 	var heading: Label = Label.new()
 
-	heading.text = "SOURCES"
+	heading.text = "CITATIONS"
 
 	heading.add_theme_font_size_override(
 		"font_size",
@@ -687,57 +690,69 @@ func _add_sources(
 		heading
 	)
 
-	var row: HFlowContainer = HFlowContainer.new()
+	var citations: VBoxContainer = VBoxContainer.new()
 
-	row.add_theme_constant_override(
-		"h_separation",
-		8
-	)
-
-	row.add_theme_constant_override(
-		"v_separation",
-		8
+	citations.add_theme_constant_override(
+		"separation",
+		6
 	)
 
 	parent.add_child(
-		row
+		citations
 	)
 
 	for source_value in sources:
-		var source: Dictionary = {}
+		var citation_data: Dictionary = {}
 
 		if source_value is Dictionary:
-			source = source_value.duplicate(
+			citation_data = source_value.duplicate(
 				true
 			)
 		else:
-			source = {
+			citation_data = {
+				"citation_id": "CITATION",
 				"title": str(
+					source_value
+				),
+				"source": str(
 					source_value
 				)
 			}
 
-		var button: Button = Button.new()
-
-		button.text = str(
-			source.get(
-				"title",
-				source.get(
-					"source",
-					"Source"
-				)
-			)
+		var citation: StrontiumCitation = (
+			StrontiumCitation.new()
 		)
 
-		button.pressed.connect(
-			_on_source_pressed.bind(
-				source
-			)
+		citation.setup(
+			citation_data
 		)
 
-		row.add_child(
-			button
+		citation.custom_minimum_size = Vector2(
+			0.0,
+			60.0
 		)
+
+		citation.expanded.connect(
+			_on_citation_expanded
+		)
+
+		citation.source_pressed.connect(
+			_on_source_pressed
+		)
+
+		citations.add_child(
+			citation
+		)
+
+
+func _on_citation_expanded(
+	citation: Dictionary
+) -> void:
+	citation_expanded.emit(
+		citation.duplicate(
+			true
+		)
+	)
 
 
 func _on_source_pressed(
@@ -848,8 +863,15 @@ func _scroll_to_bottom() -> void:
 	if conversation_scroll == null:
 		return
 
+	var scrollbar: VScrollBar = (
+		conversation_scroll.get_v_scroll_bar()
+	)
+
+	if scrollbar == null:
+		return
+
 	conversation_scroll.scroll_vertical = (
-		conversation_scroll.get_v_scroll_bar().max_value
+		int(scrollbar.max_value)
 	)
 
 
