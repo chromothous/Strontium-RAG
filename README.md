@@ -654,3 +654,6 @@ Chat UI is online.
 
 Version 0.15.13
 Citation and Source UI are online.
+
+Version 0.15.14
+Evaluation UI is online.

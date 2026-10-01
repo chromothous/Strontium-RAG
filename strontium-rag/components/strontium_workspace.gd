@@ -348,6 +348,19 @@ func _build_code_screen(
 
 			return chat
 
+		ScreenRegistry.EVALUATION:
+			var evaluation: StrontiumEvaluation = (
+				StrontiumEvaluation.new()
+			)
+
+			evaluation.name = "Evaluation"
+
+			evaluation.set_anchors_and_offsets_preset(
+				Control.PRESET_FULL_RECT
+			)
+
+			return evaluation
+
 	return null
 
 
