@@ -657,3 +657,6 @@ Citation and Source UI are online.
 
 Version 0.15.14
 Evaluation UI is online.
+
+Version 0.15.15
+Diagnostics & System Status UI is online.

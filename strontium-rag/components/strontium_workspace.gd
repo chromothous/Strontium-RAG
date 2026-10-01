@@ -361,6 +361,19 @@ func _build_code_screen(
 
 			return evaluation
 
+		ScreenRegistry.DIAGNOSTICS:
+			var diagnostics: StrontiumDiagnostics = (
+				StrontiumDiagnostics.new()
+			)
+
+			diagnostics.name = "Diagnostics"
+
+			diagnostics.set_anchors_and_offsets_preset(
+				Control.PRESET_FULL_RECT
+			)
+
+			return diagnostics
+
 	return null
 
 
