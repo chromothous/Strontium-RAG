@@ -12,6 +12,14 @@ const CONTRACT = preload(
 	"res://services/python_integration_contract.gd"
 )
 
+const PYTHON_PROCESS_LIFECYCLE = preload(
+	"res://services/python_process_lifecycle.gd"
+)
+
+
+const CONTRACT_TEST_COUNT: int = 13
+const PYTHON_PROCESS_LIFECYCLE_TEST_COUNT: int = 1
+
 
 @onready var app_state: Node = ApplicationState
 @onready var application_window: Window = get_window()
@@ -34,6 +42,20 @@ const CONTRACT = preload(
 
 
 var theme_service: StrontiumThemeService
+var python_process_lifecycle: StrontiumPythonProcessLifecycle
+
+
+var internal_tests: int = 0
+var internal_success: int = 0
+var internal_failure: int = 0
+
+var contract_tests: int = 0
+var contract_success: int = 0
+var contract_failure: int = 0
+
+var lifecycle_tests: int = 0
+var lifecycle_success: int = 0
+var lifecycle_failure: int = 0
 
 
 func _ready() -> void:
@@ -101,6 +123,8 @@ func start_application() -> void:
 	debug_service.write(
 		"Application startup sequence beginning."
 	)
+
+	_initialize_python_process_lifecycle()
 
 	application_service.initialize()
 
@@ -214,6 +238,13 @@ func shutdown_application() -> void:
 		"Application shutdown sequence beginning."
 	)
 
+	if python_process_lifecycle != null:
+		python_process_lifecycle.shutdown()
+
+		debug_service.write(
+			"PythonProcessLifecycle shutdown completed."
+		)
+
 	application_service.shutdown()
 
 	debug_service.write(
@@ -231,6 +262,84 @@ func shutdown_application() -> void:
 		+ str(
 			application_service.is_shutting_down()
 		)
+	)
+
+
+func _initialize_python_process_lifecycle() -> void:
+	if python_process_lifecycle != null:
+		return
+
+	python_process_lifecycle = PYTHON_PROCESS_LIFECYCLE.new()
+
+	python_process_lifecycle.name = "PythonProcessLifecycle"
+
+	add_child(
+		python_process_lifecycle
+	)
+
+	if not python_process_lifecycle.state_changed.is_connected(
+		_on_python_process_state_changed
+	):
+		python_process_lifecycle.state_changed.connect(
+			_on_python_process_state_changed
+		)
+
+	if not python_process_lifecycle.process_failed.is_connected(
+		_on_python_process_failed
+	):
+		python_process_lifecycle.process_failed.connect(
+			_on_python_process_failed
+		)
+
+	python_process_lifecycle.configure(
+		"",
+		PackedStringArray(),
+		false,
+		StrontiumPythonProcessLifecycle.DEFAULT_MAX_AUTO_RESTARTS,
+		StrontiumPythonProcessLifecycle.DEFAULT_STARTUP_GRACE_SECONDS
+	)
+
+	debug_service.write(
+		"PythonProcessLifecycle configured."
+	)
+
+	var python_detected: bool = (
+		python_process_lifecycle.detect_python()
+	)
+
+	if python_detected:
+		debug_service.write(
+			"Python executable detected: "
+			+ python_process_lifecycle.get_python_executable()
+		)
+	else:
+		debug_service.write(
+			"Python executable was not detected: "
+			+ python_process_lifecycle.get_last_error()
+		)
+
+
+func _on_python_process_state_changed(
+	current_state: String
+) -> void:
+	if debug_service == null:
+		return
+
+	debug_service.write(
+		"PythonProcessLifecycle state: "
+		+ current_state
+	)
+
+
+func _on_python_process_failed(
+	message: String
+) -> void:
+	if debug_service == null:
+		return
+
+	debug_service.write(
+		"PythonProcessLifecycle failure: "
+		+ message
 	)
 
 
@@ -255,21 +364,30 @@ func _exit_tree() -> void:
 
 # ============================================================
 # INTERNAL TEST SUITE
-# 0.15.16 — Python Integration Contract
+# CUMULATIVE 0.15.x
 # ============================================================
 
 
-var internal_tests: int = 0
-var internal_success: int = 0
-var internal_failure: int = 0
-
-
 func _run_internal_tests() -> void:
+	_reset_internal_test_counters()
+
 	print("")
-	print("========================================")
+	print("============================================================")
 	print("STRONTIUM INTERNAL TEST SUITE")
-	print("0.15.16 — Python Integration Contract")
-	print("========================================")
+	print("CUMULATIVE 0.15.x")
+	print("============================================================")
+	print("")
+
+
+	print("------------------------------------------------------------")
+	print("0.15.16 — PYTHON INTEGRATION CONTRACT")
+	print("------------------------------------------------------------")
+	print(
+		"Planned tests: ",
+		CONTRACT_TEST_COUNT
+	)
+	print("")
+
 
 	_test_contract_definition()
 	_test_supported_operations()
@@ -285,49 +403,193 @@ func _run_internal_tests() -> void:
 	_test_contract_accessors()
 	_test_request_id_generation()
 
+
+	_print_contract_summary()
+
+
 	print("")
-	print("========================================")
-	print("INTERNAL TEST SUITE COMPLETE")
-	print("Tests: ", internal_tests)
-	print("Success: ", internal_success)
-	print("Failure: ", internal_failure)
+	print("------------------------------------------------------------")
+	print("0.15.17 — PYTHON PROCESS LIFECYCLE")
+	print("------------------------------------------------------------")
+	print(
+		"Planned tests: ",
+		PYTHON_PROCESS_LIFECYCLE_TEST_COUNT
+	)
+	print("")
+
+
+	await _test_python_process_lifecycle()
+
+
+	_print_lifecycle_summary()
+
+
+	print("")
+	print("============================================================")
+	print("OVERALL INTERNAL TEST RESULT")
+	print("============================================================")
+	print(
+		"Total tests:    ",
+		internal_tests
+	)
+	print(
+		"Total success:  ",
+		internal_success
+	)
+	print(
+		"Total failure:  ",
+		internal_failure
+	)
 
 	if internal_failure == 0:
+		print("")
 		print(
-			"Version 0.15.16 Python Integration Contract is online."
+			"STATUS: PASS"
+		)
+		print(
+			"Version 0.15.17 Python Process Lifecycle is online."
+		)
+	else:
+		print("")
+		print(
+			"STATUS: FAIL"
+		)
+		print(
+			"Version 0.15.17 cumulative test suite failed."
+		)
+
+	print("============================================================")
+	print("")
+
+
+func _reset_internal_test_counters() -> void:
+	internal_tests = 0
+	internal_success = 0
+	internal_failure = 0
+
+	contract_tests = 0
+	contract_success = 0
+	contract_failure = 0
+
+	lifecycle_tests = 0
+	lifecycle_success = 0
+	lifecycle_failure = 0
+
+
+func _print_contract_summary() -> void:
+	print("")
+	print("0.15.16 SECTION RESULT")
+	print(
+		"  Tests:   ",
+		contract_tests
+	)
+	print(
+		"  Success: ",
+		contract_success
+	)
+	print(
+		"  Failure: ",
+		contract_failure
+	)
+
+	if contract_failure == 0:
+		print(
+			"  Status:  PASS"
 		)
 	else:
 		print(
-			"Version 0.15.16 failed."
+			"  Status:  FAIL"
 		)
 
-	print("========================================")
+
+func _print_lifecycle_summary() -> void:
 	print("")
+	print("0.15.17 SECTION RESULT")
+	print(
+		"  Tests:   ",
+		lifecycle_tests
+	)
+	print(
+		"  Success: ",
+		lifecycle_success
+	)
+	print(
+		"  Failure: ",
+		lifecycle_failure
+	)
+
+	if lifecycle_failure == 0:
+		print(
+			"  Status:  PASS"
+		)
+	else:
+		print(
+			"  Status:  FAIL"
+		)
 
 
 func _record_internal_test(
+	version: String,
 	test_name: String,
 	passed: bool
 ) -> void:
 	internal_tests += 1
 
+	var test_number: int = 0
+	var test_total: int = 0
+
+	if version == "0.15.16":
+		contract_tests += 1
+
+		if passed:
+			contract_success += 1
+		else:
+			contract_failure += 1
+
+		test_number = contract_tests
+		test_total = CONTRACT_TEST_COUNT
+
+	else:
+		lifecycle_tests += 1
+
+		if passed:
+			lifecycle_success += 1
+		else:
+			lifecycle_failure += 1
+
+		test_number = lifecycle_tests
+		test_total = PYTHON_PROCESS_LIFECYCLE_TEST_COUNT
+
 	if passed:
 		internal_success += 1
 
 		print(
-			"[PASS] ",
+			"[",
+			version,
+			"] TEST ",
+			str(test_number).pad_zeros(2),
+			"/",
+			str(test_total).pad_zeros(2),
+			"  PASS  ",
 			test_name
 		)
 	else:
 		internal_failure += 1
 
 		print(
-			"[FAIL] ",
+			"[",
+			version,
+			"] TEST ",
+			str(test_number).pad_zeros(2),
+			"/",
+			str(test_total).pad_zeros(2),
+			"  FAIL  ",
 			test_name
 		)
 
 		push_error(
-			"0.15.16 test failed: "
+			version
+			+ " test failed: "
 			+ test_name
 		)
 
@@ -340,7 +602,7 @@ func _check_internal(
 		return true
 
 	print(
-		"    [FAIL CHECK] ",
+		"        [FAIL CHECK] ",
 		detail
 	)
 
@@ -415,6 +677,7 @@ func _test_contract_definition() -> void:
 		passed = false
 
 	_record_internal_test(
+		"0.15.16",
 		"Contract definition",
 		passed
 	)
@@ -479,6 +742,7 @@ func _test_supported_operations() -> void:
 		passed = false
 
 	_record_internal_test(
+		"0.15.16",
 		"Supported operation identifiers",
 		passed
 	)
@@ -560,6 +824,7 @@ func _test_request_creation() -> void:
 		passed = false
 
 	_record_internal_test(
+		"0.15.16",
 		"Request creation",
 		passed
 	)
@@ -666,6 +931,7 @@ func _test_request_validation() -> void:
 		passed = false
 
 	_record_internal_test(
+		"0.15.16",
 		"Request validation",
 		passed
 	)
@@ -746,6 +1012,7 @@ func _test_success_response() -> void:
 		passed = false
 
 	_record_internal_test(
+		"0.15.16",
 		"Successful response",
 		passed
 	)
@@ -821,6 +1088,7 @@ func _test_failure_response() -> void:
 		passed = false
 
 	_record_internal_test(
+		"0.15.16",
 		"Failure response",
 		passed
 	)
@@ -904,6 +1172,7 @@ func _test_standalone_failure_response() -> void:
 		passed = false
 
 	_record_internal_test(
+		"0.15.16",
 		"Standalone failure response",
 		passed
 	)
@@ -1018,6 +1287,7 @@ func _test_response_validation() -> void:
 		passed = false
 
 	_record_internal_test(
+		"0.15.16",
 		"Response validation",
 		passed
 	)
@@ -1097,6 +1367,7 @@ func _test_serialization() -> void:
 		passed = false
 
 	_record_internal_test(
+		"0.15.16",
 		"Serialization and deserialization",
 		passed
 	)
@@ -1183,6 +1454,7 @@ func _test_serialized_validation() -> void:
 		passed = false
 
 	_record_internal_test(
+		"0.15.16",
 		"Serialized message validation",
 		passed
 	)
@@ -1264,6 +1536,7 @@ func _test_version_compatibility() -> void:
 		passed = false
 
 	_record_internal_test(
+		"0.15.16",
 		"Version compatibility",
 		passed
 	)
@@ -1293,6 +1566,7 @@ func _test_contract_accessors() -> void:
 		passed = false
 
 	_record_internal_test(
+		"0.15.16",
 		"Contract accessors",
 		passed
 	)
@@ -1346,6 +1620,289 @@ func _test_request_id_generation() -> void:
 		passed = false
 
 	_record_internal_test(
+		"0.15.16",
 		"Request ID generation",
 		passed
 	)
+
+
+func _test_python_process_lifecycle() -> void:
+	var lifecycle: StrontiumPythonProcessLifecycle = (
+		PYTHON_PROCESS_LIFECYCLE.new()
+	)
+
+	lifecycle.name = "PythonProcessLifecycleInternalTest"
+
+	add_child(
+		lifecycle
+	)
+
+	var passed: bool = true
+
+	var configured: bool = lifecycle.configure(
+		"",
+		PackedStringArray(),
+		false,
+		3,
+		0.10
+	)
+
+	if not _check_internal(
+		configured,
+		"Python process lifecycle should configure successfully."
+	):
+		passed = false
+
+	if not _check_internal(
+		lifecycle.get_state()
+		== StrontiumPythonProcessLifecycle.STATE_STOPPED,
+		"Configured lifecycle should enter STOPPED state."
+	):
+		passed = false
+
+	var detected: bool = lifecycle.detect_python()
+
+	if not _check_internal(
+		detected,
+		"Python executable should be detected."
+	):
+		passed = false
+
+	if detected:
+		if not _check_internal(
+			lifecycle.is_python_available(),
+			"Lifecycle should report Python as available."
+		):
+			passed = false
+
+		if not _check_internal(
+			not lifecycle.get_python_executable().is_empty(),
+			"Detected Python executable should not be empty."
+		):
+			passed = false
+
+		var long_running_arguments: PackedStringArray = [
+			"-c",
+			"import time; time.sleep(10)"
+		]
+
+		var started: bool = lifecycle.start_python(
+			long_running_arguments
+		)
+
+		if not _check_internal(
+			started,
+			"Lifecycle should start a long-running Python process."
+		):
+			passed = false
+
+		await get_tree().create_timer(0.25).timeout
+
+		if not _check_internal(
+			lifecycle.get_state()
+			== StrontiumPythonProcessLifecycle.STATE_RUNNING,
+			"Long-running Python process should reach RUNNING state."
+		):
+			passed = false
+
+		if not _check_internal(
+			lifecycle.is_running(),
+			"Lifecycle should report the Python process as running."
+		):
+			passed = false
+
+		var communication_set: bool = (
+			lifecycle.set_communication_established(
+				true
+			)
+		)
+
+		if not _check_internal(
+			communication_set,
+			"Communication should be establishable while Python is running."
+		):
+			passed = false
+
+		if not _check_internal(
+			lifecycle.is_communication_established(),
+			"Lifecycle should report communication as established."
+		):
+			passed = false
+
+		lifecycle.clear_communication_state()
+
+		if not _check_internal(
+			not lifecycle.is_communication_established(),
+			"Communication state should be clearable."
+		):
+			passed = false
+
+		var restarted: bool = lifecycle.restart_python()
+
+		if not _check_internal(
+			restarted,
+			"Lifecycle should restart the Python process."
+		):
+			passed = false
+
+		await get_tree().create_timer(0.25).timeout
+
+		if not _check_internal(
+			lifecycle.get_state()
+			== StrontiumPythonProcessLifecycle.STATE_RUNNING,
+			"Restarted Python process should reach RUNNING state."
+		):
+			passed = false
+
+		if not _check_internal(
+			lifecycle.get_restart_count() == 1,
+			"Manual restart should increment restart count once."
+		):
+			passed = false
+
+		var stopped: bool = lifecycle.stop_python()
+
+		if not _check_internal(
+			stopped,
+			"Lifecycle should stop the Python process."
+		):
+			passed = false
+
+		if not _check_internal(
+			lifecycle.get_state()
+			== StrontiumPythonProcessLifecycle.STATE_STOPPED,
+			"Stopped Python process should enter STOPPED state."
+		):
+			passed = false
+
+		var failure_arguments: PackedStringArray = [
+			"-c",
+			"raise SystemExit(7)"
+		]
+
+		var failure_started: bool = lifecycle.start_python(
+			failure_arguments
+		)
+
+		if not _check_internal(
+			failure_started,
+			"Lifecycle should be able to launch a failing Python process."
+		):
+			passed = false
+
+		await get_tree().create_timer(0.25).timeout
+
+		if not _check_internal(
+			lifecycle.get_state()
+			== StrontiumPythonProcessLifecycle.STATE_FAILED,
+			"Initialization termination should enter FAILED state."
+		):
+			passed = false
+
+		if not _check_internal(
+			lifecycle.get_last_exit_code() == 7,
+			"Initialization failure should preserve the Python exit code."
+		):
+			passed = false
+
+		var auto_restart_lifecycle: StrontiumPythonProcessLifecycle = (
+			PYTHON_PROCESS_LIFECYCLE.new()
+		)
+
+		auto_restart_lifecycle.name = "PythonProcessLifecycleAutoRestartTest"
+
+		add_child(
+			auto_restart_lifecycle
+		)
+
+		var auto_configured: bool = (
+			auto_restart_lifecycle.configure(
+				lifecycle.get_python_executable(),
+				PackedStringArray(),
+				true,
+				1,
+				0.10
+			)
+		)
+
+		if not _check_internal(
+			auto_configured,
+			"Auto-restart lifecycle should configure successfully."
+		):
+			passed = false
+
+		var auto_started: bool = auto_restart_lifecycle.start_python(
+			long_running_arguments
+		)
+
+		if not _check_internal(
+			auto_started,
+			"Auto-restart lifecycle should start Python."
+		):
+			passed = false
+
+		await get_tree().create_timer(0.25).timeout
+
+		if not _check_internal(
+			auto_restart_lifecycle.get_state()
+			== StrontiumPythonProcessLifecycle.STATE_RUNNING,
+			"Auto-restart lifecycle should reach RUNNING state."
+		):
+			passed = false
+
+		var auto_process_id: int = (
+			auto_restart_lifecycle.get_process_id()
+		)
+
+		var kill_result: Error = OS.kill(
+			auto_process_id
+		)
+
+		if not _check_internal(
+			kill_result == OK,
+			"Unexpected Python termination should be triggerable for restart testing."
+		):
+			passed = false
+
+		await get_tree().create_timer(0.50).timeout
+
+		if not _check_internal(
+			auto_restart_lifecycle.get_restart_count() == 1,
+			"Unexpected process termination should increment restart count."
+		):
+			passed = false
+
+		if not _check_internal(
+			auto_restart_lifecycle.get_state()
+			== StrontiumPythonProcessLifecycle.STATE_RUNNING,
+			"Lifecycle should restart Python after an appropriate unexpected termination."
+		):
+			passed = false
+
+		auto_restart_lifecycle.shutdown()
+
+		if not _check_internal(
+			auto_restart_lifecycle.get_state()
+			== StrontiumPythonProcessLifecycle.STATE_STOPPED,
+			"Shutdown should leave the auto-restart lifecycle stopped."
+		):
+			passed = false
+
+		auto_restart_lifecycle.queue_free()
+
+	lifecycle.shutdown()
+
+	if not _check_internal(
+		lifecycle.get_state()
+		== StrontiumPythonProcessLifecycle.STATE_STOPPED,
+		"Lifecycle shutdown should leave the process stopped."
+	):
+		passed = false
+
+	_record_internal_test(
+		"0.15.17",
+		"Python process lifecycle",
+		passed
+	)
+
+	lifecycle.queue_free()

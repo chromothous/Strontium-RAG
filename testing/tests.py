@@ -11462,6 +11462,47 @@ def full_test():
         print(red(e))
         print(red("Version 0.13.16 failed"))
 
+    ####################
+    # All versions of Godot testing is not here.
+    ####################
+
+    try:
+        tests += 1
+        from configuration.backend_architecture import BackendArchitecture
+        definition = BackendArchitecture.get_definition()
+        assert BackendArchitecture.is_defined() is True
+        assert definition["version"] == "0.15.17.0"
+        assert "presentation" in definition["godot"]
+        assert "interaction" in definition["godot"]
+        assert "ui_state" in definition["godot"]
+        assert "visualization" in definition["godot"]
+        assert "authentication" in definition["api"]
+        assert "request_acceptance" in definition["api"]
+        assert "request_rejection" in definition["api"]
+        assert "routing" in definition["api"]
+        assert "ingestion" in definition["python"]
+        assert "retrieval" in definition["python"]
+        assert "generation" in definition["python"]
+        assert "security_enforcement" in definition["python"]
+        assert "runtime_isolation" in definition["docker"]
+        assert "filesystem_restrictions" in definition["docker"]
+        assert "process_isolation" in definition["docker"]
+        assert "api" in definition["boundaries"]
+        assert "python_application" in definition["boundaries"]
+        assert "container" in definition["boundaries"]
+        assert "filesystem" in definition["boundaries"]
+        assert "network" in definition["boundaries"]
+        assert "authentication" in definition["boundaries"]
+        assert "secret" in definition["boundaries"]
+        assert "process" in definition["boundaries"]
+        assert "configuration" in definition["boundaries"]
+        print(green("Version 0.15.17.0.1 backend authority definition is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.15.17.0.1 failed."))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
