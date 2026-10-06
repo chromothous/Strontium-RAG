@@ -11503,6 +11503,32 @@ def full_test():
         print(red(e))
         print(red("Version 0.15.17.0.1 failed."))
 
+    try:
+        tests += 1
+        from configuration.backend_authority import BackendAuthority
+        assert BackendAuthority.is_defined() is True
+        definition = BackendAuthority.get_definition()
+        assert definition["version"] == "0.15.17.0.2"
+        assert BackendAuthority.has_authority("godot", "presentation") is True
+        assert BackendAuthority.has_authority("godot", "visualization") is True
+        assert BackendAuthority.has_authority("api", "authentication") is True
+        assert BackendAuthority.has_authority("api", "routing") is True
+        assert BackendAuthority.has_authority("python", "ingestion") is True
+        assert BackendAuthority.has_authority("python", "retrieval") is True
+        assert BackendAuthority.has_authority("python", "generation") is True
+        assert BackendAuthority.has_authority("python", "security_enforcement") is True
+        assert BackendAuthority.has_authority("docker", "runtime_isolation") is True
+        assert BackendAuthority.has_authority("docker", "filesystem_restrictions") is True
+        assert BackendAuthority.has_authority("docker", "network_restrictions") is True
+        assert BackendAuthority.has_authority("godot", "authentication") is False
+        assert BackendAuthority.has_authority("docker", "generation") is False
+        print(green("Version 0.15.17.0.2 backend authority model is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.15.17.0.2 failed."))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
