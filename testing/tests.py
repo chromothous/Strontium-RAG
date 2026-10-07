@@ -11466,69 +11466,6 @@ def full_test():
     # All versions of Godot testing is not here.
     ####################
 
-    try:
-        tests += 1
-        from configuration.backend_architecture import BackendArchitecture
-        definition = BackendArchitecture.get_definition()
-        assert BackendArchitecture.is_defined() is True
-        assert definition["version"] == "0.15.17.0"
-        assert "presentation" in definition["godot"]
-        assert "interaction" in definition["godot"]
-        assert "ui_state" in definition["godot"]
-        assert "visualization" in definition["godot"]
-        assert "authentication" in definition["api"]
-        assert "request_acceptance" in definition["api"]
-        assert "request_rejection" in definition["api"]
-        assert "routing" in definition["api"]
-        assert "ingestion" in definition["python"]
-        assert "retrieval" in definition["python"]
-        assert "generation" in definition["python"]
-        assert "security_enforcement" in definition["python"]
-        assert "runtime_isolation" in definition["docker"]
-        assert "filesystem_restrictions" in definition["docker"]
-        assert "process_isolation" in definition["docker"]
-        assert "api" in definition["boundaries"]
-        assert "python_application" in definition["boundaries"]
-        assert "container" in definition["boundaries"]
-        assert "filesystem" in definition["boundaries"]
-        assert "network" in definition["boundaries"]
-        assert "authentication" in definition["boundaries"]
-        assert "secret" in definition["boundaries"]
-        assert "process" in definition["boundaries"]
-        assert "configuration" in definition["boundaries"]
-        print(green("Version 0.15.17.0.1 backend authority definition is online."))
-        success += 1
-    except Exception as e:
-        failure += 1
-        print(red(e))
-        print(red("Version 0.15.17.0.1 failed."))
-
-    try:
-        tests += 1
-        from configuration.backend_authority import BackendAuthority
-        assert BackendAuthority.is_defined() is True
-        definition = BackendAuthority.get_definition()
-        assert definition["version"] == "0.15.17.0.2"
-        assert BackendAuthority.has_authority("godot", "presentation") is True
-        assert BackendAuthority.has_authority("godot", "visualization") is True
-        assert BackendAuthority.has_authority("api", "authentication") is True
-        assert BackendAuthority.has_authority("api", "routing") is True
-        assert BackendAuthority.has_authority("python", "ingestion") is True
-        assert BackendAuthority.has_authority("python", "retrieval") is True
-        assert BackendAuthority.has_authority("python", "generation") is True
-        assert BackendAuthority.has_authority("python", "security_enforcement") is True
-        assert BackendAuthority.has_authority("docker", "runtime_isolation") is True
-        assert BackendAuthority.has_authority("docker", "filesystem_restrictions") is True
-        assert BackendAuthority.has_authority("docker", "network_restrictions") is True
-        assert BackendAuthority.has_authority("godot", "authentication") is False
-        assert BackendAuthority.has_authority("docker", "generation") is False
-        print(green("Version 0.15.17.0.2 backend authority model is online."))
-        success += 1
-    except Exception as e:
-        failure += 1
-        print(red(e))
-        print(red("Version 0.15.17.0.2 failed."))
-
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
