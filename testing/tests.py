@@ -11466,6 +11466,42 @@ def full_test():
     # All versions of Godot testing is not here.
     ####################
 
+    try:
+        tests += 1
+        from configuration.backend_architecture import BackendArchitecture
+        assert BackendArchitecture.is_defined() is True
+        definition = BackendArchitecture.get_definition()
+        assert "godot" in definition["authorities"]
+        assert "api" in definition["authorities"]
+        assert "python" in definition["authorities"]
+        assert "docker" in definition["authorities"]
+        assert BackendArchitecture.has_authority("godot", "presentation") is True
+        assert BackendArchitecture.has_authority("godot", "interaction") is True
+        assert BackendArchitecture.has_authority("api", "authentication") is True
+        assert BackendArchitecture.has_authority("api", "routing") is True
+        assert BackendArchitecture.has_authority("python", "ingestion") is True
+        assert BackendArchitecture.has_authority("python", "retrieval") is True
+        assert BackendArchitecture.has_authority("python", "generation") is True
+        assert BackendArchitecture.has_authority("python", "security_enforcement") is True
+        assert BackendArchitecture.has_authority("docker", "runtime_isolation") is True
+        assert BackendArchitecture.has_authority("docker", "network_restrictions") is True
+        assert BackendArchitecture.has_boundary("api") is True
+        assert BackendArchitecture.has_boundary("python_application") is True
+        assert BackendArchitecture.has_boundary("container") is True
+        assert BackendArchitecture.has_boundary("filesystem") is True
+        assert BackendArchitecture.has_boundary("network") is True
+        assert BackendArchitecture.has_boundary("authentication") is True
+        assert BackendArchitecture.has_boundary("secret") is True
+        assert BackendArchitecture.has_boundary("process") is True
+        assert BackendArchitecture.has_boundary("configuration") is True
+        assert BackendArchitecture.has_boundary("unknown") is False
+        print(green("Version 0.15.17.0.0 backend architecture foundation is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.15.17.0.0 failed."))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
