@@ -11502,6 +11502,25 @@ def full_test():
         print(red(e))
         print(red("Version 0.15.17.0.0 failed."))
 
+    try:
+        tests += 1
+        import services
+        import api
+        import security
+        import configuration
+        from configuration.backend_architecture import BackendArchitecture
+        assert BackendArchitecture.is_defined() is True
+        assert services is not None
+        assert api is not None
+        assert security is not None
+        assert configuration is not None
+        print(green("Version 0.15.17.0.1 backend package boundaries are online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.15.17.0.1 backend package boundaries failed."))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
