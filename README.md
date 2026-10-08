@@ -670,5 +670,8 @@ Backend architecture foundation is online.
 Version 0.15.17.0.1
 Backend package boundaries are online.
 
+Version 0.15.17.0.2
+Backend application assembly is online.
+
 Version 0.15.18
 Python Process Lifecycle is online.

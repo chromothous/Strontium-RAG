@@ -11521,6 +11521,24 @@ def full_test():
         print(red(e))
         print(red("Version 0.15.17.0.1 backend package boundaries failed."))
 
+    try:
+        tests += 1
+        from services.backend_application import BackendApplication
+        application = BackendApplication()
+        assert application.is_initialized() is False
+        architecture = application.get_architecture()
+        assert architecture is not None
+        assert "authorities" in architecture
+        assert "boundaries" in architecture
+        application.initialize()
+        assert application.is_initialized() is True
+        print(green("Version 0.15.17.0.2 backend application assembly is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.15.17.0.2 failed."))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
