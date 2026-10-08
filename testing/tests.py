@@ -11469,32 +11469,32 @@ def full_test():
     try:
         tests += 1
         from configuration.backend_architecture import BackendArchitecture
-        assert BackendArchitecture.is_defined() is True
+        assert BackendArchitecture.is_defined() is True, "Backend architecture should be fully defined"
         definition = BackendArchitecture.get_definition()
-        assert "godot" in definition["authorities"]
-        assert "api" in definition["authorities"]
-        assert "python" in definition["authorities"]
-        assert "docker" in definition["authorities"]
-        assert BackendArchitecture.has_authority("godot", "presentation") is True
-        assert BackendArchitecture.has_authority("godot", "interaction") is True
-        assert BackendArchitecture.has_authority("api", "authentication") is True
-        assert BackendArchitecture.has_authority("api", "routing") is True
-        assert BackendArchitecture.has_authority("python", "ingestion") is True
-        assert BackendArchitecture.has_authority("python", "retrieval") is True
-        assert BackendArchitecture.has_authority("python", "generation") is True
-        assert BackendArchitecture.has_authority("python", "security_enforcement") is True
-        assert BackendArchitecture.has_authority("docker", "runtime_isolation") is True
-        assert BackendArchitecture.has_authority("docker", "network_restrictions") is True
-        assert BackendArchitecture.has_boundary("api") is True
-        assert BackendArchitecture.has_boundary("python_application") is True
-        assert BackendArchitecture.has_boundary("container") is True
-        assert BackendArchitecture.has_boundary("filesystem") is True
-        assert BackendArchitecture.has_boundary("network") is True
-        assert BackendArchitecture.has_boundary("authentication") is True
-        assert BackendArchitecture.has_boundary("secret") is True
-        assert BackendArchitecture.has_boundary("process") is True
-        assert BackendArchitecture.has_boundary("configuration") is True
-        assert BackendArchitecture.has_boundary("unknown") is False
+        assert "godot" in definition["authorities"], "Godot authority definition should exist"
+        assert "api" in definition["authorities"], "API authority definition should exist"
+        assert "python" in definition["authorities"], "Python authority definition should exist"
+        assert "docker" in definition["authorities"], "Docker authority definition should exist"
+        assert BackendArchitecture.has_authority("godot", "presentation") is True, "Godot should own presentation"
+        assert BackendArchitecture.has_authority("godot", "interaction") is True, "Godot should own interaction"
+        assert BackendArchitecture.has_authority("api", "authentication") is True, "API should own authentication"
+        assert BackendArchitecture.has_authority("api", "routing") is True, "API should own routing"
+        assert BackendArchitecture.has_authority("python", "ingestion") is True, "Python should own ingestion"
+        assert BackendArchitecture.has_authority("python", "retrieval") is True, "Python should own retrieval"
+        assert BackendArchitecture.has_authority("python", "generation") is True, "Python should own generation"
+        assert BackendArchitecture.has_authority("python", "security_enforcement") is True, "Python should own established security enforcement"
+        assert BackendArchitecture.has_authority("docker", "runtime_isolation") is True, "Docker should own runtime isolation"
+        assert BackendArchitecture.has_authority("docker", "network_restrictions") is True, "Docker should own network restrictions"
+        assert BackendArchitecture.has_boundary("api") is True, "API boundary should be defined"
+        assert BackendArchitecture.has_boundary("python_application") is True, "Python application boundary should be defined"
+        assert BackendArchitecture.has_boundary("container") is True, "Container boundary should be defined"
+        assert BackendArchitecture.has_boundary("filesystem") is True, "Filesystem boundary should be defined"
+        assert BackendArchitecture.has_boundary("network") is True, "Network boundary should be defined"
+        assert BackendArchitecture.has_boundary("authentication") is True, "Authentication boundary should be defined"
+        assert BackendArchitecture.has_boundary("secret") is True, "Secret boundary should be defined"
+        assert BackendArchitecture.has_boundary("process") is True, "Process boundary should be defined"
+        assert BackendArchitecture.has_boundary("configuration") is True, "Configuration boundary should be defined"
+        assert BackendArchitecture.has_boundary("unknown") is False, "Unknown boundaries should not be accepted"
         print(green("Version 0.15.17.0.0 backend architecture foundation is online."))
         success += 1
     except Exception as e:
@@ -11509,11 +11509,11 @@ def full_test():
         import security
         import configuration
         from configuration.backend_architecture import BackendArchitecture
-        assert BackendArchitecture.is_defined() is True
-        assert services is not None
-        assert api is not None
-        assert security is not None
-        assert configuration is not None
+        assert BackendArchitecture.is_defined() is True, "Backend architecture should remain fully defined"
+        assert services is not None, "Services package should import successfully"
+        assert api is not None, "API package should import successfully"
+        assert security is not None, "Security package should import successfully"
+        assert configuration is not None, "Configuration package should import successfully"
         print(green("Version 0.15.17.0.1 backend package boundaries are online."))
         success += 1
     except Exception as e:
@@ -11525,19 +11525,35 @@ def full_test():
         tests += 1
         from services.backend_application import BackendApplication
         application = BackendApplication()
-        assert application.is_initialized() is False
+        assert application.is_initialized() is False, "Backend application should not be initialized before startup"
         architecture = application.get_architecture()
-        assert architecture is not None
-        assert "authorities" in architecture
-        assert "boundaries" in architecture
+        assert architecture is not None, "Backend application should expose the backend architecture"
+        assert "authorities" in architecture, "Backend architecture should contain authority definitions"
+        assert "boundaries" in architecture, "Backend architecture should contain boundary definitions"
         application.initialize()
-        assert application.is_initialized() is True
+        assert application.is_initialized() is True, "Backend application should be initialized after startup"
         print(green("Version 0.15.17.0.2 backend application assembly is online."))
         success += 1
     except Exception as e:
         failure += 1
         print(red(e))
         print(red("Version 0.15.17.0.2 failed."))
+
+    try:
+        tests += 1
+        import main
+        assert hasattr(main, "main"), "main.py should expose the authoritative main entry point"
+        assert callable(main.main), "main.main should be callable"
+        from services.backend_application import BackendApplication
+        application = BackendApplication()
+        application.initialize()
+        assert application.is_initialized() is True, "Backend application should initialize through the authoritative entry-point architecture"
+        print(green("Version 0.15.17.0.3 authoritative backend entry point is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.15.17.0.3 failed."))
 
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))

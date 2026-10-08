@@ -673,5 +673,8 @@ Backend package boundaries are online.
 Version 0.15.17.0.2
 Backend application assembly is online.
 
+Version 0.15.17.0.3
+Authoritative backend entry point is online.
+
 Version 0.15.18
 Python Process Lifecycle is online.
