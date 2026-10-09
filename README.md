@@ -694,5 +694,8 @@ Environment configuration is online.
 Version 0.15.17.1.5
 Runtime environment validation integration is online.
 
+Version 0.15.17.1.6
+Runtime startup failure handling is online.
+
 Version 0.15.18
 Python Process Lifecycle is online.

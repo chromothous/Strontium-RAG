@@ -11836,6 +11836,59 @@ def full_test():
         print(red(e))
         print(red("Version 0.15.17.1.5 failed."))
 
+    try:
+        tests += 1
+        from unittest.mock import patch
+        from classes.logger import Logger
+        from classes.error_handler import ErrorHandler, StrontiumError
+        from configuration.python_runtime import PythonRuntime
+        logger = Logger()
+        error_handler = ErrorHandler(logger)
+        runtime = PythonRuntime(logger, required_dependencies=("json",), error_handler=error_handler)
+        assert runtime.error_handler is error_handler, "Python runtime should retain the injected ErrorHandler instance"
+        assert runtime.logger is logger, "Python runtime and ErrorHandler should use the same Logger instance"
+        assert runtime.validate_dependencies() is True, "Available dependencies should pass runtime validation"
+        assert error_handler.get_errors() == [], "Successful dependency validation should not create error records"
+        failing_runtime = PythonRuntime(logger, required_dependencies=("__strontium_missing_runtime_dependency__",), error_handler=error_handler)
+        try:
+            failing_runtime.validate_dependencies()
+            assert False, "Runtime should reject an unavailable required dependency"
+        except RuntimeError as error:
+            assert "__strontium_missing_runtime_dependency__" in str(error), "Missing dependency exception should identify the unavailable module"
+        errors = error_handler.get_errors()
+        assert len(errors) == 1, "Missing dependency failure should create exactly one ErrorHandler record"
+        assert isinstance(errors[0], StrontiumError), "Runtime validation failure should be represented as a StrontiumError"
+        assert errors[0].category == "system", "Runtime validation failure should use the system error category"
+        assert errors[0].component == "python_runtime", "Runtime validation failure should identify the Python runtime component"
+        assert errors[0].operation == "validate_dependencies", "Runtime validation failure should identify the failing operation"
+        assert errors[0].details["missing_dependencies"] == ("__strontium_missing_runtime_dependency__",), "Runtime error details should identify missing dependency modules"
+        assert errors[0].is_non_recoverable() is True, "Missing required dependency failure should be marked non-recoverable"
+        diagnostics = error_handler.get_diagnostics()
+        assert len(diagnostics) == 1, "Missing dependency failure should create one diagnostic entry"
+        assert diagnostics[0]["level"] == "error", "Runtime dependency failure should be recorded at error level"
+        assert diagnostics[0]["component"] == "python_runtime", "Runtime diagnostic should identify its component"
+        assert diagnostics[0]["operation"] == "validate_dependencies", "Runtime diagnostic should identify the failing operation"
+        unexpected_handler = ErrorHandler(logger)
+        unexpected_runtime = PythonRuntime(logger, error_handler=unexpected_handler)
+        with patch("configuration.python_runtime.os.chdir", side_effect=OSError("simulated activation failure")):
+            try:
+                unexpected_runtime.activate_project_root()
+                assert False, "Runtime should reject a failed project-root activation"
+            except RuntimeError as error:
+                assert str(error) == "Python project root activation failed.", "Project-root activation failure should expose a controlled error message"
+        unexpected_errors = unexpected_handler.get_errors()
+        assert len(unexpected_errors) == 1, "Unexpected activation failure should create exactly one ErrorHandler record"
+        assert unexpected_errors[0].category == "unexpected", "Unexpected operating-system failure should use the unexpected error category"
+        assert unexpected_errors[0].component == "python_runtime", "Unexpected activation failure should identify the Python runtime component"
+        assert unexpected_errors[0].operation == "activate_project_root", "Unexpected activation failure should identify the activation operation"
+        assert isinstance(unexpected_errors[0].cause, OSError), "Unexpected activation failure should preserve the original OSError"
+        print(green("Version 0.15.17.1.6 runtime startup failure handling is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.15.17.1.6 failed."))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
