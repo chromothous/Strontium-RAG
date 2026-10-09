@@ -682,5 +682,8 @@ Python runtime boundary foundation is online.
 Version 0.15.17.1.1
 Deterministic working directory and import boundaries are online.
 
+Version 0.15.17.1.2
+Python dependency model and availability are online.
+
 Version 0.15.18
 Python Process Lifecycle is online.

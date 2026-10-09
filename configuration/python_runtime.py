@@ -1,3 +1,4 @@
+import importlib.util
 import os
 import sys
 from pathlib import Path
@@ -5,10 +6,18 @@ from classes.logger import Logger
 
 
 class PythonRuntime:
-    def __init__(self, logger):
+    def __init__(self, logger, required_dependencies=()):
         if not isinstance(logger, Logger):
             raise ValueError("Python runtime logger must be a Logger")
+        if not isinstance(required_dependencies, (list, tuple)):
+            logger.error("Python runtime dependencies must be a list or tuple.")
+            raise ValueError("Python runtime dependencies must be a list or tuple")
+        for dependency in required_dependencies:
+            if not isinstance(dependency, str) or not dependency.strip():
+                logger.error("Python runtime dependency names must be non-empty strings.")
+                raise ValueError("Python runtime dependency names must be non-empty strings")
         self.logger = logger
+        self.required_dependencies = tuple(dependency.strip() for dependency in required_dependencies)
         self.executable = str(Path(sys.executable).resolve())
         self.version = sys.version_info
         self.project_root = Path(__file__).resolve().parent.parent
@@ -68,7 +77,30 @@ class PythonRuntime:
             "project_root": self.get_project_root(),
             "working_directory": str(self.working_directory),
             "module_path": self.module_path,
+            "required_dependencies": self.required_dependencies,
         }
+
+    def validate_dependencies(self):
+        missing_dependencies = []
+        for dependency in self.required_dependencies:
+            try:
+                specification = importlib.util.find_spec(dependency)
+            except (ImportError, ModuleNotFoundError, ValueError):
+                specification = None
+            if specification is None:
+                missing_dependencies.append(dependency)
+        if missing_dependencies:
+            message = (
+                "Required Python dependency modules are unavailable: "
+                + ", ".join(missing_dependencies)
+            )
+            self.logger.error(message)
+            raise RuntimeError(message)
+        self.logger.info(
+            f"Python runtime dependency validation passed: "
+            f"{len(self.required_dependencies)} dependencies checked."
+        )
+        return True
 
     def validate(self):
         if not self.is_available():
@@ -80,5 +112,6 @@ class PythonRuntime:
         if not self.has_import_path():
             self.logger.error("Python project root is missing from the import path.")
             raise RuntimeError("Python project root is missing from the import path.")
+        self.validate_dependencies()
         self.logger.info("Python runtime validation passed.")
         return True

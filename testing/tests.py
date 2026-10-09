@@ -11650,6 +11650,43 @@ def full_test():
         print(red(e))
         print(red("Version 0.15.17.1.1 failed."))
 
+    try:
+        tests += 1
+        from classes.logger import Logger
+        from configuration.python_runtime import PythonRuntime
+        logger = Logger()
+        runtime = PythonRuntime(logger, required_dependencies=("json", "os"))
+        assert runtime.logger is logger, "Python runtime should retain the injected Logger instance"
+        assert runtime.required_dependencies == ("json", "os"), "Python runtime should preserve its declared dependency modules"
+        assert runtime.validate_dependencies() is True, "Available Python dependency modules should pass dependency validation"
+        assert runtime.validate() is True, "Python runtime should validate successfully when all declared dependencies are available"
+        definition = runtime.get_definition()
+        assert "required_dependencies" in definition, "Python runtime definition should expose required dependencies"
+        assert definition["required_dependencies"] == ("json", "os"), "Python runtime definition should preserve the declared dependencies"
+        missing_runtime = PythonRuntime(logger, required_dependencies=("__strontium_missing_runtime_dependency__",))
+        try:
+            missing_runtime.validate_dependencies()
+            assert False, "Python runtime should reject a required dependency module that is unavailable"
+        except RuntimeError as error:
+            assert "Required Python dependency modules are unavailable" in str(error), "Missing dependency should produce a descriptive runtime error"
+            assert "__strontium_missing_runtime_dependency__" in str(error), "Dependency error should identify the unavailable module"
+        try:
+            PythonRuntime(logger, required_dependencies="json")
+            assert False, "Python runtime should reject dependencies supplied as a string instead of a list or tuple"
+        except ValueError as error:
+            assert str(error) == "Python runtime dependencies must be a list or tuple", "Invalid dependency collection should produce the expected validation error"
+        try:
+            PythonRuntime(logger, required_dependencies=("",))
+            assert False, "Python runtime should reject an empty dependency name"
+        except ValueError as error:
+            assert str(error) == "Python runtime dependency names must be non-empty strings", "Empty dependency name should produce the expected validation error"
+        print(green("Version 0.15.17.1.2 Python dependency model and availability are online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.15.17.1.2 failed."))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
