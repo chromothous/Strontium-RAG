@@ -11927,10 +11927,12 @@ def full_test():
         print(red(e))
         print(red("Version 0.15.17.1.7 failed."))
 
+    import os
+    import sys
+    backend_lifecycle_original_directory = os.getcwd()
+    backend_lifecycle_original_module_path = list(sys.path)
     try:
         tests += 1
-        import os
-        import sys
         from classes.logger import Logger
         from classes.error_handler import ErrorHandler
         from configuration.environment_configuration import EnvironmentConfiguration
@@ -11984,10 +11986,8 @@ def full_test():
         print(red(e))
         print(red("Version 0.15.17.1.8 failed."))
     finally:
-        if "original_directory" in locals():
-            os.chdir(original_directory)
-        if "original_module_path" in locals():
-            sys.path[:] = original_module_path
+        os.chdir(backend_lifecycle_original_directory)
+        sys.path[:] = backend_lifecycle_original_module_path
 
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
