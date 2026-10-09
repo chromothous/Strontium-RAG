@@ -12060,6 +12060,37 @@ def full_test():
         print(red(e))
         print(red("Version 0.15.17.1.9 failed."))
 
+    try:
+        tests += 1
+        from pathlib import Path
+        project_root = Path(__file__).resolve().parent.parent
+        dockerignore_path = project_root / ".dockerignore"
+        assert dockerignore_path.is_file(), "Docker build-context exclusion file should exist at the project root"
+        rules = {line.strip() for line in dockerignore_path.read_text(encoding="utf-8").splitlines() if line.strip()}
+        assert ".git/" in rules, "Docker build context should exclude Git metadata"
+        assert ".venv/" in rules, "Docker build context should exclude the project virtual environment"
+        assert "__pycache__/" in rules, "Docker build context should exclude Python bytecode caches"
+        assert ".env" in rules, "Docker build context should exclude the local environment file"
+        assert ".env.*" in rules, "Docker build context should exclude environment-specific files"
+        assert "!.env.example" in rules, "Docker build context should explicitly allow the safe environment example"
+        assert "secrets/" in rules, "Docker build context should exclude the local secrets directory"
+        assert "**/secrets/" in rules, "Docker build context should exclude nested secrets directories"
+        assert "*.pem" in rules, "Docker build context should exclude PEM private-key or certificate files"
+        assert "*.key" in rules, "Docker build context should exclude private-key files"
+        assert "*.p12" in rules, "Docker build context should exclude PKCS#12 credential files"
+        assert "*.pfx" in rules, "Docker build context should exclude PFX credential files"
+        assert "data/" in rules, "Docker build context should exclude local persistent data"
+        assert "**/data/" in rules, "Docker build context should exclude nested data directories"
+        assert "*.log" in rules, "Docker build context should exclude local log files"
+        assert ".vscode/" in rules, "Docker build context should exclude local VS Code configuration"
+        assert ".idea/" in rules, "Docker build context should exclude local IDE configuration"
+        print(green("Version 0.15.17.2.0 container build-context security is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.15.17.2.0 failed."))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

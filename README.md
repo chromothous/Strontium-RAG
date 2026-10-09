@@ -706,5 +706,8 @@ Runtime and application lifecycle integration is online.
 Version 0.15.17.1.9
 Secret and provider configuration validation are online.
 
+Version 0.15.17.2.0
+container build-context security is online.
+
 Version 0.15.18
 Python Process Lifecycle is online.
