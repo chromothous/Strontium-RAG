@@ -11687,6 +11687,59 @@ def full_test():
         print(red(e))
         print(red("Version 0.15.17.1.2 failed."))
 
+    try:
+        tests += 1
+        from classes.logger import Logger
+        from configuration.startup_configuration import StartupConfiguration
+        logger = Logger()
+        configuration = StartupConfiguration(logger)
+        assert configuration.logger is logger, "Startup configuration should retain the injected Logger instance"
+        assert configuration.environment == "production", "Startup configuration should default to production"
+        assert configuration.debug is False, "Debug mode should be disabled by default"
+        assert configuration.development_server is False, "Development server should be disabled by default"
+        assert configuration.is_production() is True, "Default startup configuration should identify production mode"
+        assert configuration.validate() is True, "Valid production startup configuration should pass validation"
+        definition = configuration.get_definition()
+        assert definition["environment"] == "production", "Startup configuration definition should report production mode"
+        assert definition["debug"] is False, "Startup configuration definition should report debug disabled"
+        assert definition["development_server"] is False, "Startup configuration definition should report development server disabled"
+        development = StartupConfiguration(logger, environment="development", debug=True, development_server=True)
+        assert development.environment == "development", "Development configuration should preserve the selected environment"
+        assert development.debug is True, "Development configuration should preserve explicitly enabled debug mode"
+        assert development.development_server is True, "Development configuration should preserve an explicitly enabled development server"
+        assert development.is_production() is False, "Development configuration should not identify as production"
+        try:
+            StartupConfiguration(logger, environment="production", debug=True)
+            assert False, "Production configuration should reject enabled debug mode"
+        except ValueError as error:
+            assert str(error) == "Debug mode is not allowed in production.", "Production debug rejection should provide the expected error"
+        try:
+            StartupConfiguration(logger, environment="production", development_server=True)
+            assert False, "Production configuration should reject the development server"
+        except ValueError as error:
+            assert str(error) == "Development server is not allowed in production.", "Production development-server rejection should provide the expected error"
+        try:
+            StartupConfiguration(logger, environment="unknown")
+            assert False, "Startup configuration should reject an unsupported environment"
+        except ValueError as error:
+            assert str(error) == "Startup environment is not supported.", "Unsupported environment should provide the expected error"
+        try:
+            StartupConfiguration(logger, debug="true")
+            assert False, "Startup configuration should reject a string used as a debug boolean"
+        except ValueError as error:
+            assert str(error) == "Startup debug setting must be a boolean.", "Invalid debug type should provide the expected error"
+        try:
+            StartupConfiguration(None)
+            assert False, "Startup configuration should reject a missing Logger"
+        except ValueError as error:
+            assert str(error) == "Startup configuration logger must be a Logger", "Missing Logger should provide the expected error"
+        print(green("Version 0.15.17.1.3 startup configuration is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.15.17.1.3 failed."))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
