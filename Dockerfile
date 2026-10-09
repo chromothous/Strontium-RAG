@@ -1,34 +1,40 @@
-FROM python:3-slim-bookworm
+FROM python:3.12-slim AS builder
 
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
+ENV PIP_NO_CACHE_DIR=1
 
-RUN groupadd --system --gid 10001 strontium \
-    && useradd --system --uid 10001 --gid strontium \
-        --home-dir /nonexistent \
-        --shell /usr/sbin/nologin \
-        strontium \
-    && mkdir -p /container/app \
-        /container/config \
-        /container/data \
-        /container/tmp \
-    && chown 10001:10001 /container/data /container/tmp \
-    && chmod 0555 /container/config \
-    && chmod 0750 /container/data /container/tmp
+WORKDIR /build
+
+COPY . /build/
+
+RUN mkdir -p /install \
+    && if [ -f requirements.txt ]; then pip install --prefix=/install -r requirements.txt; fi
+
+FROM python:3.12-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    TMPDIR=/container/tmp
 
 WORKDIR /container/app
 
-COPY --chown=root:root classes/ ./classes/
-COPY --chown=root:root constants/ ./constants/
-COPY --chown=root:root testing/ ./testing/
-COPY --chown=root:root services/ ./services/
-COPY --chown=root:root api/ ./api/
-COPY --chown=root:root security/ ./security/
-COPY --chown=root:root configuration/ ./configuration/
-COPY --chown=root:root main.py ./main.py
+RUN groupadd --gid 10001 strontium \
+    && useradd --uid 10001 --gid 10001 --create-home --home-dir /home/strontium --shell /usr/sbin/nologin strontium \
+    && mkdir -p /container/config /container/data /container/tmp \
+    && chown -R 10001:10001 /container/data /container/tmp /home/strontium \
+    && chmod 700 /container/tmp
 
-RUN chmod -R a-w /container/app \
-    && chmod 0555 /container
+COPY --from=builder /install/ /usr/local/
+
+COPY --from=builder --chown=10001:10001 /build/main.py /container/app/main.py
+COPY --from=builder --chown=10001:10001 /build/classes/ /container/app/classes/
+COPY --from=builder --chown=10001:10001 /build/constants/ /container/app/constants/
+COPY --from=builder --chown=10001:10001 /build/testing/ /container/app/testing/
+COPY --from=builder --chown=10001:10001 /build/services/ /container/app/services/
+COPY --from=builder --chown=10001:10001 /build/api/ /container/app/api/
+COPY --from=builder --chown=10001:10001 /build/security/ /container/app/security/
+COPY --from=builder --chown=10001:10001 /build/configuration/ /container/app/configuration/
+
+RUN chmod -R a-w /container/app
 
 USER 10001:10001
 

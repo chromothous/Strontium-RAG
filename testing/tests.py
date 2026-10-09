@@ -12065,26 +12065,31 @@ def full_test():
         from pathlib import Path
         project_root = Path(__file__).resolve().parent.parent
         dockerignore_path = project_root / ".dockerignore"
-        assert dockerignore_path.is_file(), "Docker build-context exclusion file should exist at the project root"
-        rules = {line.strip() for line in dockerignore_path.read_text(encoding="utf-8").splitlines() if line.strip()}
-        assert ".git/" in rules, "Docker build context should exclude Git metadata"
-        assert ".venv/" in rules, "Docker build context should exclude the project virtual environment"
-        assert "__pycache__/" in rules, "Docker build context should exclude Python bytecode caches"
-        assert ".env" in rules, "Docker build context should exclude the local environment file"
-        assert ".env.*" in rules, "Docker build context should exclude environment-specific files"
-        assert "!.env.example" in rules, "Docker build context should explicitly allow the safe environment example"
-        assert "secrets/" in rules, "Docker build context should exclude the local secrets directory"
-        assert "**/secrets/" in rules, "Docker build context should exclude nested secrets directories"
-        assert "*.pem" in rules, "Docker build context should exclude PEM private-key or certificate files"
-        assert "*.key" in rules, "Docker build context should exclude private-key files"
-        assert "*.p12" in rules, "Docker build context should exclude PKCS#12 credential files"
-        assert "*.pfx" in rules, "Docker build context should exclude PFX credential files"
-        assert "data/" in rules, "Docker build context should exclude local persistent data"
-        assert "**/data/" in rules, "Docker build context should exclude nested data directories"
-        assert "*.log" in rules, "Docker build context should exclude local log files"
-        assert ".vscode/" in rules, "Docker build context should exclude local VS Code configuration"
-        assert ".idea/" in rules, "Docker build context should exclude local IDE configuration"
-        print(green("Version 0.15.17.2.0 container build-context security is online."))
+        if Path("/.dockerenv").is_file():
+            assert (project_root / "main.py").is_file(), "Container should contain the application entry point"
+            assert not dockerignore_path.exists(), "Docker build-context configuration should not be packaged into the runtime image"
+            print(green("Version 0.15.17.2.0 host-side build-context configuration is correctly excluded from the runtime image."))
+        else:
+            assert dockerignore_path.is_file(), "Docker build-context exclusion file should exist at the project root"
+            rules = {line.strip() for line in dockerignore_path.read_text(encoding="utf-8").splitlines() if line.strip()}
+            assert ".git/" in rules, "Docker build context should exclude Git metadata"
+            assert ".venv/" in rules, "Docker build context should exclude the project virtual environment"
+            assert "__pycache__/" in rules, "Docker build context should exclude Python bytecode caches"
+            assert ".env" in rules, "Docker build context should exclude the local environment file"
+            assert ".env.*" in rules, "Docker build context should exclude environment-specific files"
+            assert "!.env.example" in rules, "Docker build context should explicitly allow the safe environment example"
+            assert "secrets/" in rules, "Docker build context should exclude the local secrets directory"
+            assert "**/secrets/" in rules, "Docker build context should exclude nested secrets directories"
+            assert "*.pem" in rules, "Docker build context should exclude PEM files"
+            assert "*.key" in rules, "Docker build context should exclude private-key files"
+            assert "*.p12" in rules, "Docker build context should exclude PKCS#12 files"
+            assert "*.pfx" in rules, "Docker build context should exclude PFX files"
+            assert "data/" in rules, "Docker build context should exclude local persistent data"
+            assert "**/data/" in rules, "Docker build context should exclude nested data directories"
+            assert "*.log" in rules, "Docker build context should exclude local log files"
+            assert ".vscode/" in rules, "Docker build context should exclude local VS Code configuration"
+            assert ".idea/" in rules, "Docker build context should exclude local IDE configuration"
+            print(green("Version 0.15.17.2.0 container build-context security is online."))
         success += 1
     except Exception as e:
         failure += 1
@@ -12093,35 +12098,95 @@ def full_test():
 
     try:
         tests += 1
+        import os
         from pathlib import Path
         project_root = Path(__file__).resolve().parent.parent
         dockerfile_path = project_root / "Dockerfile"
-        assert dockerfile_path.is_file(), "Container Dockerfile should exist at the project root"
-        dockerfile = dockerfile_path.read_text(encoding="utf-8")
-        assert "FROM python:3-slim-bookworm" in dockerfile, "Container should use the selected slim Python base image"
-        assert "ENV PYTHONDONTWRITEBYTECODE=1" in dockerfile, "Container should disable Python bytecode writes"
-        assert "ENV PYTHONUNBUFFERED=1" in dockerfile, "Container should enable unbuffered Python output"
-        assert "groupadd --system --gid 10001 strontium" in dockerfile, "Container should define a dedicated non-root group"
-        assert "useradd --system --uid 10001" in dockerfile, "Container should define a dedicated non-root user"
-        assert "WORKDIR /container/app" in dockerfile, "Container should define its application working directory"
-        assert "COPY --chown=root:root classes/ ./classes/" in dockerfile, "Container should copy classes with root ownership"
-        assert "COPY --chown=root:root testing/ ./testing/" in dockerfile, "Container should preserve the existing cumulative test suite"
-        assert "COPY --chown=root:root main.py ./main.py" in dockerfile, "Container should include the existing main.py entry point"
-        assert 'mkdir -p /container/app' in dockerfile, "Container should establish the application directory"
-        assert "/container/config" in dockerfile, "Container should establish a separate configuration directory"
-        assert "/container/data" in dockerfile, "Container should establish a separate data directory"
-        assert "/container/tmp" in dockerfile, "Container should establish a separate temporary directory"
-        assert "chown 10001:10001 /container/data /container/tmp" in dockerfile, "Container should assign writable runtime directories to the application user"
-        assert "chmod 0555 /container/config" in dockerfile, "Application user should not be able to write to the configuration directory"
-        assert "chmod -R a-w /container/app" in dockerfile, "Copied application code should be read-only"
-        assert "USER 10001:10001" in dockerfile, "Container should execute as the dedicated non-root user"
-        assert 'CMD ["python", "main.py"]' in dockerfile, "Container startup should preserve the current main.py execution behavior"
-        print(green("Version 0.15.17.2.1 secure container image foundation is online."))
+        if Path("/.dockerenv").is_file():
+            assert os.geteuid() == 10001, "Container application should run as the dedicated non-root user"
+            assert (project_root / "main.py").is_file(), "Container should contain the application entry point"
+            assert not os.access(project_root / "main.py", os.W_OK), "Application entry point should not be writable by the container user"
+            assert not os.access(project_root, os.W_OK), "Application directory should not be writable by the container user"
+            assert os.access("/container/tmp", os.W_OK), "Container user should be able to write to temporary storage"
+            assert not dockerfile_path.exists(), "Dockerfile should remain outside the runtime application image"
+            print(green("Version 0.15.17.2.1 container image non-root and filesystem protections are online."))
+        else:
+            assert dockerfile_path.is_file(), "Container Dockerfile should exist at the project root"
+            dockerfile = dockerfile_path.read_text(encoding="utf-8")
+            assert "FROM python:3-slim-bookworm" in dockerfile, "Container should use the selected slim Python base image"
+            assert "ENV PYTHONDONTWRITEBYTECODE=1" in dockerfile, "Container should disable Python bytecode writes"
+            assert "ENV PYTHONUNBUFFERED=1" in dockerfile, "Container should enable unbuffered Python output"
+            assert "groupadd --system --gid 10001 strontium" in dockerfile, "Container should define a dedicated non-root group"
+            assert "useradd --system --uid 10001" in dockerfile, "Container should define a dedicated non-root user"
+            assert "WORKDIR /container/app" in dockerfile, "Container should define its application working directory"
+            assert "COPY --chown=root:root testing/ ./testing/" in dockerfile, "Container should preserve the cumulative test suite"
+            assert "COPY --chown=root:root main.py ./main.py" in dockerfile, "Container should include the existing main.py entry point"
+            assert "/container/config" in dockerfile, "Container should establish a separate configuration directory"
+            assert "/container/data" in dockerfile, "Container should establish a separate data directory"
+            assert "/container/tmp" in dockerfile, "Container should establish a separate temporary directory"
+            assert "chmod -R a-w /container/app" in dockerfile, "Copied application code should be read-only"
+            assert "USER 10001:10001" in dockerfile, "Container should execute as the dedicated non-root user"
+            assert 'CMD ["python", "main.py"]' in dockerfile, "Container startup should preserve the current main.py execution behavior"
+            print(green("Version 0.15.17.2.1 secure container image foundation is online."))
         success += 1
     except Exception as e:
         failure += 1
         print(red(e))
         print(red("Version 0.15.17.2.1 failed."))
+
+    try:
+        tests += 1
+        import os
+        from pathlib import Path
+        project_root = Path(__file__).resolve().parent.parent
+        if Path("/.dockerenv").is_file():
+            status_lines = Path("/proc/self/status").read_text(encoding="utf-8").splitlines()
+            status_values = {line.split(":",1)[0].strip():line.split(":",1)[1].strip() for line in status_lines if ":" in line}
+            assert int(os.geteuid()) != 0, "Container should run as a non-root user"
+            assert status_values.get("NoNewPrivs") == "1", "Container should enforce no-new-privileges"
+            assert int(status_values.get("CapEff","-1"),16) == 0, "Container should have no effective Linux capabilities"
+            root_mounts = [line.split() for line in Path("/proc/self/mountinfo").read_text(encoding="utf-8").splitlines() if len(line.split()) > 5 and line.split()[4] == "/"]
+            assert root_mounts, "Container root filesystem mount should be discoverable"
+            assert "ro" in root_mounts[0][5].split(","), "Container root filesystem should be read-only"
+            assert os.environ.get("TMPDIR") == "/container/tmp", "Container should configure its temporary directory"
+            assert Path("/container/tmp").is_dir(), "Container temporary directory should exist"
+            assert os.access("/container/tmp",os.W_OK), "Container temporary directory should be writable"
+            assert not os.access("/container/app",os.W_OK), "Container application directory should not be writable"
+            assert not os.access("/container/config",os.W_OK), "Container configuration directory should not be writable"
+            assert Path("/container/app/main.py").is_file(), "Container should include the application entry point"
+            assert not Path("/container/app/Dockerfile").exists(), "Dockerfile should remain outside the runtime application image"
+            assert not Path("/container/app/docker-compose.yml").exists(), "Docker Compose configuration should remain outside the runtime image"
+            assert not Path("/container/app/.dockerignore").exists(), "Docker build-context configuration should not be packaged into the runtime image"
+        else:
+            compose_path = project_root / "docker-compose.yml"
+            dockerfile_path = project_root / "Dockerfile"
+            dockerignore_path = project_root / ".dockerignore"
+            assert compose_path.is_file(), "Docker Compose configuration should exist at the project root"
+            assert dockerfile_path.is_file(), "Dockerfile should exist at the project root"
+            assert dockerignore_path.is_file(), "Docker build-context exclusion file should exist at the project root"
+            compose_source = compose_path.read_text(encoding="utf-8")
+            dockerfile_source = dockerfile_path.read_text(encoding="utf-8")
+            dockerignore_source = dockerignore_path.read_text(encoding="utf-8")
+            assert "read_only: true" in compose_source, "Container root filesystem should be read-only"
+            assert "no-new-privileges:true" in compose_source, "Docker Compose should enable no-new-privileges"
+            assert "cap_drop:" in compose_source and "- ALL" in compose_source, "Container should drop all Linux capabilities"
+            assert "mem_limit:" in compose_source, "Container memory usage should be limited"
+            assert "cpus:" in compose_source, "Container CPU usage should be limited"
+            assert "pids_limit:" in compose_source, "Container process count should be limited"
+            assert "tmpfs:" in compose_source, "Container should configure temporary storage"
+            assert "volumes:" in compose_source, "Container should define explicit storage volumes"
+            assert "networks:" in compose_source, "Container should define an explicit network"
+            assert "user: \"10001:10001\"" in compose_source, "Container should specify its non-root user"
+            assert "COPY . /container/app" not in dockerfile_source, "Dockerfile should not copy the entire build context into the runtime application directory"
+            assert "Dockerfile" in dockerignore_source, "Docker build context should exclude the Dockerfile from runtime application packaging"
+            assert "docker-compose.yml" in dockerignore_source, "Docker build context should exclude Docker Compose configuration"
+            assert ".dockerignore" in dockerignore_source, "Docker build context should exclude its own configuration file"
+        print(green("Version 0.15.17.2.2 Docker Compose runtime security is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.15.17.2.2 failed."))
 
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))

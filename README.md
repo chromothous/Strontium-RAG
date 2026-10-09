@@ -712,5 +712,8 @@ container build-context security is online.
 Version 0.15.17.2.1
 Secure container image foundation is online.
 
+Version 0.15.17.2.2
+Docker Compose runtime security is online.
+
 Version 0.15.18
 Python Process Lifecycle is online.

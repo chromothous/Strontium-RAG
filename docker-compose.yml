@@ -1,0 +1,31 @@
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    user: "10001:10001"
+    working_dir: /container/app
+    read_only: true
+    security_opt:
+      - "no-new-privileges:true"
+    cap_drop:
+      - ALL
+    mem_limit: 512m
+    cpus: 1.0
+    pids_limit: 128
+    tmpfs:
+      - /container/tmp:rw,noexec,nosuid,nodev,size=64m,uid=10001,gid=10001,mode=0700
+    volumes:
+      - ./data:/container/data
+      - ./config:/container/config:ro
+    environment:
+      TMPDIR: /container/tmp
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONUNBUFFERED: "1"
+    networks:
+      - strontium_backend
+
+networks:
+  strontium_backend:
+    driver: bridge
