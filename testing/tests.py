@@ -12091,6 +12091,38 @@ def full_test():
         print(red(e))
         print(red("Version 0.15.17.2.0 failed."))
 
+    try:
+        tests += 1
+        from pathlib import Path
+        project_root = Path(__file__).resolve().parent.parent
+        dockerfile_path = project_root / "Dockerfile"
+        assert dockerfile_path.is_file(), "Container Dockerfile should exist at the project root"
+        dockerfile = dockerfile_path.read_text(encoding="utf-8")
+        assert "FROM python:3-slim-bookworm" in dockerfile, "Container should use the selected slim Python base image"
+        assert "ENV PYTHONDONTWRITEBYTECODE=1" in dockerfile, "Container should disable Python bytecode writes"
+        assert "ENV PYTHONUNBUFFERED=1" in dockerfile, "Container should enable unbuffered Python output"
+        assert "groupadd --system --gid 10001 strontium" in dockerfile, "Container should define a dedicated non-root group"
+        assert "useradd --system --uid 10001" in dockerfile, "Container should define a dedicated non-root user"
+        assert "WORKDIR /container/app" in dockerfile, "Container should define its application working directory"
+        assert "COPY --chown=root:root classes/ ./classes/" in dockerfile, "Container should copy classes with root ownership"
+        assert "COPY --chown=root:root testing/ ./testing/" in dockerfile, "Container should preserve the existing cumulative test suite"
+        assert "COPY --chown=root:root main.py ./main.py" in dockerfile, "Container should include the existing main.py entry point"
+        assert 'mkdir -p /container/app' in dockerfile, "Container should establish the application directory"
+        assert "/container/config" in dockerfile, "Container should establish a separate configuration directory"
+        assert "/container/data" in dockerfile, "Container should establish a separate data directory"
+        assert "/container/tmp" in dockerfile, "Container should establish a separate temporary directory"
+        assert "chown 10001:10001 /container/data /container/tmp" in dockerfile, "Container should assign writable runtime directories to the application user"
+        assert "chmod 0555 /container/config" in dockerfile, "Application user should not be able to write to the configuration directory"
+        assert "chmod -R a-w /container/app" in dockerfile, "Copied application code should be read-only"
+        assert "USER 10001:10001" in dockerfile, "Container should execute as the dedicated non-root user"
+        assert 'CMD ["python", "main.py"]' in dockerfile, "Container startup should preserve the current main.py execution behavior"
+        print(green("Version 0.15.17.2.1 secure container image foundation is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.15.17.2.1 failed."))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
