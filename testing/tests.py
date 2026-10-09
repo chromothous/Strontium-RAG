@@ -11740,6 +11740,66 @@ def full_test():
         print(red(e))
         print(red("Version 0.15.17.1.3 failed."))
 
+    try:
+        tests += 1
+        from classes.logger import Logger
+        from configuration.environment_configuration import EnvironmentConfiguration
+        logger = Logger()
+        environment_values = {"STRONTIUM_TEST_VALUE": "sample-value", "STRONTIUM_EMPTY_VALUE": "   "}
+        configuration = EnvironmentConfiguration(logger, required_variables=("STRONTIUM_TEST_VALUE",), environment_values=environment_values)
+        assert configuration.logger is logger, "Environment configuration should retain the injected Logger"
+        assert configuration.required_variables == ("STRONTIUM_TEST_VALUE",), "Environment configuration should preserve required variable names"
+        assert configuration.get("STRONTIUM_TEST_VALUE") == "sample-value", "Environment configuration should return the requested variable value"
+        assert configuration.get("STRONTIUM_UNKNOWN_VALUE", "fallback") == "fallback", "Environment configuration should return the supplied default for a missing variable"
+        assert configuration.is_present("STRONTIUM_TEST_VALUE") is True, "A populated environment variable should be reported as present"
+        assert configuration.is_present("STRONTIUM_EMPTY_VALUE") is False, "A whitespace-only environment variable should be reported as absent"
+        assert configuration.is_present("STRONTIUM_UNKNOWN_VALUE") is False, "A missing environment variable should be reported as absent"
+        assert configuration.require("STRONTIUM_TEST_VALUE") == "sample-value", "Required environment access should return a populated value"
+        assert configuration.validate_required() is True, "All present required environment variables should pass validation"
+        definition = configuration.get_definition()
+        assert definition["required_variables"] == ("STRONTIUM_TEST_VALUE",), "Environment definition should expose required variable names"
+        assert definition["present_required_variables"] == ("STRONTIUM_TEST_VALUE",), "Environment definition should identify present required variables"
+        assert definition["missing_required_variables"] == (), "Environment definition should contain no missing variables when validation succeeds"
+        assert "sample-value" not in str(definition), "Environment definition should not expose environment variable values"
+        missing_configuration = EnvironmentConfiguration(logger, required_variables=("STRONTIUM_MISSING_VALUE", "STRONTIUM_EMPTY_VALUE"), environment_values=environment_values)
+        try:
+            missing_configuration.validate_required()
+            assert False, "Environment configuration should reject missing or empty required variables"
+        except RuntimeError as error:
+            assert "STRONTIUM_MISSING_VALUE" in str(error), "Missing-variable error should identify the missing variable"
+            assert "STRONTIUM_EMPTY_VALUE" in str(error), "Missing-variable error should identify the empty variable"
+        try:
+            missing_configuration.require("STRONTIUM_UNKNOWN_VALUE")
+            assert False, "Required environment access should reject a missing variable"
+        except RuntimeError as error:
+            assert "STRONTIUM_UNKNOWN_VALUE" in str(error), "Required-variable error should identify the requested variable"
+        try:
+            EnvironmentConfiguration(logger, required_variables="STRONTIUM_TEST_VALUE", environment_values=environment_values)
+            assert False, "Environment configuration should reject a string instead of a list or tuple of required variables"
+        except ValueError as error:
+            assert str(error) == "Required environment variables must be a list or tuple", "Invalid required-variable collection should produce the expected error"
+        try:
+            EnvironmentConfiguration(logger, required_variables=("",), environment_values=environment_values)
+            assert False, "Environment configuration should reject an empty variable name"
+        except ValueError as error:
+            assert str(error) == "Environment variable names must be non-empty strings", "Empty variable name should produce the expected error"
+        try:
+            EnvironmentConfiguration(logger, environment_values=["invalid"])
+            assert False, "Environment configuration should reject a non-mapping environment source"
+        except ValueError as error:
+            assert str(error) == "Environment values must be a mapping", "Invalid environment source should produce the expected error"
+        try:
+            EnvironmentConfiguration(None)
+            assert False, "Environment configuration should reject a missing Logger"
+        except ValueError as error:
+            assert str(error) == "Environment configuration logger must be a Logger", "Missing Logger should produce the expected error"
+        print(green("Version 0.15.17.1.4 environment configuration is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.15.17.1.4 failed."))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

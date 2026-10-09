@@ -688,5 +688,8 @@ Python dependency model and availability are online.
 Version 0.15.17.1.3
 Startup configuration is online.
 
+Version 0.15.17.1.4
+Environment configuration is online.
+
 Version 0.15.18
 Python Process Lifecycle is online.
