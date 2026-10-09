@@ -11889,6 +11889,44 @@ def full_test():
         print(red(e))
         print(red("Version 0.15.17.1.6 failed."))
 
+    try:
+        tests += 1
+        from classes.logger import Logger
+        from services.backend_application import BackendApplication
+        logger = Logger()
+        application = BackendApplication(logger)
+        assert application.logger is logger, "Backend application should retain the injected Logger"
+        assert application.is_initialized() is False, "Backend application should begin uninitialized"
+        assert application.is_shutting_down() is False, "Backend application should not initially be shutting down"
+        assert application.is_shutdown() is False, "Backend application should not initially be shut down"
+        assert application.initialize() is True, "Backend application should initialize successfully"
+        assert application.is_initialized() is True, "Backend application should report initialized after startup"
+        assert application.is_shutdown() is False, "Successful startup should clear the shutdown-complete state"
+        assert application.shutdown() is True, "Backend application should shut down successfully"
+        assert application.is_initialized() is False, "Backend application should no longer be initialized after shutdown"
+        assert application.is_shutting_down() is False, "Backend application should not remain in the shutting-down state after shutdown completes"
+        assert application.is_shutdown() is True, "Backend application should report completed shutdown"
+        shutdown_state = application.get_lifecycle_state()
+        assert shutdown_state["initialized"] is False, "Shutdown lifecycle state should report initialized as false"
+        assert shutdown_state["shutting_down"] is False, "Completed shutdown state should report shutting_down as false"
+        assert shutdown_state["shutdown_complete"] is True, "Completed shutdown state should report shutdown_complete as true"
+        assert application.shutdown() is True, "Repeated shutdown should complete idempotently"
+        assert application.is_shutdown() is True, "Repeated shutdown should preserve the completed state"
+        assert application.initialize() is True, "Backend application should support reinitialization after shutdown"
+        assert application.is_initialized() is True, "Reinitialized backend application should report initialized"
+        assert application.is_shutdown() is False, "Reinitialization should clear the previous shutdown-complete state"
+        assert application.shutdown() is True, "Backend application should support shutdown after reinitialization"
+        assert application.is_shutdown() is True, "Second lifecycle cycle should finish in the shutdown state"
+        uninitialized_application = BackendApplication(logger)
+        assert uninitialized_application.shutdown() is True, "Backend application should handle shutdown before initialization"
+        assert uninitialized_application.is_shutdown() is True, "Shutdown before initialization should leave a defined terminal state"
+        print(green("Version 0.15.17.1.7 graceful shutdown and lifecycle recovery are online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.15.17.1.7 failed."))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

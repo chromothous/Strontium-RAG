@@ -697,5 +697,8 @@ Runtime environment validation integration is online.
 Version 0.15.17.1.6
 Runtime startup failure handling is online.
 
+Version 0.15.17.1.7
+Graceful shutdown and lifecycle recovery are online.
+
 Version 0.15.18
 Python Process Lifecycle is online.
