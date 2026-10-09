@@ -3,6 +3,7 @@ import os
 import sys
 from pathlib import Path
 from classes.logger import Logger
+from configuration.environment_configuration import EnvironmentConfiguration
 
 
 class PythonRuntime:
@@ -102,7 +103,17 @@ class PythonRuntime:
         )
         return True
 
-    def validate(self):
+    def validate_environment(self, environment_configuration):
+        if not isinstance(environment_configuration, EnvironmentConfiguration):
+            self.logger.error("Python runtime requires an EnvironmentConfiguration instance.")
+            raise ValueError(
+                "Python runtime requires an EnvironmentConfiguration instance"
+            )
+        environment_configuration.validate_required()
+        self.logger.info("Python runtime environment validation passed.")
+        return True
+
+    def validate(self, environment_configuration=None):
         if not self.is_available():
             self.logger.error("Python 3 runtime is not available.")
             raise RuntimeError("Python 3 runtime is not available.")
@@ -113,5 +124,7 @@ class PythonRuntime:
             self.logger.error("Python project root is missing from the import path.")
             raise RuntimeError("Python project root is missing from the import path.")
         self.validate_dependencies()
+        if environment_configuration is not None:
+            self.validate_environment(environment_configuration)
         self.logger.info("Python runtime validation passed.")
         return True

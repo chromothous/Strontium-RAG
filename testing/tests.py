@@ -11800,6 +11800,42 @@ def full_test():
         print(red(e))
         print(red("Version 0.15.17.1.4 failed."))
 
+    try:
+        tests += 1
+        from classes.logger import Logger
+        from configuration.environment_configuration import EnvironmentConfiguration
+        from configuration.python_runtime import PythonRuntime
+        logger = Logger()
+        runtime = PythonRuntime(logger, required_dependencies=("json", "os"))
+        environment_values = {"STRONTIUM_RUNTIME_TEST_KEY": "test-value"}
+        environment_configuration = EnvironmentConfiguration(logger, required_variables=("STRONTIUM_RUNTIME_TEST_KEY",), environment_values=environment_values)
+        assert runtime.logger is logger, "Python runtime should retain its injected Logger"
+        assert runtime.validate_environment(environment_configuration) is True, "Python runtime should validate a valid environment configuration"
+        assert runtime.validate(environment_configuration) is True, "Complete runtime validation should include the supplied environment configuration"
+        missing_configuration = EnvironmentConfiguration(logger, required_variables=("STRONTIUM_RUNTIME_MISSING_KEY",), environment_values={})
+        try:
+            runtime.validate_environment(missing_configuration)
+            assert False, "Python runtime should reject an environment configuration with missing required variables"
+        except RuntimeError as error:
+            assert "STRONTIUM_RUNTIME_MISSING_KEY" in str(error), "Environment validation failure should identify the missing variable"
+        try:
+            runtime.validate_environment(None)
+            assert False, "Python runtime should reject a missing environment configuration when explicit environment validation is requested"
+        except ValueError as error:
+            assert str(error) == "Python runtime requires an EnvironmentConfiguration instance", "Invalid environment configuration should produce the expected validation error"
+        try:
+            runtime.validate("invalid")
+            assert False, "Python runtime should reject an invalid environment configuration supplied to complete validation"
+        except ValueError as error:
+            assert str(error) == "Python runtime requires an EnvironmentConfiguration instance", "Complete runtime validation should reject an invalid environment configuration with a descriptive error"
+        assert runtime.validate() is True, "Runtime validation without an explicitly supplied environment configuration should preserve existing behavior"
+        print(green("Version 0.15.17.1.5 runtime environment validation integration is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.15.17.1.5 failed."))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
