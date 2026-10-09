@@ -700,5 +700,8 @@ Runtime startup failure handling is online.
 Version 0.15.17.1.7
 Graceful shutdown and lifecycle recovery are online.
 
+Version 0.15.17.1.8
+Runtime and application lifecycle integration is online.
+
 Version 0.15.18
 Python Process Lifecycle is online.

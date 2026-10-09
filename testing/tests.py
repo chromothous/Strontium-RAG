@@ -11927,6 +11927,68 @@ def full_test():
         print(red(e))
         print(red("Version 0.15.17.1.7 failed."))
 
+    try:
+        tests += 1
+        import os
+        import sys
+        from classes.logger import Logger
+        from classes.error_handler import ErrorHandler
+        from configuration.environment_configuration import EnvironmentConfiguration
+        from configuration.startup_configuration import StartupConfiguration
+        from services.backend_application import BackendApplication
+        logger = Logger()
+        environment_configuration = EnvironmentConfiguration(logger, required_variables=("STRONTIUM_BACKEND_STARTUP_TEST_KEY",), environment_values={"STRONTIUM_BACKEND_STARTUP_TEST_KEY": "test-value"})
+        startup_configuration = StartupConfiguration(logger)
+        application = BackendApplication(logger, required_dependencies=("json", "os"), environment_configuration=environment_configuration, startup_configuration=startup_configuration)
+        assert application.logger is logger, "Backend application should retain the injected Logger"
+        assert application.error_handler.logger is logger, "Backend application ErrorHandler should share the injected Logger"
+        assert application.architecture.logger is logger, "Backend architecture should share the injected Logger"
+        assert application.runtime.logger is logger, "Python runtime should share the injected Logger"
+        assert application.runtime.error_handler is application.error_handler, "Python runtime should use the application's shared ErrorHandler"
+        assert application.environment_configuration is environment_configuration, "Backend application should retain its environment configuration"
+        assert application.startup_configuration is startup_configuration, "Backend application should retain its startup configuration"
+        assert application.initialize() is True, "Backend application should initialize after runtime and environment validation"
+        assert application.is_initialized() is True, "Backend application should report initialized after successful startup"
+        assert application.runtime_validated is True, "Backend application should record successful runtime validation"
+        assert application.is_shutdown() is False, "Initialized backend application should not report completed shutdown"
+        assert application.initialize() is True, "Repeated initialization should preserve an already initialized application"
+        assert application.shutdown() is True, "Backend application should shut down successfully"
+        assert application.is_initialized() is False, "Shutdown application should no longer report initialized"
+        assert application.runtime_validated is False, "Shutdown application should clear its active runtime validation state"
+        assert application.is_shutdown() is True, "Backend application should report completed shutdown"
+        assert application.initialize() is True, "Backend application should reinitialize after shutdown"
+        assert application.is_initialized() is True, "Reinitialized application should report initialized"
+        assert application.runtime_validated is True, "Reinitialized application should validate its runtime again"
+        assert application.shutdown() is True, "Backend application should shut down successfully after reinitialization"
+        failed_environment = EnvironmentConfiguration(logger, required_variables=("STRONTIUM_BACKEND_MISSING_KEY",), environment_values={})
+        failed_application = BackendApplication(logger, environment_configuration=failed_environment)
+        original_diagnostics = len(failed_application.error_handler.get_diagnostics())
+        try:
+            failed_application.initialize()
+            assert False, "Backend application should reject startup when a required environment variable is missing"
+        except RuntimeError as error:
+            assert "STRONTIUM_BACKEND_MISSING_KEY" in str(error), "Failed startup should identify the missing required environment variable"
+        assert failed_application.is_initialized() is False, "Application with failed startup should remain uninitialized"
+        assert failed_application.runtime_validated is False, "Application with failed startup should not report successful runtime validation"
+        assert len(failed_application.error_handler.get_diagnostics()) > original_diagnostics, "Failed application startup should be recorded by the existing ErrorHandler"
+        assert isinstance(failed_application.error_handler, ErrorHandler), "Backend application should retain the existing Strontium ErrorHandler type"
+        lifecycle = application.get_lifecycle_state()
+        assert lifecycle["initialized"] is False, "Completed shutdown lifecycle state should report initialized as false"
+        assert lifecycle["shutting_down"] is False, "Completed shutdown lifecycle state should report shutting_down as false"
+        assert lifecycle["shutdown_complete"] is True, "Completed shutdown lifecycle state should report shutdown_complete as true"
+        assert lifecycle["runtime_validated"] is False, "Completed shutdown lifecycle state should report runtime validation as inactive"
+        print(green("Version 0.15.17.1.8 runtime and application lifecycle integration is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.15.17.1.8 failed."))
+    finally:
+        if "original_directory" in locals():
+            os.chdir(original_directory)
+        if "original_module_path" in locals():
+            sys.path[:] = original_module_path
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
