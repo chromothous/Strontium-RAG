@@ -703,5 +703,8 @@ Graceful shutdown and lifecycle recovery are online.
 Version 0.15.17.1.8.0 and 0.15.17.1.8.1
 Runtime and application lifecycle integration is online.
 
+Version 0.15.17.1.9
+Secret and provider configuration validation are online.
+
 Version 0.15.18
 Python Process Lifecycle is online.

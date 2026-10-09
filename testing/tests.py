@@ -11927,11 +11927,11 @@ def full_test():
         print(red(e))
         print(red("Version 0.15.17.1.7 failed."))
 
-    import os
-    import sys
-    backend_lifecycle_original_directory = os.getcwd()
-    backend_lifecycle_original_module_path = list(sys.path)
     try:
+        import os
+        import sys
+        backend_lifecycle_original_directory = os.getcwd()
+        backend_lifecycle_original_module_path = list(sys.path)
         tests += 1
         from classes.logger import Logger
         from classes.error_handler import ErrorHandler
@@ -11988,6 +11988,77 @@ def full_test():
     finally:
         os.chdir(backend_lifecycle_original_directory)
         sys.path[:] = backend_lifecycle_original_module_path
+
+    try:
+        tests += 1
+        from classes.logger import Logger
+        from configuration.environment_configuration import EnvironmentConfiguration
+        logger = Logger()
+        secret_value = "test-secret-do-not-log"
+        provider_key = "test-provider-key-do-not-log"
+        environment_values = {
+            "STRONTIUM_GENERAL_TEST": "configured",
+            "STRONTIUM_SECRET_TEST": secret_value,
+            "STRONTIUM_PROVIDER_TEST": "test-provider",
+            "STRONTIUM_PROVIDER_KEY_TEST": provider_key,
+        }
+        configuration = EnvironmentConfiguration(
+            logger,
+            required_variables=("STRONTIUM_GENERAL_TEST",),
+            environment_values=environment_values,
+            required_secrets=("STRONTIUM_SECRET_TEST",),
+            required_provider_variables=("STRONTIUM_PROVIDER_TEST", "STRONTIUM_PROVIDER_KEY_TEST"),
+        )
+        assert configuration.logger is logger, "Environment configuration should retain the injected Logger"
+        assert configuration.validate_secrets() is True, "Present required secrets should pass secret validation"
+        assert configuration.validate_provider_configuration() is True, "Present provider settings should pass provider configuration validation"
+        assert configuration.validate_required() is True, "All present general, secret, and provider requirements should pass combined validation"
+        assert configuration.require_secret("STRONTIUM_SECRET_TEST") == secret_value, "Registered required secret should be retrievable by an authorized component"
+        definition = configuration.get_definition()
+        assert definition["present_required_secrets"] == ("STRONTIUM_SECRET_TEST",), "Configuration definition should report the present secret by name"
+        assert definition["missing_required_secrets"] == (), "Configuration definition should report no missing secrets"
+        assert definition["present_required_provider_variables"] == ("STRONTIUM_PROVIDER_TEST", "STRONTIUM_PROVIDER_KEY_TEST"), "Configuration definition should report present provider settings"
+        assert definition["missing_required_provider_variables"] == (), "Configuration definition should report no missing provider settings"
+        assert secret_value not in str(definition), "Configuration definition must not expose secret values"
+        assert provider_key not in str(definition), "Configuration definition must not expose provider credential values"
+        missing_secret_configuration = EnvironmentConfiguration(logger, environment_values={}, required_secrets=("STRONTIUM_MISSING_SECRET_TEST",))
+        try:
+            missing_secret_configuration.validate_secrets()
+            assert False, "Secret validation should reject a missing required secret"
+        except RuntimeError as error:
+            assert "STRONTIUM_MISSING_SECRET_TEST" in str(error), "Missing-secret error should identify the missing variable by name"
+            assert secret_value not in str(error), "Missing-secret error must not expose secret values"
+        missing_provider_configuration = EnvironmentConfiguration(logger, environment_values={"STRONTIUM_PROVIDER_NAME_TEST": "test-provider"}, required_provider_variables=("STRONTIUM_PROVIDER_NAME_TEST", "STRONTIUM_PROVIDER_MISSING_KEY_TEST"))
+        try:
+            missing_provider_configuration.validate_provider_configuration()
+            assert False, "Provider validation should reject missing provider configuration"
+        except RuntimeError as error:
+            assert "STRONTIUM_PROVIDER_MISSING_KEY_TEST" in str(error), "Provider validation error should identify the missing setting"
+            assert provider_key not in str(error), "Provider validation error must not expose credential values"
+        combined_missing_configuration = EnvironmentConfiguration(logger, environment_values={}, required_variables=("STRONTIUM_MISSING_GENERAL_TEST",), required_secrets=("STRONTIUM_MISSING_SECRET_TEST",), required_provider_variables=("STRONTIUM_MISSING_PROVIDER_TEST",))
+        try:
+            combined_missing_configuration.validate_required()
+            assert False, "Combined configuration validation should reject missing requirements across every category"
+        except RuntimeError as error:
+            assert "STRONTIUM_MISSING_GENERAL_TEST" in str(error), "Combined validation error should identify the missing general variable"
+            assert "STRONTIUM_MISSING_SECRET_TEST" in str(error), "Combined validation error should identify the missing secret"
+            assert "STRONTIUM_MISSING_PROVIDER_TEST" in str(error), "Combined validation error should identify the missing provider setting"
+        try:
+            configuration.require_secret("STRONTIUM_GENERAL_TEST")
+            assert False, "Secret retrieval should reject variables not registered as required secrets"
+        except ValueError as error:
+            assert "not registered as a required secret" in str(error), "Unregistered secret access should provide a descriptive error"
+        try:
+            EnvironmentConfiguration(logger, required_secrets="STRONTIUM_SECRET_TEST", environment_values=environment_values)
+            assert False, "Environment configuration should reject a string instead of a list or tuple of required secrets"
+        except ValueError as error:
+            assert str(error) == "Required secrets must be a list or tuple", "Invalid required-secret collection should produce the expected error"
+        print(green("Version 0.15.17.1.9 secret and provider configuration validation are online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.15.17.1.9 failed."))
 
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
