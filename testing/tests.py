@@ -11580,6 +11580,36 @@ def full_test():
         print(red(e))
         print(red("Version 0.15.17.1.0 failed."))
 
+    try:
+        tests += 1
+        import os
+        from configuration.python_runtime import PythonRuntime
+        runtime = PythonRuntime()
+        project_root = runtime.get_project_root()
+        assert isinstance(project_root, str), "Python project root should be exposed as a string path"
+        assert os.path.isdir(project_root), "Python project root should identify an existing directory"
+        assert os.path.isfile(os.path.join(project_root, "main.py")), "Python project root should contain the authoritative main.py entry point"
+        assert runtime.has_predictable_working_directory() is True, "Python runtime should identify a predictable project root"
+        assert runtime.has_import_path() is True, "Python project root should be available on the import path"
+        definition = runtime.get_definition()
+        assert definition["project_root"] == project_root, "Python runtime definition should expose the correct project root"
+        assert "module_path" in definition, "Python runtime definition should expose the module search path"
+        assert isinstance(definition["module_path"], tuple), "Python module search path should be represented as a tuple"
+        original_directory = os.getcwd()
+        try:
+            assert runtime.activate_project_root() is True, "Python runtime should activate the project root successfully"
+            assert os.path.realpath(os.getcwd()) == os.path.realpath(project_root), "Python runtime should switch to the authoritative project root"
+            assert runtime.has_import_path() is True, "Python project root should remain available on the import path after activation"
+            assert str(runtime.working_directory) == str(runtime.project_root), "Python runtime should record the activated working directory"
+        finally:
+            os.chdir(original_directory)
+        print(green("Version 0.15.17.1.1 deterministic working directory and import boundaries are online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.15.17.1.1 failed."))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:

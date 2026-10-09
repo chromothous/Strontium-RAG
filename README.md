@@ -679,5 +679,8 @@ Authoritative backend entry point is online.
 Version 0.15.17.1.0
 Python runtime boundary foundation is online.
 
+Version 0.15.17.1.1
+Deterministic working directory and import boundaries are online.
+
 Version 0.15.18
 Python Process Lifecycle is online.
