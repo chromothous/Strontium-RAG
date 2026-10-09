@@ -1,15 +1,20 @@
 import os
 import sys
 from pathlib import Path
+from classes.logger import Logger
 
 
 class PythonRuntime:
-    def __init__(self):
+    def __init__(self, logger):
+        if not isinstance(logger, Logger):
+            raise ValueError("Python runtime logger must be a Logger")
+        self.logger = logger
         self.executable = str(Path(sys.executable).resolve())
         self.version = sys.version_info
         self.project_root = Path(__file__).resolve().parent.parent
         self.working_directory = Path.cwd().resolve()
         self.module_path = self._get_module_path()
+        self.logger.info("Python runtime inspection initialized.")
 
     def _get_module_path(self):
         return tuple(
@@ -34,13 +39,19 @@ class PythonRuntime:
 
     def activate_project_root(self):
         if not self.has_predictable_working_directory():
+            self.logger.error("Python project root is not valid.")
             raise RuntimeError("Python project root is not valid.")
         project_root = str(self.project_root)
+        try:
+            os.chdir(project_root)
+        except OSError as e:
+            self.logger.error(f"Python project root activation failed: {e}")
+            raise RuntimeError("Python project root activation failed.") from e
         if project_root not in self._get_module_path():
             sys.path.insert(0, project_root)
-        os.chdir(project_root)
         self.working_directory = Path.cwd().resolve()
         self.module_path = self._get_module_path()
+        self.logger.info("Python project root activated successfully.")
         return True
 
     def get_version(self):
@@ -61,9 +72,13 @@ class PythonRuntime:
 
     def validate(self):
         if not self.is_available():
+            self.logger.error("Python 3 runtime is not available.")
             raise RuntimeError("Python 3 runtime is not available.")
         if not self.has_predictable_working_directory():
+            self.logger.error("Python project root is not valid.")
             raise RuntimeError("Python project root is not valid.")
         if not self.has_import_path():
+            self.logger.error("Python project root is missing from the import path.")
             raise RuntimeError("Python project root is missing from the import path.")
+        self.logger.info("Python runtime validation passed.")
         return True

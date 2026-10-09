@@ -1,3 +1,6 @@
+from classes.logger import Logger
+
+
 class BackendArchitecture:
     AUTHORITIES = {
         "godot": (
@@ -49,44 +52,48 @@ class BackendArchitecture:
         "configuration",
     )
 
-    @classmethod
-    def get_authority(cls, component):
+    def __init__(self, logger):
+        if not isinstance(logger, Logger):
+            raise ValueError("Backend architecture logger must be a Logger")
+        self.logger = logger
+        self.logger.info("Backend architecture initialized.")
+
+    def get_authority(self, component):
         if not isinstance(component, str):
+            self.logger.error("Backend component must be a string.")
             raise TypeError("Component must be a string.")
         component = component.strip().lower()
-        if component not in cls.AUTHORITIES:
+        if component not in self.AUTHORITIES:
+            self.logger.error(f"Unknown backend component: {component}")
             raise ValueError(f"Unknown backend component: {component}")
-        return cls.AUTHORITIES[component]
+        return self.AUTHORITIES[component]
 
-    @classmethod
-    def has_authority(cls, component, responsibility):
+    def has_authority(self, component, responsibility):
         if not isinstance(responsibility, str):
+            self.logger.error("Backend responsibility must be a string.")
             raise TypeError("Responsibility must be a string.")
         responsibility = responsibility.strip().lower()
-        return responsibility in cls.get_authority(component)
+        return responsibility in self.get_authority(component)
 
-    @classmethod
-    def get_boundaries(cls):
-        return tuple(cls.BOUNDARIES)
+    def get_boundaries(self):
+        return tuple(self.BOUNDARIES)
 
-    @classmethod
-    def has_boundary(cls, boundary):
+    def has_boundary(self, boundary):
         if not isinstance(boundary, str):
+            self.logger.error("Backend boundary must be a string.")
             raise TypeError("Boundary must be a string.")
-        return boundary.strip().lower() in cls.BOUNDARIES
+        return boundary.strip().lower() in self.BOUNDARIES
 
-    @classmethod
-    def get_definition(cls):
+    def get_definition(self):
         return {
             "authorities": {
                 component: tuple(responsibilities)
-                for component, responsibilities in cls.AUTHORITIES.items()
+                for component, responsibilities in self.AUTHORITIES.items()
             },
-            "boundaries": tuple(cls.BOUNDARIES),
+            "boundaries": tuple(self.BOUNDARIES),
         }
 
-    @classmethod
-    def is_defined(cls):
+    def is_defined(self):
         required_components = {
             "godot",
             "api",
@@ -105,10 +112,10 @@ class BackendArchitecture:
             "configuration",
         }
         return (
-            set(cls.AUTHORITIES.keys()) == required_components
-            and set(cls.BOUNDARIES) == required_boundaries
+            set(self.AUTHORITIES.keys()) == required_components
+            and set(self.BOUNDARIES) == required_boundaries
             and all(
                 isinstance(responsibilities, tuple) and responsibilities
-                for responsibilities in cls.AUTHORITIES.values()
+                for responsibilities in self.AUTHORITIES.values()
             )
         )

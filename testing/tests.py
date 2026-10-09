@@ -11468,33 +11468,42 @@ def full_test():
 
     try:
         tests += 1
+        from classes.logger import Logger
         from configuration.backend_architecture import BackendArchitecture
-        assert BackendArchitecture.is_defined() is True, "Backend architecture should be fully defined"
-        definition = BackendArchitecture.get_definition()
+        logger = Logger()
+        architecture = BackendArchitecture(logger)
+        assert architecture.logger is logger, "Backend architecture should retain the injected Logger instance"
+        assert architecture.is_defined() is True, "Backend architecture should be fully defined"
+        definition = architecture.get_definition()
         assert "godot" in definition["authorities"], "Godot authority definition should exist"
         assert "api" in definition["authorities"], "API authority definition should exist"
         assert "python" in definition["authorities"], "Python authority definition should exist"
         assert "docker" in definition["authorities"], "Docker authority definition should exist"
-        assert BackendArchitecture.has_authority("godot", "presentation") is True, "Godot should own presentation"
-        assert BackendArchitecture.has_authority("godot", "interaction") is True, "Godot should own interaction"
-        assert BackendArchitecture.has_authority("api", "authentication") is True, "API should own authentication"
-        assert BackendArchitecture.has_authority("api", "routing") is True, "API should own routing"
-        assert BackendArchitecture.has_authority("python", "ingestion") is True, "Python should own ingestion"
-        assert BackendArchitecture.has_authority("python", "retrieval") is True, "Python should own retrieval"
-        assert BackendArchitecture.has_authority("python", "generation") is True, "Python should own generation"
-        assert BackendArchitecture.has_authority("python", "security_enforcement") is True, "Python should own established security enforcement"
-        assert BackendArchitecture.has_authority("docker", "runtime_isolation") is True, "Docker should own runtime isolation"
-        assert BackendArchitecture.has_authority("docker", "network_restrictions") is True, "Docker should own network restrictions"
-        assert BackendArchitecture.has_boundary("api") is True, "API boundary should be defined"
-        assert BackendArchitecture.has_boundary("python_application") is True, "Python application boundary should be defined"
-        assert BackendArchitecture.has_boundary("container") is True, "Container boundary should be defined"
-        assert BackendArchitecture.has_boundary("filesystem") is True, "Filesystem boundary should be defined"
-        assert BackendArchitecture.has_boundary("network") is True, "Network boundary should be defined"
-        assert BackendArchitecture.has_boundary("authentication") is True, "Authentication boundary should be defined"
-        assert BackendArchitecture.has_boundary("secret") is True, "Secret boundary should be defined"
-        assert BackendArchitecture.has_boundary("process") is True, "Process boundary should be defined"
-        assert BackendArchitecture.has_boundary("configuration") is True, "Configuration boundary should be defined"
-        assert BackendArchitecture.has_boundary("unknown") is False, "Unknown boundaries should not be accepted"
+        assert architecture.has_authority("godot", "presentation") is True, "Godot should own presentation"
+        assert architecture.has_authority("godot", "interaction") is True, "Godot should own interaction"
+        assert architecture.has_authority("api", "authentication") is True, "API should own authentication"
+        assert architecture.has_authority("api", "routing") is True, "API should own routing"
+        assert architecture.has_authority("python", "ingestion") is True, "Python should own ingestion"
+        assert architecture.has_authority("python", "retrieval") is True, "Python should own retrieval"
+        assert architecture.has_authority("python", "generation") is True, "Python should own generation"
+        assert architecture.has_authority("python", "security_enforcement") is True, "Python should own established security enforcement"
+        assert architecture.has_authority("docker", "runtime_isolation") is True, "Docker should own runtime isolation"
+        assert architecture.has_authority("docker", "network_restrictions") is True, "Docker should own network restrictions"
+        assert architecture.has_boundary("api") is True, "API boundary should be defined"
+        assert architecture.has_boundary("python_application") is True, "Python application boundary should be defined"
+        assert architecture.has_boundary("container") is True, "Container boundary should be defined"
+        assert architecture.has_boundary("filesystem") is True, "Filesystem boundary should be defined"
+        assert architecture.has_boundary("network") is True, "Network boundary should be defined"
+        assert architecture.has_boundary("authentication") is True, "Authentication boundary should be defined"
+        assert architecture.has_boundary("secret") is True, "Secret boundary should be defined"
+        assert architecture.has_boundary("process") is True, "Process boundary should be defined"
+        assert architecture.has_boundary("configuration") is True, "Configuration boundary should be defined"
+        assert architecture.has_boundary("unknown") is False, "Unknown boundaries should not be accepted"
+        try:
+            BackendArchitecture(None)
+            assert False, "Backend architecture should reject a missing Logger instance"
+        except ValueError as error:
+            assert str(error) == "Backend architecture logger must be a Logger", "Missing Logger should produce the expected validation error"
         print(green("Version 0.15.17.0.0 backend architecture foundation is online."))
         success += 1
     except Exception as e:
@@ -11508,8 +11517,12 @@ def full_test():
         import api
         import security
         import configuration
+        from classes.logger import Logger
         from configuration.backend_architecture import BackendArchitecture
-        assert BackendArchitecture.is_defined() is True, "Backend architecture should remain fully defined"
+        logger = Logger()
+        architecture = BackendArchitecture(logger)
+        assert architecture.is_defined() is True, "Backend architecture should remain fully defined"
+        assert architecture.logger is logger, "Backend architecture should retain the injected Logger"
         assert services is not None, "Services package should import successfully"
         assert api is not None, "API package should import successfully"
         assert security is not None, "Security package should import successfully"
@@ -11523,8 +11536,12 @@ def full_test():
 
     try:
         tests += 1
+        from classes.logger import Logger
         from services.backend_application import BackendApplication
-        application = BackendApplication()
+        logger = Logger()
+        application = BackendApplication(logger)
+        assert application.logger is logger, "Backend application should retain the injected Logger"
+        assert application.architecture.logger is logger, "Backend application and architecture should share the same Logger instance"
         assert application.is_initialized() is False, "Backend application should not be initialized before startup"
         architecture = application.get_architecture()
         assert architecture is not None, "Backend application should expose the backend architecture"
@@ -11532,7 +11549,14 @@ def full_test():
         assert "boundaries" in architecture, "Backend architecture should contain boundary definitions"
         application.initialize()
         assert application.is_initialized() is True, "Backend application should be initialized after startup"
-        print(green("Version 0.15.17.0.2 backend application assembly is online."))
+        application.initialize()
+        assert application.is_initialized() is True, "Repeated initialization should leave the backend application initialized"
+        try:
+            BackendApplication(None)
+            assert False, "Backend application should reject a missing Logger instance"
+        except ValueError as error:
+            assert str(error) == "Backend application logger must be a Logger", "Missing Logger should produce the expected validation error"
+        print(green("Version 0.15.17.0.2 backend application assembly and logging are online."))
         success += 1
     except Exception as e:
         failure += 1
@@ -11541,14 +11565,13 @@ def full_test():
 
     try:
         tests += 1
-        import main
-        assert hasattr(main, "main"), "main.py should expose the authoritative main entry point"
-        assert callable(main.main), "main.main should be callable"
-        from services.backend_application import BackendApplication
-        application = BackendApplication()
-        application.initialize()
-        assert application.is_initialized() is True, "Backend application should initialize through the authoritative entry-point architecture"
-        print(green("Version 0.15.17.0.3 authoritative backend entry point is online."))
+        from pathlib import Path
+        main_path = Path(__file__).resolve().parent.parent / "main.py"
+        assert main_path.is_file(), "Project main.py entry point should exist"
+        main_source = main_path.read_text(encoding="utf-8")
+        assert "from testing.tests import full_test" in main_source, "main.py should preserve the existing cumulative test runner import"
+        assert "full_test()" in main_source, "main.py should preserve the existing cumulative test runner invocation"
+        print(green("Version 0.15.17.0.3 main.py test runner is preserved."))
         success += 1
     except Exception as e:
         failure += 1
@@ -11557,22 +11580,32 @@ def full_test():
 
     try:
         tests += 1
+        from classes.logger import Logger
         from configuration.python_runtime import PythonRuntime
-        runtime = PythonRuntime()
+        logger = Logger()
+        runtime = PythonRuntime(logger)
+        assert runtime.logger is logger, "Python runtime should retain the injected Logger instance"
         assert runtime.is_available() is True, "Python 3 runtime should be available"
         assert runtime.executable, "Python runtime should expose an executable path"
         assert runtime.version.major == 3, "Python runtime should report Python major version 3"
-        assert runtime.has_predictable_working_directory() is True, "Python runtime should have a valid working directory"
-        assert runtime.has_import_path() is True, "Python runtime should have an available import path"
+        assert runtime.has_predictable_working_directory() is True, "Python runtime should have a valid project root"
+        assert runtime.has_import_path() is True, "Python project root should be available on the import path"
         version = runtime.get_version()
         assert isinstance(version, dict), "Python runtime version should be represented as a dictionary"
         assert version["major"] == 3, "Python runtime version should report major version 3"
         definition = runtime.get_definition()
         assert "executable" in definition, "Python runtime definition should contain the executable"
         assert "version" in definition, "Python runtime definition should contain the Python version"
+        assert "project_root" in definition, "Python runtime definition should contain the project root"
         assert "working_directory" in definition, "Python runtime definition should contain the working directory"
         assert "module_path" in definition, "Python runtime definition should contain the import path"
         assert runtime.validate() is True, "Valid Python runtime configuration should pass validation"
+        assert runtime.logger is logger, "Python runtime should retain its Logger after validation"
+        try:
+            PythonRuntime(None)
+            assert False, "Python runtime should reject a missing Logger instance"
+        except ValueError as error:
+            assert str(error) == "Python runtime logger must be a Logger", "Missing Logger should produce the expected validation error"
         print(green("Version 0.15.17.1.0 Python runtime boundary foundation is online."))
         success += 1
     except Exception as e:
@@ -11583,8 +11616,12 @@ def full_test():
     try:
         tests += 1
         import os
+        import sys
+        from classes.logger import Logger
         from configuration.python_runtime import PythonRuntime
-        runtime = PythonRuntime()
+        logger = Logger()
+        runtime = PythonRuntime(logger)
+        assert runtime.logger is logger, "Python runtime should retain the injected Logger instance"
         project_root = runtime.get_project_root()
         assert isinstance(project_root, str), "Python project root should be exposed as a string path"
         assert os.path.isdir(project_root), "Python project root should identify an existing directory"
@@ -11596,13 +11633,16 @@ def full_test():
         assert "module_path" in definition, "Python runtime definition should expose the module search path"
         assert isinstance(definition["module_path"], tuple), "Python module search path should be represented as a tuple"
         original_directory = os.getcwd()
+        original_module_path = list(sys.path)
         try:
             assert runtime.activate_project_root() is True, "Python runtime should activate the project root successfully"
             assert os.path.realpath(os.getcwd()) == os.path.realpath(project_root), "Python runtime should switch to the authoritative project root"
             assert runtime.has_import_path() is True, "Python project root should remain available on the import path after activation"
             assert str(runtime.working_directory) == str(runtime.project_root), "Python runtime should record the activated working directory"
+            assert runtime.logger is logger, "Python runtime should retain its Logger after activation"
         finally:
             os.chdir(original_directory)
+            sys.path[:] = original_module_path
         print(green("Version 0.15.17.1.1 deterministic working directory and import boundaries are online."))
         success += 1
     except Exception as e:
