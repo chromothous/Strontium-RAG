@@ -11555,6 +11555,31 @@ def full_test():
         print(red(e))
         print(red("Version 0.15.17.0.3 failed."))
 
+    try:
+        tests += 1
+        from configuration.python_runtime import PythonRuntime
+        runtime = PythonRuntime()
+        assert runtime.is_available() is True, "Python 3 runtime should be available"
+        assert runtime.executable, "Python runtime should expose an executable path"
+        assert runtime.version.major == 3, "Python runtime should report Python major version 3"
+        assert runtime.has_predictable_working_directory() is True, "Python runtime should have a valid working directory"
+        assert runtime.has_import_path() is True, "Python runtime should have an available import path"
+        version = runtime.get_version()
+        assert isinstance(version, dict), "Python runtime version should be represented as a dictionary"
+        assert version["major"] == 3, "Python runtime version should report major version 3"
+        definition = runtime.get_definition()
+        assert "executable" in definition, "Python runtime definition should contain the executable"
+        assert "version" in definition, "Python runtime definition should contain the Python version"
+        assert "working_directory" in definition, "Python runtime definition should contain the working directory"
+        assert "module_path" in definition, "Python runtime definition should contain the import path"
+        assert runtime.validate() is True, "Valid Python runtime configuration should pass validation"
+        print(green("Version 0.15.17.1.0 Python runtime boundary foundation is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.15.17.1.0 failed."))
+
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
     else:
