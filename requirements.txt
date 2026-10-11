@@ -1,0 +1,2 @@
+# Strontium RAG runtime dependencies
+# No external dependencies are currently declared.

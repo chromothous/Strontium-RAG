@@ -12141,9 +12141,14 @@ def full_test():
         project_root = Path(__file__).resolve().parent.parent
         if Path("/.dockerenv").is_file():
             status_lines = Path("/proc/self/status").read_text(encoding="utf-8").splitlines()
-            status_values = {line.split(":",1)[0].strip():line.split(":",1)[1].strip() for line in status_lines if ":" in line}
+            status_values = {}
+            for line in status_lines:
+                key, separator, value = line.partition(":")
+                if separator:
+                    status_values[key.strip()] = value.strip()
+            no_new_privileges = status_values.get("NoNewPrivs")
             assert int(os.geteuid()) != 0, "Container should run as a non-root user"
-            assert status_values.get("NoNewPrivs") == "1", "Container should enforce no-new-privileges"
+            assert no_new_privileges == "1", f"Container should enforce no-new-privileges; observed NoNewPrivs={no_new_privileges!r}"
             assert int(status_values.get("CapEff","-1"),16) == 0, "Container should have no effective Linux capabilities"
             root_mounts = [line.split() for line in Path("/proc/self/mountinfo").read_text(encoding="utf-8").splitlines() if len(line.split()) > 5 and line.split()[4] == "/"]
             assert root_mounts, "Container root filesystem mount should be discoverable"
@@ -12176,7 +12181,7 @@ def full_test():
             assert "tmpfs:" in compose_source, "Container should configure temporary storage"
             assert "volumes:" in compose_source, "Container should define explicit storage volumes"
             assert "networks:" in compose_source, "Container should define an explicit network"
-            assert "user: \"10001:10001\"" in compose_source, "Container should specify its non-root user"
+            assert 'user: "10001:10001"' in compose_source, "Container should specify its non-root user"
             assert "COPY . /container/app" not in dockerfile_source, "Dockerfile should not copy the entire build context into the runtime application directory"
             assert "Dockerfile" in dockerignore_source, "Docker build context should exclude the Dockerfile from runtime application packaging"
             assert "docker-compose.yml" in dockerignore_source, "Docker build context should exclude Docker Compose configuration"
@@ -12187,6 +12192,34 @@ def full_test():
         failure += 1
         print(red(e))
         print(red("Version 0.15.17.2.2 failed."))
+
+    try:
+        tests += 1
+        from pathlib import Path
+        project_root = Path(__file__).resolve().parent.parent
+        if Path("/.dockerenv").is_file():
+            assert not Path("/container/app/.env.example").exists(), "Environment template should remain outside the runtime image"
+            assert not Path("/container/app/.env").exists(), "Local environment secrets should remain outside the runtime image"
+        else:
+            env_example_path = project_root / ".env.example"
+            dockerignore_path = project_root / ".dockerignore"
+            assert env_example_path.is_file(), "Environment template should exist at the project root"
+            assert dockerignore_path.is_file(), "Docker build-context exclusion file should exist"
+            env_example_source = env_example_path.read_text(encoding="utf-8")
+            dockerignore_source = dockerignore_path.read_text(encoding="utf-8")
+            env_values = dict(line.strip().split("=",1) for line in env_example_source.splitlines() if line.strip() and not line.lstrip().startswith("#") and "=" in line)
+            assert env_values.get("TMPDIR") == "/container/tmp", "Environment template should document the container temporary directory"
+            assert env_values.get("PYTHONDONTWRITEBYTECODE") == "1", "Environment template should disable Python bytecode generation"
+            assert env_values.get("PYTHONUNBUFFERED") == "1", "Environment template should enable unbuffered Python output"
+            assert ".env" in dockerignore_source.splitlines(), "Docker build context should exclude local environment files"
+            assert ".env.*" in dockerignore_source.splitlines(), "Docker build context should exclude environment templates and variants"
+            assert not any("API_KEY=" in line or "API_TOKEN=" in line or "SECRET=" in line for line in env_values), "Environment template should not define credential values"
+        print(green("Version 0.15.17.2.3 safe environment template is online."))
+        success += 1
+    except Exception as e:
+        failure += 1
+        print(red(e))
+        print(red("Version 0.15.17.2.3 failed."))
 
     if failure > 0:
         print(red(f"There was {failure} failures, please fix."))
